@@ -38,7 +38,7 @@ Dragging the slider changes a layer alpha value that influences the composited r
 * Click to select layers
 
 ### Merge Up / Merge Down buttons
-Merge the currently selected layer with the one above or below, respecting the blend modes of both layers.
+Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode.
 
 ### Select Layer Mask
 Not yet implemented.
