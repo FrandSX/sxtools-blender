@@ -1,0 +1,800 @@
+bl_info = {
+    "name": "SX Tools",
+    "category": "Object",
+}
+
+import bpy
+import time
+import random
+from collections import defaultdict
+
+
+# ------------------------------------------------------------------------
+#    Globals
+# ------------------------------------------------------------------------
+
+global tools, sxglobals
+
+class SXTOOLS_sxglobals(object):
+    def __init__(self):
+        self.refArray = ['layer1', 'layer2', 'layer3', 'layer4', 'layer5', 'layer6', 'layer7']
+        self.refLayerArray = ['layer1', 'layer2', 'layer3', 'layer4', 'layer5', 'layer6', 'layer7', 'composite']
+        self.refColorArray = [[0.5, 0.5, 0.5, 1.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+
+sxglobals = SXTOOLS_sxglobals()
+
+
+# ------------------------------------------------------------------------
+#    Tool Actions
+# ------------------------------------------------------------------------
+
+class SXTOOLS_tools(object):
+    def __init__(self):
+        return None
+
+    def setupGeometry(self):
+        obj = bpy.context.active_object
+        #print("# of vertices=%d" % len(mesh.vertices))
+        #print("# of faces=%d" % len(mesh.polygons))
+
+        if not 'layer1' in bpy.context.active_object.data.vertex_colors.keys():
+            for vcol in bpy.context.active_object.data.vertex_colors:
+                bpy.context.active_object.data.vertex_colors.remove(vcol)
+
+        for layer in sxglobals.refLayerArray:
+            if not layer in bpy.context.active_object.data.vertex_colors.keys():
+                obj.data.vertex_colors.new(name=layer)
+                self.clearLayers([obj, ], layer)
+
+        self.createSXMaterial()
+
+    def clearLayers(self, objects, layer = None):
+        #then = time.time()
+        for obj in objects:
+            if layer is None:
+                for i, layer in enumerate(sxglobals.refLayerArray):
+                    color = sxglobals.refColorArray[i]
+                    self.applyColor([obj, ], layer, color)
+                    setattr(obj.sxtools, layer+'Visibility', True)
+                    setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
+            else:
+                color = sxglobals.refColorArray[sxglobals.refLayerArray.index(layer)]
+                self.applyColor([obj, ], layer, color)
+                setattr(obj.sxtools, layer+'Visibility', True)
+                setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
+
+        #now = time.time()
+        #print("Clear layers: ", now-then, " seconds")
+
+    def calculateBoundingBox(self, vertDict):
+        xmin = None
+        xmax = None
+        ymin = None
+        ymax = None
+        zmin = None
+        zmax = None
+
+        for i, (vert, fvPos) in enumerate(vertDict.items()):
+
+            #print(fvPos[0], fvPos[1], fvPos[2])
+            # first vert
+            if i == 0:
+                if not xmin:
+                    xmin = fvPos[0]
+                if not xmax:
+                    xmax = fvPos[0]
+                if not ymin:
+                    ymin = fvPos[1]
+                if not ymax:
+                    ymax = fvPos[1]
+                if not zmin:
+                    zmin = fvPos[2]
+                if not zmax:
+                    zmax = fvPos[2]
+            else:
+                if fvPos[0] < xmin:
+                    xmin = fvPos[0]
+                elif fvPos[0] > xmax:
+                    xmax = fvPos[0]
+
+                if fvPos[1] < ymin:
+                    ymin = fvPos[1]
+                elif fvPos[1] > ymax:
+                    ymax = fvPos[1]
+
+                if fvPos[2] < zmin:
+                    zmin = fvPos[2]
+                elif fvPos[2] > zmax:
+                    zmax = fvPos[2]
+
+        return ((xmin,xmax), (ymin,ymax), (zmin,zmax))
+
+    def selectionHandler(self, object):
+        objSel = False
+        faceSel = False
+        vertSel = False
+
+        vertLoopDict = defaultdict(list)
+        vertCoDict = defaultdict(list)
+
+        # If components selected, apply to selection
+        if (True in [poly.select for poly in object.data.polygons]):
+            objSel = False
+            faceSel = True
+            vertSel = False
+        elif (True in [vertex.select for vertex in object.data.vertices]):
+            objSel = False
+            faceSel = False
+            vertSel = True
+        else:
+            # Apply to entire object
+            objSel = True
+            faceSel = False
+            vertSel = False
+
+        if objSel or faceSel:
+            for poly in object.data.polygons:
+                if poly.select or objSel:
+                    for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                        vertLoopDict[vert_idx].append(loop_idx)
+                        vertCoDict[vert_idx] = object.data.vertices[vert_idx].co
+        else:
+            for poly in object.data.polygons:
+                for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                    if object.data.vertices[vert_idx].select:
+                        vertLoopDict[vert_idx].append(loop_idx)
+                        vertCoDict[vert_idx] = object.data.vertices[vert_idx].co
+
+        return (vertLoopDict, vertCoDict, objSel, faceSel, vertSel)
+
+    def applyColor(self, objects, layer, color = [0.0, 0.0, 0.0, 0.0], noise = 0.0):   
+        # TODO: Store vertex face ids and vertex indices for vertex selection, use to apply color
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        for object in objects:
+            vertexColors = object.data.vertex_colors[layer].data
+            vertLoopDict = defaultdict(list)
+            vertCoDict = defaultdict(list)
+            
+            dicts = self.selectionHandler(object)
+            vertLoopDict = dicts[0]
+            vertCoDict = dicts[1]
+
+            if noise == 0.0:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        vertexColors[loop_idx].color = color
+            else:
+                noiseColor = [color[0], color[1], color[2], 1.0][:]
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        for i in range(3):
+                            noiseColor[i] = noiseColor[i] + random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
+                        vertexColors[loop_idx].color = noiseColor
+
+        bpy.ops.object.mode_set(mode = mode) 
+
+    def applyRamp(self, objects, layer, ramp, rampmode, noise = 0.0):
+        #then = time.time()
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        for object in objects:
+            vertexColors = object.data.vertex_colors[layer].data
+            vertLoopDict = defaultdict(list)
+            vertCoDict = defaultdict(list)
+            
+            dicts = self.selectionHandler(object)
+            vertLoopDict = dicts[0]
+            vertCoDict = dicts[1]
+            
+            bbx = self.calculateBoundingBox(vertCoDict)
+            xmin = bbx[0][0]
+            xmax = bbx[0][1]
+            ymin = bbx[1][0]
+            ymax = bbx[1][1]
+            zmin = bbx[2][0]
+            zmax = bbx[2][1]
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                for loop_idx in loop_indices:
+                    ratioRaw = None
+                    ratio = None
+
+                    fvPos = vertCoDict[vert_idx]
+                    if rampmode == 'X':
+                        xdiv = float(xmax - xmin)
+                        if xdiv == 0:
+                            xdiv = 1.0
+                        ratioRaw = ((fvPos[0] - xmin) / xdiv)
+                    elif rampmode == 'Y':
+                        ydiv = float(ymax - ymin)
+                        if ydiv == 0:
+                            ydiv = 1.0
+                        ratioRaw = ((fvPos[1] - ymin) / ydiv)
+                    elif rampmode == 'Z':
+                        zdiv = float(zmax - zmin)
+                        if zdiv == 0:
+                            zdiv = 1.0
+                        ratioRaw = ((fvPos[2] - zmin) / zdiv)
+
+                    ratio = max(min(ratioRaw, 1), 0)
+                    vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
+
+        bpy.ops.object.mode_set(mode = mode)
+        #now = time.time()
+        #print("Gradient duration: ", now-then, " seconds")
+
+    def compositeLayers(self, objects = None):
+        #then = time.time()
+        obj = bpy.context.active_object
+        objects = [obj, ]
+        self.blendLayers(objects, sxglobals.refArray, 'composite', 'composite')
+        #now = time.time()
+        #print("Compositing duration: ", now-then, " seconds")
+
+    def blendLayers(self, objects, topLayerArray, baseLayerName, resultLayerName):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        for object in objects:
+            #print("# of vertices=%d" % len(object.vertices))
+            #print("# of faces=%d" % len(object.polygons))
+            resultLayer = object.data.vertex_colors[resultLayerName].data
+            baseLayer = object.data.vertex_colors[baseLayerName].data
+
+            for poly in object.data.polygons:
+                for idx in poly.loop_indices:
+                    if baseLayerName == 'composite':
+                        base = [0.0, 0.0, 0.0, 1.0]
+                    else:
+                        base = [baseLayer[idx].color[0], baseLayer[idx].color[1], baseLayer[idx].color[2], baseLayer[idx].color[3]][:]
+                    for layer in topLayerArray:
+                        if not getattr(object.sxtools, layer+"Visibility"):
+                            continue
+                        else:
+                            blend = getattr(object.sxtools, layer+"BlendMode")
+                            alpha = getattr(object.sxtools, layer+"Alpha")
+                            top = [object.data.vertex_colors[layer].data[idx].color[0], object.data.vertex_colors[layer].data[idx].color[1], object.data.vertex_colors[layer].data[idx].color[2], object.data.vertex_colors[layer].data[idx].color[3]][:]
+                            #fix premul fringes
+                            #if 0.0 < top[3] < 1.0:
+                            #    top[0] = top[0]/float(1.0 - top[3])
+                            #    top[1] = top[1]/float(1.0 - top[3])
+                            #    top[2] = top[2]/float(1.0 - top[3])
+
+                            # alpha blend
+                            if blend == 'ALPHA':
+                                for j in range(3):
+                                    base[j] = (top[j] * (top[3] * alpha) + base[j] * (1 - (top[3] * alpha)))
+                                base[3] += top[3]
+                                if base[3] > 1.0:
+                                    base[3] = 1.0
+                            # additive
+                            elif blend == 'ADD':
+                                for j in range(3):
+                                    base[j] += top[j] * (top[3] * alpha)
+                                base[3] += top[3]
+                                if base[3] > 1.0:
+                                    base[3] = 1.0
+                            # multiply
+                            elif blend == 'MUL':
+                                for j in range(3):
+                                    # layer2 lerp with white using (1-alpha), multiply with layer1
+                                    mul = ((top[j] * (top[3] * alpha) + (1.0 * (1 - (top[3] * alpha)))))
+                                    base[j] = mul * base[j]        
+                    
+                    resultLayer[idx].color = base[:]
+        bpy.ops.object.mode_set(mode = mode)
+
+    def createSXMaterial(self):
+        if 'SXMaterial' not in bpy.data.materials.keys():
+            bpy.data.materials.new(name = 'SXMaterial')
+            bpy.data.materials['SXMaterial'].use_nodes = True
+            bpy.data.materials['SXMaterial'].node_tree.nodes.new(type='ShaderNodeAttribute')
+            bpy.data.materials['SXMaterial'].node_tree.nodes["Attribute"].attribute_name = "composite"
+            input = bpy.data.materials['SXMaterial'].node_tree.nodes['Principled BSDF'].inputs['Base Color']
+            output = bpy.data.materials['SXMaterial'].node_tree.nodes['Attribute'].outputs['Color']
+            bpy.data.materials['SXMaterial'].node_tree.links.new(input, output)
+
+            bpy.data.materials['SXMaterial'].node_tree.nodes.new(type='ShaderNodeValToRGB')
+
+        bpy.context.active_object.active_material = bpy.data.materials['SXMaterial']
+        #bpy.ops.node.add_node(type="ShaderNodeOutputMaterial", use_transform=False)
+        #bpy.ops.node.add_node(type="ShaderNodeBsdfPrincipled", use_transform=False)
+
+    def mergeLayersManager(self, objects, sourceLayer, direction):
+        #TODO: fix layer7 with layerCount
+        forbidden = ['occlusion', 'metallic', 'roughness', 'transmission', 'emission']
+        if (sourceLayer == 'layer1') and (direction == 'UP'):
+            print('SX Tools Error: Cannot merge layer1')
+            return
+        elif (sourceLayer == 'layer7') and (direction == 'DOWN'):
+            print('SX Tools Error: Cannot merge layer7')
+            return
+        elif sourceLayer in forbidden:
+            print('SX Tools Error: Cannot merge material channels')
+            return
+
+        layerIndex = sxglobals.refArray.index(sourceLayer)
+
+        if direction == 'UP':
+            targetLayer = sxglobals.refArray[layerIndex - 1]
+        else:
+            targetLayer = sxglobals.refArray[layerIndex + 1]
+
+        self.mergeLayers(objects, sourceLayer, targetLayer)    
+
+    def mergeLayers(self, objects, sourceLayer, targetLayer):
+        sourceIndex = sxglobals.refArray.index(sourceLayer)
+        targetIndex = sxglobals.refArray.index(targetLayer)
+        layerOrder = sorted((sourceIndex, targetIndex))
+        baseLayer = sxglobals.refArray[layerOrder[0]]
+        topLayer = [sxglobals.refArray[layerOrder[1]], ]
+        
+        obj = bpy.context.active_object
+        if objects is None:
+            objects = [obj, ]
+
+        for object in objects:
+            setattr(obj.sxtools, sourceLayer+'Visibility', True)
+            setattr(obj.sxtools, targetLayer+'Visibility', True)
+
+        self.blendLayers(objects, topLayer, baseLayer, targetLayer)
+        self.clearLayers(objects, sourceLayer)
+
+        for object in objects:
+            setattr(obj.sxtools, sourceLayer+'BlendMode', 'ALPHA')
+            setattr(obj.sxtools, targetLayer+'BlendMode', 'ALPHA')
+
+        bpy.context.active_object.data.vertex_colors.active_index = targetIndex
+
+    def __del__(self):
+        print('SX Tools: Exiting tools')
+
+# Instantiate tools
+tools = SXTOOLS_tools()
+
+def updateLayers(self, context):
+    tools.setupGeometry()
+    tools.compositeLayers()
+    #sxtools.selectedLayerIndex = obj.data.vertex_colors.active_index
+
+def shadingMode(self, context):
+    mode = context.scene.sxtools.shadingmode
+    obj = context.active_object
+    
+    if mode == 'FULL':
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        areas = bpy.context.workspace.screens[0].areas
+        shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+        for area in areas:
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.shading.type = shading
+    elif mode == 'DEBUG':
+        bpy.ops.object.mode_set(mode = 'VERTEX_PAINT')
+        areas = bpy.context.workspace.screens[0].areas
+        shading = 'SOLID'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+        for area in areas:
+            for space in area.spaces:
+                if space.type == 'VIEW_3D':
+                    space.shading.type = shading
+
+    elif mode == 'ALPHA':
+        pass
+
+    tools.compositeLayers()
+
+
+# ------------------------------------------------------------------------
+#    Settings and preferences
+# ------------------------------------------------------------------------
+
+class SXTOOLS_objectprops(bpy.types.PropertyGroup):
+    # TODO: Generate props with an iteration?
+    layer1Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer1BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer1Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer2Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer2BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer2Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer3Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer3BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer3Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer4Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer4BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer4Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer5Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer5BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer5Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer6Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer6BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer6Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+    layer7Alpha: bpy.props.FloatProperty(
+        name = "Opacity",
+        min = 0.0,
+        max = 1.0,
+        default = 1.0,
+        update = updateLayers)
+    layer7BlendMode: bpy.props.EnumProperty(
+        name = "Blend Mode",
+        items=[('ALPHA','Alpha',''),('ADD','Additive',''),('MUL','Multiply','')],
+        default='ALPHA',
+        update = updateLayers)
+    layer7Visibility: bpy.props.BoolProperty(
+        name = "Visibility",
+        default = True,
+        update = updateLayers)
+
+
+class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
+    shadingmode: bpy.props.EnumProperty(
+        name = "Shading Mode",
+        items=[('FULL','Full',''),('DEBUG','Debug',''),('ALPHA','Alpha','')],
+        default='FULL',
+        update = shadingMode)
+
+    fillcolor: bpy.props.FloatVectorProperty(
+        name="Fill Color",
+        subtype="COLOR",
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=(1.0, 1.0, 1.0, 1.0))
+
+    fillnoise: bpy.props.FloatProperty(
+        name = "Noise",
+        min = 0.0,
+        max = 1.0,
+        default = 0.0)
+
+    rampmode: bpy.props.EnumProperty(
+        name = "Ramp Mode",
+        items=[('X','X-Axis',''),('Y','Y-Axis',''),('Z','Z-Axis','')],
+        default='X')
+
+    mergemode: bpy.props.EnumProperty(
+        name = "Merge Mode",
+        items=[('UP','Up',''),('DOWN','Down','')],
+        default='UP')
+
+    expandfill: bpy.props.BoolProperty(
+        name = "Expand Fill",
+        default = False)
+
+    expandramp: bpy.props.BoolProperty(
+        name = "Expand Ramp",
+        default = False)
+
+# ------------------------------------------------------------------------
+#    UI Panel and elements
+# ------------------------------------------------------------------------
+
+class SXTOOLS_PT_panel(bpy.types.Panel):
+
+    bl_idname = "SXTOOLS_PT_panel"
+    bl_label = "SX Tools"    
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+
+    def draw(self, context):
+        obj = context.active_object
+        objType = getattr(obj, 'type', '')
+
+        if objType  in ['MESH','CURVE']:  
+
+            layout = self.layout
+            mesh = context.active_object.data
+            sxtools = context.active_object.sxtools
+            scene = context.scene.sxtools
+            
+            if mesh.vertex_colors.active is None:
+                col = self.layout.column(align = True)
+                col.operator("sxtools.scenesetup", text = "Set Up Object")
+            else:
+                if mesh.vertex_colors.active.name != 'composite':
+                    layer = sxglobals.refArray[mesh.vertex_colors.active_index]
+                    row_shading = self.layout.row(align = True)
+                    row_shading.prop(scene, 'shadingmode', expand = True)
+                    row_blend = self.layout.row(align = True)
+                    row_blend.prop(sxtools, layer+'Visibility')
+                    row_blend.prop(sxtools, layer+'BlendMode', text = 'Blend')
+                    row_alpha = self.layout.row(align = True)
+                    row_alpha.prop(sxtools, layer+'Alpha', slider=True, text = 'Layer Opacity')
+                    
+                layout.template_list("UI_UL_list", "sxtools.layerList", mesh, "vertex_colors", mesh.vertex_colors, "active_index", type = 'DEFAULT')
+
+                if mesh.vertex_colors.active.name != 'composite':
+                    row_merge = self.layout.row(align = True)
+                    row_merge.operator('sxtools.mergeup')
+                    row_merge.operator('sxtools.mergedown')
+                    row_misc = self.layout.row(align = True)
+                    row_misc.operator('sxtools.selmask', text = 'Select Mask')
+                    row_misc.operator('sxtools.clear', text = 'Clear Layer')
+
+                    #col = self.layout.column(align = True)
+
+                    box_fill = layout.box()
+                    row_fill = box_fill.row()
+                    row_fill.prop(scene, "expandfill",
+                        icon="TRIA_DOWN" if scene.expandfill else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+                    row_fill.label(text = 'Apply Color')
+
+                    if scene.expandfill:
+                        row_color = box_fill.row(align = True)
+                        row_color.prop(scene, 'fillcolor')
+                        row_noise = box_fill.row(align = True)
+                        row_noise.prop(scene, 'fillnoise', slider = True)
+                        col_color = box_fill.column(align = True)
+                        col_color.operator('sxtools.applycolor', text = 'Apply')
+
+                    # TODO: Assign fill color from brush color if in vertex paint mode
+                    #color[0] = bpy.data.brushes["Draw"].color[0]
+
+                    box = layout.box()
+                    row4 = box.row()
+                    row4.prop(scene, "expandramp",
+                        icon="TRIA_DOWN" if scene.expandramp else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+
+                    row4.label(text='Apply Gradient')
+                    if scene.expandramp:
+                        layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
+                        row_ramp = self.layout.row(align = True)
+                        row_ramp.prop(scene, 'rampmode', text = 'Mode')
+                        row_ramp.operator('sxtools.applyramp', text = 'Apply')
+
+
+class SXTOOLS_OT_scenesetup(bpy.types.Operator):
+
+    bl_idname = "sxtools.scenesetup"
+    bl_label = "Set Up Object"
+    bl_options = {"UNDO"}
+    bl_description = 'Creates necessary materials and vertex color layers'
+
+    def invoke(self, context, event):
+        tools.setupGeometry()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_applycolor(bpy.types.Operator):
+
+    bl_idname = "sxtools.applycolor"
+    bl_label = "Apply Color"
+    bl_options = {"UNDO"}
+    bl_description = 'Applies fill color to selection'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        layer = context.active_object.data.vertex_colors.active.name
+        color = context.scene.sxtools.fillcolor
+        noise = context.scene.sxtools.fillnoise
+        tools.applyColor([obj, ], layer, color, noise)
+        tools.compositeLayers()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_applyramp(bpy.types.Operator):
+
+    bl_idname = "sxtools.applyramp"
+    bl_label = "Apply Gradient"
+    bl_options = {"UNDO"}
+    bl_description = 'Applies gradient to selection bounding volume across selected axis'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        layer = context.active_object.data.vertex_colors.active.name
+        rampmode = context.scene.sxtools.rampmode
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        tools.applyRamp([obj, ], layer, ramp, rampmode)
+        tools.compositeLayers()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_mergeup(bpy.types.Operator):
+
+    bl_idname = "sxtools.mergeup"
+    bl_label = "Merge Up"
+    bl_options = {"UNDO"}
+    bl_description = 'Merge the selected layer with the one above'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        layer = context.active_object.data.vertex_colors.active.name
+        mergemode = 'UP'
+        tools.mergeLayersManager([obj, ], layer, mergemode)
+        tools.compositeLayers()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_mergedown(bpy.types.Operator):
+
+    bl_idname = "sxtools.mergedown"
+    bl_label = "Merge Down"
+    bl_options = {"UNDO"}
+    bl_description = 'Merge the selected layer with the one below'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        layer = context.active_object.data.vertex_colors.active.name
+        mergemode = 'DOWN'
+        tools.mergeLayersManager([obj, ], layer, mergemode)
+        tools.compositeLayers()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_clearlayers(bpy.types.Operator):
+
+    bl_idname = "sxtools.clear"
+    bl_label = "Clear Layer"
+    bl_options = {"UNDO"}
+    bl_description = 'Shift-click to clear all layers on object or components'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if event.shift:
+            layer = None
+        else:
+            layer = context.active_object.data.vertex_colors.active.name
+
+        tools.clearLayers([obj, ], layer)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_selmask(bpy.types.Operator):
+
+    bl_idname = "sxtools.selmask"
+    bl_label = "Select Layer Mask"
+    bl_options = {"UNDO"}
+    bl_description = 'Shift-click to invert selection'
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if event.shift:
+            layer = None
+        else:
+            layer = context.active_object.data.vertex_colors.active.name
+
+        #tools.clearLayers([obj, ], layer)
+        return {"FINISHED"}
+
+
+# ------------------------------------------------------------------------
+#    Registration and initialization
+# ------------------------------------------------------------------------
+
+classes = (
+    SXTOOLS_objectprops,
+    SXTOOLS_sceneprops,
+    SXTOOLS_OT_scenesetup,
+    SXTOOLS_OT_applycolor,
+    SXTOOLS_OT_applyramp,
+    SXTOOLS_OT_selmask,
+    SXTOOLS_OT_clearlayers,
+    SXTOOLS_OT_mergeup,
+    SXTOOLS_OT_mergedown,
+    SXTOOLS_PT_panel)
+
+def init():
+    # set correct viewport shading mode
+    pass
+
+def register():
+    from bpy.utils import register_class
+    for cls in classes:
+        register_class(cls)
+
+    bpy.types.Object.sxtools = bpy.props.PointerProperty(type=SXTOOLS_objectprops)
+    bpy.types.Scene.sxtools = bpy.props.PointerProperty(type=SXTOOLS_sceneprops)
+    bpy.context.scene.sxtools.shadingMode = 'FULL'
+    init()
+
+def unregister():
+    from bpy.utils import unregister_class
+    for cls in reversed(classes):
+        unregister_class(cls)
+
+    del bpy.types.Object.sxtools
+    del bpy.types.Scene.sxtools
+    del tools
+
+if __name__ == "__main__":
+    try:
+        unregister()
+    except:
+        pass
+    register()
+
+#TODO:
+# - Selection from mask
+# - Noise is not continuous across faces
+# - Exporting to UVs
+# - Filter composite out of layer list
+# - Curvature ramp
+# - Luminance remap ramp
+# - Occlusion baking
+# - Custom hide/show icons to layer view items
+# - Swap / copy layers
+# - Crease sets
+# - Handle layer renaming
+# - Alpha shading mode
