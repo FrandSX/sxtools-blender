@@ -50,5 +50,8 @@ Shift-clicking will clear ALL layers.
 ### Apply Color
 Fills selected objects or components (faces, edges, verts supported). When applying noise, low values (<0.05) seem to provide tolerable results.
 
-### Apply Gradient
+### Gradient Tool
 Fills selected objects or components with a gradient across the selected axis.
+
+### Ambient Occlusion
+A simple occlusion baking tool with selectable ray count.
