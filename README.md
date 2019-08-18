@@ -5,9 +5,17 @@
 ### Overview
 SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs.
 
+### Features
+- Multi-layer vertex color editing
+- Layer blend modes (alpha, additive, multiply)
+- Color filler with noise
+- Color gradient tool
+- Vertex ambient occlusion baking
+
 Installation:
 - Load sxtools.py in Blender scripting view, run script
 - SX Tools will appear in the top right corner of the 3D view
+- The tool will automatically generate vertex color layers and the necessary material
 
 ## The Interface
 ### Shading Modes
