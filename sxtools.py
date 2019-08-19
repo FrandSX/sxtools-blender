@@ -243,13 +243,16 @@ class SXTOOLS_tools(object):
     def compositeLayers(self, objects):
         #then = time.time()
         mode = bpy.context.scene.sxtools.shadingmode
-        layer = bpy.context.active_object.data.vertex_colors.active.name
-        if mode == 'ALPHA':
-            print('alphacomping')
-            self.blendAlpha(objects, layer)
-        else:
-            print('elsecomping')
+        idx = bpy.context.scene.sxtools.selectedlayer
+        layer = sxglobals.refLayerArray[idx]
+
+        if mode == 'FULL':
             self.blendLayers(objects, sxglobals.refArray, 'composite', 'composite')
+        elif mode == 'DEBUG':
+            sxmaterial = bpy.data.materials['SXMaterial']
+            sxmaterial.node_tree.nodes["Attribute"].attribute_name = layer
+        elif mode == 'ALPHA':
+            self.blendAlpha(objects, layer)
         #now = time.time()
         #print("Compositing duration: ", now-then, " seconds")
 
@@ -260,7 +263,6 @@ class SXTOOLS_tools(object):
         for object in objects:
             vertexColors = object.data.vertex_colors
             resultLayer = vertexColors['composite'].data
-
             for poly in object.data.polygons:
                 for idx in poly.loop_indices:
                     top = [
@@ -268,8 +270,8 @@ class SXTOOLS_tools(object):
                         vertexColors[layer].data[idx].color[3],
                         vertexColors[layer].data[idx].color[3],
                         vertexColors[layer].data[idx].color[3]][:]
- 
                     resultLayer[idx].color = top[:]
+
         bpy.ops.object.mode_set(mode = mode)
 
     def blendLayers(self, objects, topLayerArray, baseLayerName, resultLayerName):
@@ -485,27 +487,26 @@ tools = SXTOOLS_tools()
 
 def updateLayers(self, context):
     #print('updateLayers called')
-    #bpy.ops.sxtools.layerchange('INVOKE_DEFAULT')
     shadingMode(self, context)
-    if not sxglobals.updateInProgress:
-        sxglobals.updateInProgress = True
+    #if not sxglobals.updateInProgress:
+        #sxglobals.updateInProgress = True
 
-        objects = context.view_layer.objects.selected
-        idx = context.scene.sxtools.selectedlayer
-        layer = context.active_object.data.vertex_colors.active.name
-        alphaVal = getattr(context.active_object.sxtools, layer+'Alpha')
-        blendVal = getattr(context.active_object.sxtools, layer+'BlendMode')
-        visVal = getattr(context.active_object.sxtools, layer+'Visibility')
+    objects = context.view_layer.objects.selected
+    idx = context.scene.sxtools.selectedlayer
+    layer = sxglobals.refLayerArray[idx]
+    alphaVal = getattr(context.active_object.sxtools, layer+'Alpha')
+    blendVal = getattr(context.active_object.sxtools, layer+'BlendMode')
+    visVal = getattr(context.active_object.sxtools, layer+'Visibility')
 
-        for object in objects:
-            object.data.vertex_colors.active_index = idx
-            setattr(object.sxtools, layer+'Alpha', alphaVal)
-            setattr(object.sxtools, layer+'BlendMode', blendVal)
-            setattr(object.sxtools, layer+'Visibility', visVal)
-            tools.setupGeometry()
+    for object in objects:
+        object.data.vertex_colors.active_index = idx
+        setattr(object.sxtools, layer+'Alpha', alphaVal)
+        setattr(object.sxtools, layer+'BlendMode', blendVal)
+        setattr(object.sxtools, layer+'Visibility', visVal)
+        tools.setupGeometry()
 
-        tools.compositeLayers(objects)
-        sxglobals.updateInProgress = False
+    tools.compositeLayers(objects)
+    #sxglobals.updateInProgress = False
 
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
@@ -542,10 +543,10 @@ def shadingMode(self, context):
 
         sxmaterial.node_tree.nodes['Attribute'].attribute_name = layer
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        sxmaterial.node_tree.links.remove(attrLink)
+        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.links.new(input, output)
 
     elif mode == 'ALPHA':
@@ -558,13 +559,11 @@ def shadingMode(self, context):
 
         sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        sxmaterial.node_tree.links.remove(attrLink)
+        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.links.new(input, output)
-
-    tools.compositeLayers(objects)
 
 
 # ------------------------------------------------------------------------
@@ -573,10 +572,6 @@ def shadingMode(self, context):
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     # TODO: Generate props with an iteration?
-    activeLayerIndex: bpy.props.IntProperty(
-        name = 'Index',
-        default = 0,
-        update=updateLayers)
 
     activeLayerAlpha: bpy.props.FloatProperty(
         name = "Opacity",
@@ -718,7 +713,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('DEBUG','Debug',''),
             ('ALPHA','Alpha','')],
         default='FULL',
-        update = shadingMode)
+        update = updateLayers)
 
     selectedlayer: bpy.props.IntProperty(
         name = 'Selected Layer',
@@ -1053,6 +1048,7 @@ if __name__ == "__main__":
 
 #TODO:
 # - Selection from mask
+# - Applycolor applygradient overwrite alpha toggle
 # - Noise is not continuous across faces
 # - Exporting to UVs
 # - Filter composite out of layer list
@@ -1062,5 +1058,3 @@ if __name__ == "__main__":
 # - Swap / copy layers
 # - Crease sets
 # - Handle layer renaming
-# - Alpha shading mode
-# - Debug -> active colorset to emission?
