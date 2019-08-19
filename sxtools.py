@@ -1,6 +1,11 @@
 bl_info = {
     "name": "SX Tools",
-    "category": "Object",
+    "author": "Jani Kahrama / Secret Exit Ltd.",
+    "version": (0, 0, 1),
+    "blender": (2, 80, 0),
+    "location": "View3D",
+    "description": "Multi-layer vertex paint tool",
+    "category": "Development",
 }
 
 import bpy
@@ -453,7 +458,8 @@ class SXTOOLS_tools(object):
 tools = SXTOOLS_tools()
 
 def updateLayers(self, context):
-    print('updateLayers called')
+    #print('updateLayers called')
+    shadingMode(self, context)
     if not sxglobals.updateInProgress:
         sxglobals.updateInProgress = True
 
@@ -507,9 +513,8 @@ def shadingMode(self, context):
     elif mode == 'ALPHA':
         pass
 
-    print('shadingchange: ', objects.keys())
-    tools.compositeLayers(objects)
-
+    #print('shadingchange: ', objects.keys())
+    #tools.compositeLayers(objects)
 
 
 # ------------------------------------------------------------------------
@@ -972,7 +977,6 @@ def register():
 
     bpy.types.Object.sxtools = bpy.props.PointerProperty(type=SXTOOLS_objectprops)
     bpy.types.Scene.sxtools = bpy.props.PointerProperty(type=SXTOOLS_sceneprops)
-    bpy.context.scene.sxtools.shadingMode = 'FULL'
     init()
 
 def unregister():
@@ -982,7 +986,8 @@ def unregister():
 
     del bpy.types.Object.sxtools
     del bpy.types.Scene.sxtools
-    del tools
+    #del tools
+    #del sxglobals
 
 if __name__ == "__main__":
     try:
