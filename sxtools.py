@@ -19,6 +19,8 @@ global tools, sxglobals
 
 class SXTOOLS_sxglobals(object):
     def __init__(self):
+        self.updateInProgress = False
+        self.syncLayerEnable = True
         self.refArray = [
             'layer1', 'layer2', 'layer3', 'layer4',
             'layer5', 'layer6', 'layer7']
@@ -43,39 +45,39 @@ class SXTOOLS_tools(object):
         return None
 
     def setupGeometry(self):
-        obj = bpy.context.active_object
-        mesh = bpy.context.active_object.data
-        #print("# of vertices=%d" % len(mesh.vertices))
-        #print("# of faces=%d" % len(mesh.polygons))
+        objects = bpy.context.view_layer.objects.selected
+        for object in objects:
+            mesh = object.data
 
-        if not 'layer1' in mesh.vertex_colors.keys():
-            for vcol in mesh.vertex_colors:
-                mesh.vertex_colors.remove(vcol)
+            if not 'layer1' in mesh.vertex_colors.keys():
+                for vcol in mesh.vertex_colors:
+                    mesh.vertex_colors.remove(vcol)
 
-        for layer in sxglobals.refLayerArray:
-            if not layer in mesh.vertex_colors.keys():
-                mesh.vertex_colors.new(name=layer)
-                self.clearLayers([obj, ], layer)
+            for layer in sxglobals.refLayerArray:
+                if not layer in mesh.vertex_colors.keys():
+                    mesh.vertex_colors.new(name=layer)
+                    self.clearLayers([object, ], layer)
 
         self.createSXMaterial()
 
     def clearLayers(self, objects, layer = None):
-        #then = time.time()
+        sxglobals.syncLayerEnable = False
         for obj in objects:
             if layer is None:
+                print('SX Tools: Clearing all layers')
                 for i, layer in enumerate(sxglobals.refLayerArray):
                     color = sxglobals.refColorArray[i]
                     self.applyColor([obj, ], layer, color)
+                    setattr(obj.sxtools, layer+'Alpha', 1.0)
                     setattr(obj.sxtools, layer+'Visibility', True)
                     setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
             else:
                 color = sxglobals.refColorArray[sxglobals.refLayerArray.index(layer)]
                 self.applyColor([obj, ], layer, color)
+                setattr(obj.sxtools, layer+'Alpha', 1.0)
                 setattr(obj.sxtools, layer+'Visibility', True)
                 setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
-
-        #now = time.time()
-        #print("Clear layers: ", now-then, " seconds")
+        sxglobals.syncLayerEnable = True
 
     def calculateBoundingBox(self, vertDict):
         xmin = None
@@ -86,6 +88,7 @@ class SXTOOLS_tools(object):
         zmax = None
 
         for i, (vert, fvPos) in enumerate(vertDict.items()):
+            fvPos = (fvPos[0][0], fvPos[0][1], fvPos[0][2])
             # first vert
             if i == 0:
                 if not xmin:
@@ -185,7 +188,6 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode) 
 
     def applyRamp(self, objects, layer, ramp, rampmode, noise = 0.0):
-        #then = time.time()
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -211,7 +213,7 @@ class SXTOOLS_tools(object):
                     ratioRaw = None
                     ratio = None
 
-                    fvPos = vertPosDict[vert_idx]
+                    fvPos = vertPosDict[vert_idx][0]
                     if rampmode == 'X':
                         xdiv = float(xmax - xmin)
                         if xdiv == 0:
@@ -232,13 +234,9 @@ class SXTOOLS_tools(object):
                     vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
 
         bpy.ops.object.mode_set(mode = mode)
-        #now = time.time()
-        #print("Gradient duration: ", now-then, " seconds")
 
-    def compositeLayers(self, objects = None):
+    def compositeLayers(self, objects):
         #then = time.time()
-        obj = bpy.context.active_object
-        objects = [obj, ]
         self.blendLayers(objects, sxglobals.refArray, 'composite', 'composite')
         #now = time.time()
         #print("Compositing duration: ", now-then, " seconds")
@@ -273,12 +271,6 @@ class SXTOOLS_tools(object):
                                 vertexColors[layer].data[idx].color[1],
                                 vertexColors[layer].data[idx].color[2],
                                 vertexColors[layer].data[idx].color[3]][:]
-
-                            #fix premul fringes
-                            #if 0.0 < top[3] < 1.0:
-                            #    top[0] = top[0]/float(1.0 - top[3])
-                            #    top[1] = top[1]/float(1.0 - top[3])
-                            #    top[2] = top[2]/float(1.0 - top[3])
 
                             # alpha blend
                             if blend == 'ALPHA':
@@ -377,9 +369,10 @@ class SXTOOLS_tools(object):
 
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
-    def bakeOcclusion(self, objects, rayCount=250, bias=0.000001, max=10.0, weighted=True, comboOffset=0.9):
+    def bakeOcclusion(self, objects, layer, rayCount=250, blend=0.0, bias=0.000001):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         scene = bpy.context.scene
-        layer = bpy.context.active_object.data.vertex_colors.active.name
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
         bias = 1e-5
@@ -398,27 +391,60 @@ class SXTOOLS_tools(object):
 
             for vert_idx, loop_indices in vertLoopDict.items():
                 occValue = 1.0
-                vertPos = vertPosDict[vert_idx][0]
+                scnOccValue = 1.0
+                vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
+                mat = object.matrix_world
 
-                # offset ray origin with normal bias
-                biasVec = tuple([bias*x for x in vertNormal])
-                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+                # Pass 1: Local space occlusion for individual object
+                if 0 <= blend < 1.0:
+                    biasVec = tuple([bias*x for x in vertNormal])
+                    forward = Vector((0, 0, 1))
+                    rotQuat = forward.rotation_difference(vertNormal)
 
-                forward = Vector((0, 0, 1))
-                rotQuat = forward.rotation_difference(vertNormal)
-                
-                for sample in hemiSphere:
-                    sample = Vector(sample)
-                    sample.rotate(rotQuat)
-                    hit, loc, normal, index = object.ray_cast(vertPos, sample)
+                    vertPos = vertLoc
 
-                    if hit:
-                        occValue = occValue - contribution
+                    # offset ray origin with normal bias
+                    vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
+
+                        hit, loc, normal, index = object.ray_cast(vertPos, sample)
+
+                        if hit:
+                            occValue -= contribution
+
+                # Pass 2: Worldspace occlusion for scene
+                if 0 < blend <= 1.0:
+                    scnNormal = mat @ vertNormal
+                    biasVec = tuple([bias*x for x in scnNormal])
+                    forward = Vector((0, 0, 1))
+                    rotQuat = forward.rotation_difference(scnNormal)
+
+                    scnVertPos = mat @ vertLoc
+
+                    # offset ray origin with normal bias
+                    scnVertPos = (scnVertPos[0] + biasVec[0], scnVertPos[1] + biasVec[1], scnVertPos[2] + biasVec[2])
+
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
+
+                        scnHit, scnLoc, scnNormal, scnIndex, obj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample)
+
+                        if scnHit:
+                            scnOccValue -= contribution
 
                 for loop_idx in loop_indices:
-                    vertexColors[loop_idx].color = [occValue, occValue, occValue, 1.0]
+                    vertexColors[loop_idx].color = [
+                        (occValue * (1 - blend) + scnOccValue * blend),
+                        (occValue * (1 - blend) + scnOccValue * blend),
+                        (occValue * (1 - blend) + scnOccValue * blend),
+                        1.0]
 
+        bpy.ops.object.mode_set(mode = mode)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -427,13 +453,38 @@ class SXTOOLS_tools(object):
 tools = SXTOOLS_tools()
 
 def updateLayers(self, context):
-    tools.setupGeometry()
-    tools.compositeLayers()
-    #sxtools.selectedLayerIndex = obj.data.vertex_colors.active_index
+    print('updateLayers called')
+    if not sxglobals.updateInProgress:
+        sxglobals.updateInProgress = True
+
+        objects = context.view_layer.objects.selected
+        idx = context.active_object.data.vertex_colors.active_index
+        for object in objects:
+            object.data.vertex_colors.active_index = idx
+
+            tools.setupGeometry()
+
+        syncLayers(self, context)
+        tools.compositeLayers(objects)
+
+        sxglobals.updateInProgress = False
+
+def syncLayers(self, context):
+    #if sxglobals.syncLayerEnable:
+    objects = context.view_layer.objects.selected
+    layer = context.active_object.data.vertex_colors.active.name
+    alphaVal = getattr(context.active_object.sxtools, layer+'Alpha')
+    blendVal = getattr(context.active_object.sxtools, layer+'BlendMode')
+    visVal = getattr(context.active_object.sxtools, layer+'Visibility')
+
+    for object in objects:
+        setattr(object.sxtools, layer+'Alpha', alphaVal)
+        setattr(object.sxtools, layer+'BlendMode', blendVal)
+        setattr(object.sxtools, layer+'Visibility', visVal)
 
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
-    obj = context.active_object
+    objects = context.view_layer.objects.selected
     
     if mode == 'FULL':
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -456,7 +507,9 @@ def shadingMode(self, context):
     elif mode == 'ALPHA':
         pass
 
-    tools.compositeLayers()
+    print('shadingchange: ', objects.keys())
+    tools.compositeLayers(objects)
+
 
 
 # ------------------------------------------------------------------------
@@ -609,6 +662,12 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default='FULL',
         update = shadingMode)
 
+    selectedlayer: bpy.props.IntProperty(
+        name = 'Selected Layer',
+        min = 0,
+        max = 7,
+        default = 0)
+
     fillcolor: bpy.props.FloatVectorProperty(
         name="Fill Color",
         subtype="COLOR",
@@ -638,8 +697,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('DOWN','Down','')],
         default='UP')
 
+    occlusionblend: bpy.props.FloatProperty(
+        name = "Occlusion Blend",
+        min = 0.0,
+        max = 1.0,
+        default = 0.5)
+
     occlusionrays: bpy.props.IntProperty(
-        name = "Opacity",
+        name = "Ray Count",
         min = 1,
         default = 256)
 
@@ -670,7 +735,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
         obj = context.active_object
         objType = getattr(obj, 'type', '')
 
-        if objType  in ['MESH','CURVE']:  
+        if (objType in ['MESH','CURVE']) and (len(context.view_layer.objects.selected) > 0):  
 
             layout = self.layout
             mesh = context.active_object.data
@@ -700,8 +765,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_misc = self.layout.row(align = True)
                     row_misc.operator('sxtools.selmask', text = 'Select Mask')
                     row_misc.operator('sxtools.clear', text = 'Clear Layer')
-
-                    #col = self.layout.column(align = True)
 
                     box_fill = layout.box()
                     row_fill = box_fill.row()
@@ -745,6 +808,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandocc:
                         col_occ = box_occ.column(align = True)
                         col_occ.prop(scene, 'occlusionrays', text = 'Ray Count')
+                        col_occ.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
                         col_occ.operator('sxtools.bakeocclusion', text = 'Apply')
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
@@ -755,6 +819,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
     bl_description = 'Creates necessary materials and vertex color layers'
 
     def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
         tools.setupGeometry()
         return {"FINISHED"}
 
@@ -767,12 +832,12 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
     bl_description = 'Applies fill color to selection'
 
     def invoke(self, context, event):
-        obj = context.active_object
+        objects = context.view_layer.objects.selected
         layer = context.active_object.data.vertex_colors.active.name
         color = context.scene.sxtools.fillcolor
         noise = context.scene.sxtools.fillnoise
-        tools.applyColor([obj, ], layer, color, noise)
-        tools.compositeLayers()
+        tools.applyColor(objects, layer, color, noise)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 
@@ -784,12 +849,12 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
     bl_description = 'Applies gradient to selection bounding volume across selected axis'
 
     def invoke(self, context, event):
-        obj = context.active_object
+        objects = context.view_layer.objects.selected
         layer = context.active_object.data.vertex_colors.active.name
         rampmode = context.scene.sxtools.rampmode
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        tools.applyRamp([obj, ], layer, ramp, rampmode)
-        tools.compositeLayers()
+        tools.applyRamp(objects, layer, ramp, rampmode)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 
@@ -801,11 +866,11 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
     bl_description = 'Merge the selected layer with the one above'
 
     def invoke(self, context, event):
-        obj = context.active_object
-        layer = obj.data.vertex_colors.active.name
+        objects = context.view_layer.objects.selected
+        layer = objects[0].data.vertex_colors.active.name
         mergemode = 'UP'
-        tools.mergeLayersManager([obj, ], layer, mergemode)
-        tools.compositeLayers()
+        tools.mergeLayersManager(objects, layer, mergemode)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 
@@ -817,11 +882,11 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
     bl_description = 'Merge the selected layer with the one below'
 
     def invoke(self, context, event):
-        obj = context.active_object
-        layer = obj.data.vertex_colors.active.name
+        objects = context.view_layer.objects.selected
+        layer = objects[0].data.vertex_colors.active.name
         mergemode = 'DOWN'
-        tools.mergeLayersManager([obj, ], layer, mergemode)
-        tools.compositeLayers()
+        tools.mergeLayersManager(objects, layer, mergemode)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 
@@ -833,13 +898,16 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
     bl_description = 'Shift-click to clear all layers on object or components'
 
     def invoke(self, context, event):
-        obj = context.active_object
+        objects = context.view_layer.objects.selected
         if event.shift:
             layer = None
         else:
-            layer = obj.data.vertex_colors.active.name
+            layer = objects[0].data.vertex_colors.active.name
+            print('clearlayer: ', layer)
+            # TODO: May return UVMAP?!
 
-        tools.clearLayers([obj, ], layer)
+        tools.clearLayers(objects, layer)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 
@@ -851,11 +919,11 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
     bl_description = 'Shift-click to invert selection'
 
     def invoke(self, context, event):
-        obj = context.active_object
+        objects = context.view_layer.objects.selected
         if event.shift:
             layer = None
         else:
-            layer = obj.data.vertex_colors.active.name
+            layer = objects[0].data.vertex_colors.active.name
 
         #tools.clearLayers([obj, ], layer)
         return {"FINISHED"}
@@ -869,10 +937,12 @@ class SXTOOLS_OT_bakeocclusion(bpy.types.Operator):
     bl_description = 'Bake ambient occlusion to vertex color'
 
     def invoke(self, context, event):
-        obj = context.active_object
+        objects = context.view_layer.objects.selected
+        layer = context.active_object.data.vertex_colors.active.name
+        blend = context.scene.sxtools.occlusionblend
         rayCount = context.scene.sxtools.occlusionrays
-        tools.bakeOcclusion([obj, ], rayCount)
-        tools.compositeLayers()
+        tools.bakeOcclusion(objects, layer, rayCount, blend)
+        tools.compositeLayers(objects)
         return {"FINISHED"}
 
 # ------------------------------------------------------------------------
@@ -893,7 +963,6 @@ classes = (
     SXTOOLS_PT_panel)
 
 def init():
-    # set correct viewport shading mode
     pass
 
 def register():
