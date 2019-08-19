@@ -66,7 +66,6 @@ class SXTOOLS_tools(object):
         self.createSXMaterial()
 
     def clearLayers(self, objects, layer = None):
-        sxglobals.syncLayerEnable = False
         for obj in objects:
             if layer is None:
                 print('SX Tools: Clearing all layers')
@@ -82,7 +81,6 @@ class SXTOOLS_tools(object):
                 setattr(obj.sxtools, layer+'Alpha', 1.0)
                 setattr(obj.sxtools, layer+'Visibility', True)
                 setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
-        sxglobals.syncLayerEnable = True
 
     def calculateBoundingBox(self, vertDict):
         xmin = None
@@ -165,7 +163,7 @@ class SXTOOLS_tools(object):
 
         return (vertLoopDict, vertPosDict, objSel, faceSel, vertSel)
 
-    def applyColor(self, objects, layer, color = [0.0, 0.0, 0.0, 0.0], overwrite = False, noise = 0.0):
+    def applyColor(self, objects, layer, color, overwrite, noise = 0.0):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -184,9 +182,15 @@ class SXTOOLS_tools(object):
                         if overwrite:
                             vertexColors[loop_idx].color = color
                         else:
-                            vertexColors[loop_idx].color[0] = color[0]
-                            vertexColors[loop_idx].color[1] = color[1]
-                            vertexColors[loop_idx].color[2] = color[2]
+                            print(vertexColors[loop_idx].color[0], vertexColors[loop_idx].color[1], vertexColors[loop_idx].color[2], vertexColors[loop_idx].color[3])
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                print('writing color')
+                                vertexColors[loop_idx].color[0] = color[0]
+                                vertexColors[loop_idx].color[1] = color[1]
+                                vertexColors[loop_idx].color[2] = color[2]
+                            else:
+                                print('writing black')
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
             else:
                 noiseColor = [color[0], color[1], color[2], 1.0][:]
                 for vert_idx, loop_indices in vertLoopDict.items():
@@ -196,13 +200,16 @@ class SXTOOLS_tools(object):
                         if overwrite:
                             vertexColors[loop_idx].color = noiseColor
                         else:
-                            vertexColors[loop_idx].color[0] = noiseColor[0]
-                            vertexColors[loop_idx].color[1] = noiseColor[1]
-                            vertexColors[loop_idx].color[2] = noiseColor[2]
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color[0] = noiseColor[0]
+                                vertexColors[loop_idx].color[1] = noiseColor[1]
+                                vertexColors[loop_idx].color[2] = noiseColor[2]
+                            else:
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
 
         bpy.ops.object.mode_set(mode = mode) 
 
-    def applyRamp(self, objects, layer, ramp, rampmode, overwrite = False, noise = 0.0):
+    def applyRamp(self, objects, layer, ramp, rampmode, overwrite, noise = 0.0):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -343,12 +350,13 @@ class SXTOOLS_tools(object):
         if 'SXMaterial' not in bpy.data.materials.keys():
             sxmaterial = bpy.data.materials.new(name = 'SXMaterial')
             sxmaterial.use_nodes = True
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
             sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
             sxmaterial.node_tree.nodes["Attribute"].attribute_name = "composite"
 
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
             output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
-
             sxmaterial.node_tree.links.new(input, output)
 
             sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
@@ -400,6 +408,7 @@ class SXTOOLS_tools(object):
             setattr(obj.sxtools, targetLayer+'BlendMode', 'ALPHA')
 
         bpy.context.active_object.data.vertex_colors.active_index = targetIndex
+        bpy.context.scene.sxtools.selectedLayer = targetIndex
 
     def rayRandomizer(self):
         u1 = random.uniform(0, 1)
@@ -498,8 +507,6 @@ tools = SXTOOLS_tools()
 def updateLayers(self, context):
     #print('updateLayers called')
     shadingMode(self, context)
-    #if not sxglobals.updateInProgress:
-        #sxglobals.updateInProgress = True
 
     objects = context.view_layer.objects.selected
     idx = context.scene.sxtools.selectedlayer
@@ -513,10 +520,9 @@ def updateLayers(self, context):
         setattr(object.sxtools, layer+'Alpha', alphaVal)
         setattr(object.sxtools, layer+'BlendMode', blendVal)
         setattr(object.sxtools, layer+'Visibility', visVal)
-        tools.setupGeometry()
 
+    tools.setupGeometry()
     tools.compositeLayers(objects)
-    #sxglobals.updateInProgress = False
 
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
@@ -535,14 +541,12 @@ def shadingMode(self, context):
 
         sxmaterial.node_tree.nodes["Attribute"].attribute_name = 'composite'
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        sxmaterial.node_tree.links.remove(attrLink)
         sxmaterial.node_tree.links.new(input, output)
 
     elif mode == 'DEBUG':
-        #bpy.ops.object.mode_set(mode = 'VERTEX_PAINT')
         areas = bpy.context.workspace.screens[0].areas
         shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
         for area in areas:
@@ -555,7 +559,6 @@ def shadingMode(self, context):
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.links.new(input, output)
 
     elif mode == 'ALPHA':
@@ -571,7 +574,6 @@ def shadingMode(self, context):
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.links.new(input, output)
 
 
@@ -590,11 +592,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         update = updateLayers)
     activeLayerBlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA',
+        default = 'ALPHA',
         update = updateLayers)
     activeLayerVisibility: bpy.props.BoolProperty(
         name = "Visibility",
@@ -608,11 +610,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer1BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer1Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -624,11 +626,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer2BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer2Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -640,11 +642,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer3BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer3Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -656,11 +658,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer4BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer4Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -672,11 +674,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer5BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer5Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -688,11 +690,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer6BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer6Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -704,11 +706,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default = 1.0)
     layer7BlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
-        items=[
+        items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
             ('MUL','Multiply','')],
-        default='ALPHA')
+        default = 'ALPHA')
     layer7Visibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True)
@@ -717,11 +719,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     shadingmode: bpy.props.EnumProperty(
         name = "Shading Mode",
-        items=[
+        items = [
             ('FULL','Full',''),
             ('DEBUG','Debug',''),
             ('ALPHA','Alpha','')],
-        default='FULL',
+        default = 'FULL',
         update = updateLayers)
 
     selectedlayer: bpy.props.IntProperty(
@@ -729,19 +731,19 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min = 0,
         max = 7,
         default = 0,
-        update=updateLayers)
+        update = updateLayers)
 
     fillcolor: bpy.props.FloatVectorProperty(
-        name="Fill Color",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(1.0, 1.0, 1.0, 1.0))
+        name = "Fill Color",
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
 
     fillalpha: bpy.props.BoolProperty(
         name = "Overwrite Mask",
-        default = False)
+        default = True)
 
     fillnoise: bpy.props.FloatProperty(
         name = "Noise",
@@ -751,22 +753,22 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     rampmode: bpy.props.EnumProperty(
         name = "Ramp Mode",
-        items=[
+        items = [
             ('X','X-Axis',''),
             ('Y','Y-Axis',''),
             ('Z','Z-Axis','')],
-        default='X')
+        default = 'X')
 
     rampalpha: bpy.props.BoolProperty(
         name = "Overwrite Mask",
-        default = False)
+        default = True)
 
     mergemode: bpy.props.EnumProperty(
         name = "Merge Mode",
-        items=[
+        items = [
             ('UP','Up',''),
             ('DOWN','Down','')],
-        default='UP')
+        default = 'UP')
 
     occlusionblend: bpy.props.FloatProperty(
         name = "Occlusion Blend",
