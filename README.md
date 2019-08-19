@@ -62,4 +62,5 @@ Fills selected objects or components (faces, edges, verts supported). When apply
 Fills selected objects or components with a gradient across the selected axis.
 
 ### Ambient Occlusion
-A simple occlusion baking tool with selectable ray count.
+A simple occlusion baking tool with selectable ray count. Supports blending between object/local and scene/global occlusion results.
+
