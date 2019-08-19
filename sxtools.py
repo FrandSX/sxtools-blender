@@ -165,7 +165,7 @@ class SXTOOLS_tools(object):
 
         return (vertLoopDict, vertPosDict, objSel, faceSel, vertSel)
 
-    def applyColor(self, objects, layer, color = [0.0, 0.0, 0.0, 0.0], noise = 0.0):
+    def applyColor(self, objects, layer, color = [0.0, 0.0, 0.0, 0.0], overwrite = False, noise = 0.0):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -181,18 +181,28 @@ class SXTOOLS_tools(object):
             if noise == 0.0:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
-                        vertexColors[loop_idx].color = color
+                        if overwrite:
+                            vertexColors[loop_idx].color = color
+                        else:
+                            vertexColors[loop_idx].color[0] = color[0]
+                            vertexColors[loop_idx].color[1] = color[1]
+                            vertexColors[loop_idx].color[2] = color[2]
             else:
                 noiseColor = [color[0], color[1], color[2], 1.0][:]
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         for i in range(3):
                             noiseColor[i] = noiseColor[i] + random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
-                        vertexColors[loop_idx].color = noiseColor
+                        if overwrite:
+                            vertexColors[loop_idx].color = noiseColor
+                        else:
+                            vertexColors[loop_idx].color[0] = noiseColor[0]
+                            vertexColors[loop_idx].color[1] = noiseColor[1]
+                            vertexColors[loop_idx].color[2] = noiseColor[2]
 
         bpy.ops.object.mode_set(mode = mode) 
 
-    def applyRamp(self, objects, layer, ramp, rampmode, noise = 0.0):
+    def applyRamp(self, objects, layer, ramp, rampmode, overwrite = False, noise = 0.0):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -540,13 +550,12 @@ def shadingMode(self, context):
                 if space.type == 'VIEW_3D':
                     space.shading.type = shading
 
-
         sxmaterial.node_tree.nodes['Attribute'].attribute_name = layer
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.diffuse_color = [0.0, 0.0, 0.0, 1.0]
+        sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.links.new(input, output)
 
     elif mode == 'ALPHA':
@@ -730,6 +739,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=1.0,
         default=(1.0, 1.0, 1.0, 1.0))
 
+    fillalpha: bpy.props.BoolProperty(
+        name = "Overwrite Mask",
+        default = False)
+
     fillnoise: bpy.props.FloatProperty(
         name = "Noise",
         min = 0.0,
@@ -743,6 +756,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('Y','Y-Axis',''),
             ('Z','Z-Axis','')],
         default='X')
+
+    rampalpha: bpy.props.BoolProperty(
+        name = "Overwrite Mask",
+        default = False)
 
     mergemode: bpy.props.EnumProperty(
         name = "Merge Mode",
@@ -810,7 +827,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_alpha = self.layout.row(align = True)
                     row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
                     
-                layout.template_list("UI_UL_list", "sxtools.layerList", mesh, "vertex_colors", scene, 'selectedlayer', type = 'DEFAULT')
+                layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', scene, 'selectedlayer', type = 'DEFAULT')
 
                 if mesh.vertex_colors.active.name != 'composite':
                     row_merge = self.layout.row(align = True)
@@ -833,6 +850,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_noise = box_fill.row(align = True)
                         row_noise.prop(scene, 'fillnoise', slider = True)
                         col_color = box_fill.column(align = True)
+                        col_color.prop(scene, 'fillalpha')
                         col_color.operator('sxtools.applycolor', text = 'Apply')
 
                     # TODO: Assign fill color from brush color if in vertex paint mode
@@ -847,9 +865,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row4.label(text='Gradient Tool')
                     if scene.expandramp:
                         layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
-                        row_ramp = self.layout.row(align = True)
-                        row_ramp.prop(scene, 'rampmode', text = 'Mode')
-                        row_ramp.operator('sxtools.applyramp', text = 'Apply')
+                        col_ramp = self.layout.column(align = True)
+                        col_ramp.prop(scene, 'rampmode', text = 'Mode')
+                        col_ramp.prop(scene, 'rampalpha')
+                        col_ramp.operator('sxtools.applyramp', text = 'Apply')
 
 
                     box_occ = layout.box()
@@ -890,8 +909,9 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         objects = context.view_layer.objects.selected
         layer = context.active_object.data.vertex_colors.active.name
         color = context.scene.sxtools.fillcolor
+        overwrite = context.scene.sxtools.fillalpha
         noise = context.scene.sxtools.fillnoise
-        tools.applyColor(objects, layer, color, noise)
+        tools.applyColor(objects, layer, color, overwrite, noise)
         tools.compositeLayers(objects)
         return {"FINISHED"}
 
@@ -907,8 +927,9 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         objects = context.view_layer.objects.selected
         layer = context.active_object.data.vertex_colors.active.name
         rampmode = context.scene.sxtools.rampmode
+        overwrite = context.scene.sxtools.rampalpha
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        tools.applyRamp(objects, layer, ramp, rampmode)
+        tools.applyRamp(objects, layer, ramp, rampmode, overwrite)
         tools.compositeLayers(objects)
         return {"FINISHED"}
 
@@ -1047,6 +1068,8 @@ if __name__ == "__main__":
     register()
 
 #TODO:
+# - Fix layer change causing synclayers
+# - Refresh ui alphavisblend from active selection on layer change
 # - Selection from mask
 # - Applycolor applygradient overwrite alpha toggle
 # - Noise is not continuous across faces
