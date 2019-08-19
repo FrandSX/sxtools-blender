@@ -13,7 +13,7 @@ SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The 
 - Vertex ambient occlusion baking
 
 Installation:
-- Load sxtools.py in Blender scripting view, run script
+- Install and enable sxtools.py through the Blender add-on interface
 - SX Tools will appear in the top right corner of the 3D view
 - The tool will automatically generate vertex color layers and the necessary material
 
