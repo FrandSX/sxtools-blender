@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 1),
+    "version": (0, 0, 15),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -24,8 +24,7 @@ global tools, sxglobals
 
 class SXTOOLS_sxglobals(object):
     def __init__(self):
-        self.updateInProgress = False
-        self.syncLayerEnable = True
+        self.refreshInProgress = False
         self.refArray = [
             'layer1', 'layer2', 'layer3', 'layer4',
             'layer5', 'layer6', 'layer7']
@@ -266,21 +265,18 @@ class SXTOOLS_tools(object):
 
     def compositeLayers(self, objects):
         #then = time.time()
-        mode = bpy.context.scene.sxtools.shadingmode
-        idx = bpy.context.scene.sxtools.selectedlayer
+        shadingmode = bpy.context.scene.sxtools.shadingmode
+        idx = bpy.context.active_object.sxtools.selectedlayer
         layer = sxglobals.refLayerArray[idx]
 
-        if mode == 'FULL':
+        if shadingmode == 'FULL':
             self.blendLayers(objects, sxglobals.refArray, 'composite', 'composite')
-        elif mode == 'DEBUG':
-            sxmaterial = bpy.data.materials['SXMaterial']
-            sxmaterial.node_tree.nodes["Attribute"].attribute_name = layer
-        elif mode == 'ALPHA':
-            self.blendAlpha(objects, layer)
+        else:
+            self.blendDebug(objects, layer, shadingmode)
         #now = time.time()
         #print("Compositing duration: ", now-then, " seconds")
 
-    def blendAlpha(self, objects, layer):
+    def blendDebug(self, objects, layer, shadingmode):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -289,11 +285,18 @@ class SXTOOLS_tools(object):
             resultLayer = vertexColors['composite'].data
             for poly in object.data.polygons:
                 for idx in poly.loop_indices:
-                    top = [
-                        vertexColors[layer].data[idx].color[3],
-                        vertexColors[layer].data[idx].color[3],
-                        vertexColors[layer].data[idx].color[3],
-                        vertexColors[layer].data[idx].color[3]][:]
+                    if shadingmode == 'DEBUG':
+                        top = [
+                            vertexColors[layer].data[idx].color[0],
+                            vertexColors[layer].data[idx].color[1],
+                            vertexColors[layer].data[idx].color[2],
+                            vertexColors[layer].data[idx].color[3]][:]
+                    elif shadingmode == 'ALPHA':
+                        top = [
+                            vertexColors[layer].data[idx].color[3],
+                            vertexColors[layer].data[idx].color[3],
+                            vertexColors[layer].data[idx].color[3],
+                            vertexColors[layer].data[idx].color[3]][:]
                     resultLayer[idx].color = top[:]
 
         bpy.ops.object.mode_set(mode = mode)
@@ -417,7 +420,7 @@ class SXTOOLS_tools(object):
             setattr(obj.sxtools, targetLayer+'BlendMode', 'ALPHA')
 
         bpy.context.active_object.data.vertex_colors.active_index = targetIndex
-        bpy.context.scene.sxtools.selectedLayer = targetIndex
+        bpy.context.active_object.sxtools.selectedlayer = targetIndex
 
     def rayRandomizer(self):
         u1 = random.uniform(0, 1)
@@ -515,29 +518,64 @@ tools = SXTOOLS_tools()
 
 def updateLayers(self, context):
     #print('updateLayers called')
-    shadingMode(self, context)
+    if not sxglobals.refreshInProgress:
+        shadingMode(self, context)
 
+        objects = context.view_layer.objects.selected
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refLayerArray[idx]
+        alphaVal = getattr(context.active_object.sxtools, 'activeLayerAlpha')
+        blendVal = getattr(context.active_object.sxtools, 'activeLayerBlendMode')
+        visVal = getattr(context.active_object.sxtools, 'activeLayerVisibility')
+
+        for obj in objects:
+            #print(object)
+            obj.data.vertex_colors.active_index = idx
+            setattr(obj.sxtools, layer+'Alpha', alphaVal)
+            setattr(obj.sxtools, layer+'BlendMode', blendVal)
+            setattr(obj.sxtools, layer+'Visibility', visVal)
+
+            sxglobals.refreshInProgress = True
+            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+            sxglobals.refreshInProgress = False
+
+            #print('updating, should be: ', alphaVal, blendVal, visVal)
+            #print(getattr(obj.sxtools, layer+'Alpha'))
+            #print(getattr(obj.sxtools, layer+'BlendMode'))
+            #print(getattr(obj.sxtools, layer+'Visibility'))
+
+        tools.setupGeometry()
+        tools.compositeLayers(objects)
+
+def refreshActives(self, context):
+    #print('refreshing actives')
+    sxglobals.refreshInProgress = True
     objects = context.view_layer.objects.selected
-    idx = context.scene.sxtools.selectedlayer
+    obj = context.active_object.sxtools
+    idx = obj.selectedlayer
     layer = sxglobals.refLayerArray[idx]
-    alphaVal = getattr(context.active_object.sxtools, 'activeLayerAlpha')
-    blendVal = getattr(context.active_object.sxtools, 'activeLayerBlendMode')
-    visVal = getattr(context.active_object.sxtools, 'activeLayerVisibility')
-    
-    print(alphaVal, blendVal, visVal)
 
-    for object in objects:
-        #print(object)
-        object.data.vertex_colors.active_index = idx
-        setattr(object.sxtools, layer+'Alpha', alphaVal)
-        setattr(object.sxtools, layer+'BlendMode', blendVal)
-        setattr(object.sxtools, layer+'Visibility', visVal)
-        #print(getattr(object.sxtools, layer+'Alpha'))
-        #print(getattr(object.sxtools, layer+'BlendMode'))
-        #print(getattr(object.sxtools, layer+'Visibility'))
+    if layer != 'composite':
+        for obj in objects:
+            obj.data.vertex_colors.active_index = idx
 
-    tools.setupGeometry()
-    tools.compositeLayers(objects)
+            alphaVal = getattr(obj.sxtools, layer+'Alpha')
+            blendVal = getattr(obj.sxtools, layer+'BlendMode')
+            visVal = getattr(obj.sxtools, layer+'Visibility')
+
+            #print('refreshing, should be: ', alphaVal, blendVal, visVal)
+            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+
+            #print(getattr(obj.sxtools, 'activeLayerAlpha'))
+            #print(getattr(obj.sxtools, 'activeLayerBlendMode'))
+            #print(getattr(obj.sxtools, 'activeLayerVisibility'))
+
+        tools.compositeLayers(objects)
+        sxglobals.refreshInProgress = False
 
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
@@ -552,7 +590,8 @@ def shadingMode(self, context):
         for area in areas:
             for space in area.spaces:
                 if space.type == 'VIEW_3D':
-                    space.shading.type = shading
+                    if (space.shading.type == 'WIREFRAME') or (space.shading.type == 'SOLID'):
+                        space.shading.type = shading
 
         sxmaterial.node_tree.nodes["Attribute"].attribute_name = 'composite'
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
@@ -561,22 +600,7 @@ def shadingMode(self, context):
         sxmaterial.node_tree.links.remove(attrLink)
         sxmaterial.node_tree.links.new(input, output)
 
-    elif mode == 'DEBUG':
-        areas = bpy.context.workspace.screens[0].areas
-        shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
-        for area in areas:
-            for space in area.spaces:
-                if space.type == 'VIEW_3D':
-                    space.shading.type = shading
-
-        sxmaterial.node_tree.nodes['Attribute'].attribute_name = layer
-        attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
-        sxmaterial.node_tree.links.remove(attrLink)
-        sxmaterial.node_tree.links.new(input, output)
-
-    elif mode == 'ALPHA':
+    else:
         areas = bpy.context.workspace.screens[0].areas
         shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
         for area in areas:
@@ -598,6 +622,13 @@ def shadingMode(self, context):
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     # TODO: Generate props with an iteration?
+
+    selectedlayer: bpy.props.IntProperty(
+        name = 'Selected Layer',
+        min = 0,
+        max = 7,
+        default = 0,
+        update = refreshActives)
 
     activeLayerAlpha: bpy.props.FloatProperty(
         name = "Opacity",
@@ -741,13 +772,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default = 'FULL',
         update = updateLayers)
 
-    selectedlayer: bpy.props.IntProperty(
-        name = 'Selected Layer',
-        min = 0,
-        max = 7,
-        default = 0,
-        update = updateLayers)
-
     fillcolor: bpy.props.FloatVectorProperty(
         name = "Fill Color",
         subtype = "COLOR",
@@ -845,7 +869,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_alpha = self.layout.row(align = True)
                         row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
                     
-                layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', scene, 'selectedlayer', type = 'DEFAULT')
+                layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type = 'DEFAULT')
 
                 if mesh.vertex_colors.active.name != 'composite':
                     row_merge = self.layout.row(align = True)
@@ -925,7 +949,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        layer = context.active_object.data.vertex_colors.active.name
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
         color = context.scene.sxtools.fillcolor
         overwrite = context.scene.sxtools.fillalpha
         noise = context.scene.sxtools.fillnoise
@@ -943,7 +968,8 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        layer = context.active_object.data.vertex_colors.active.name
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
         rampmode = context.scene.sxtools.rampmode
         overwrite = context.scene.sxtools.rampalpha
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
@@ -961,7 +987,8 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        layer = objects[0].data.vertex_colors.active.name
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
         mergemode = 'UP'
         tools.mergeLayersManager(objects, layer, mergemode)
         tools.compositeLayers(objects)
@@ -977,7 +1004,8 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        layer = objects[0].data.vertex_colors.active.name
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
         mergemode = 'DOWN'
         tools.mergeLayersManager(objects, layer, mergemode)
         tools.compositeLayers(objects)
@@ -996,7 +1024,8 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
         if event.shift:
             layer = None
         else:
-            layer = objects[0].data.vertex_colors.active.name
+            idx = context.active_object.sxtools.selectedlayer
+            layer = sxglobals.refArray[idx]
             #print('clearlayer: ', layer)
             # TODO: May return UVMAP?!
 
@@ -1017,7 +1046,8 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         if event.shift:
             layer = None
         else:
-            layer = objects[0].data.vertex_colors.active.name
+            idx = context.active_object.sxtools.selectedlayer
+            layer = sxglobals.refArray[idx]
 
         #tools.clearLayers([obj, ], layer)
         return {"FINISHED"}
@@ -1032,7 +1062,8 @@ class SXTOOLS_OT_bakeocclusion(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        layer = context.active_object.data.vertex_colors.active.name
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
         blend = context.scene.sxtools.occlusionblend
         rayCount = context.scene.sxtools.occlusionrays
         tools.bakeOcclusion(objects, layer, rayCount, blend)
@@ -1086,8 +1117,7 @@ if __name__ == "__main__":
     register()
 
 #TODO:
-# - Fix layer change causing synclayers
-# - Refresh ui alphavisblend from active selection on layer change
+# - Indicate active vertex selection?
 # - Selection from mask
 # - Noise is not continuous across faces
 # - Exporting to UVs
