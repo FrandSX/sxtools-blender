@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 15),
+    "version": (0, 0, 17),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -50,8 +50,8 @@ class SXTOOLS_tools(object):
 
     def setupGeometry(self):
         objects = bpy.context.view_layer.objects.selected
-        for object in objects:
-            mesh = object.data
+        for obj in objects:
+            mesh = obj.data
 
             if not 'layer1' in mesh.vertex_colors.keys():
                 for vcol in mesh.vertex_colors:
@@ -60,7 +60,7 @@ class SXTOOLS_tools(object):
             for layer in sxglobals.refLayerArray:
                 if not layer in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name=layer)
-                    self.clearLayers([object, ], layer)
+                    self.clearLayers([obj, ], layer)
 
         self.createSXMaterial()
 
@@ -373,7 +373,9 @@ class SXTOOLS_tools(object):
 
             sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
 
-        bpy.context.active_object.active_material = bpy.data.materials['SXMaterial']
+        objects = bpy.context.view_layer.objects.selected
+        for obj in objects:
+            obj.active_material = bpy.data.materials['SXMaterial']
 
     def mergeLayersManager(self, objects, sourceLayer, direction):
         #TODO: fix layer7 with layerCount
