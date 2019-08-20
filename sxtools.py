@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 17),
+    "version": (0, 0, 21),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -207,33 +207,49 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode = mode) 
 
-    def applyRamp(self, objects, layer, ramp, rampmode, overwrite, noise = 0.0):
+    def applyRamp(self, objects, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        if mergebbx:
+            bbx_x = []
+            bbx_y = []
+            bbx_z = []
+            for obj in objects:
+                corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+                for corner in corners:
+                    bbx_x.append(corner[0])
+                    bbx_y.append(corner[1])
+                    bbx_z.append(corner[2])
+            xmin, xmax = min(bbx_x), max(bbx_x)
+            ymin, ymax = min(bbx_y), max(bbx_y)
+            zmin, zmax = min(bbx_z), max(bbx_z)
 
         for object in objects:
             vertexColors = object.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
+            mat = object.matrix_world
             
             dicts = self.selectionHandler(object)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
             
-            bbx = self.calculateBoundingBox(vertPosDict)
-            xmin = bbx[0][0]
-            xmax = bbx[0][1]
-            ymin = bbx[1][0]
-            ymax = bbx[1][1]
-            zmin = bbx[2][0]
-            zmax = bbx[2][1]
+            if not mergebbx:
+                bbx = self.calculateBoundingBox(vertPosDict)
+                xmin, xmax = bbx[0][0], bbx[0][1]
+                ymin, ymax = bbx[1][0], bbx[1][1]
+                zmin, zmax = bbx[2][0], bbx[2][1]
 
             for vert_idx, loop_indices in vertLoopDict.items():
                 for loop_idx in loop_indices:
                     ratioRaw = None
                     ratio = None
 
-                    fvPos = vertPosDict[vert_idx][0]
+                    if mergebbx:
+                        fvPos = mat @ vertPosDict[vert_idx][0]
+                    else:
+                        fvPos = vertPosDict[vert_idx][0]
                     if rampmode == 'X':
                         xdiv = float(xmax - xmin)
                         if xdiv == 0:
@@ -258,10 +274,38 @@ class SXTOOLS_tools(object):
                             vertexColors[loop_idx].color[0] = ramp.color_ramp.evaluate(ratio)[0]
                             vertexColors[loop_idx].color[1] = ramp.color_ramp.evaluate(ratio)[1]
                             vertexColors[loop_idx].color[2] = ramp.color_ramp.evaluate(ratio)[2]
+                            vertexColors[loop_idx].color[3] = ramp.color_ramp.evaluate(ratio)[3]
                         else:
                             vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
 
         bpy.ops.object.mode_set(mode = mode)
+
+    def selectMask(self, objects, layer, inverse):
+        mode = objects[0].mode
+
+        print('inverse: ', inverse)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
+
+        for object in objects:
+            vertexColors = object.data.vertex_colors[layer].data
+            vertLoopDict = defaultdict(list)
+            
+            dicts = self.selectionHandler(object)
+            vertLoopDict = dicts[0]
+
+            selList = []
+            for vert_idx, loop_indices in vertLoopDict.items():
+                for loop_idx in loop_indices:
+                    if inverse:
+                        if vertexColors[loop_idx].color[3] == 0.0:
+                            object.data.vertices[vert_idx].select = True
+                    else:
+                        if vertexColors[loop_idx].color[3] > 0.0:
+                            object.data.vertices[vert_idx].select = True
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
     def compositeLayers(self, objects):
         #then = time.time()
@@ -800,6 +844,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('Z','Z-Axis','')],
         default = 'X')
 
+    rampbbox: bpy.props.BoolProperty(
+        name = "Global Bbox",
+        default = True)
+
     rampalpha: bpy.props.BoolProperty(
         name = "Overwrite Mask",
         default = True)
@@ -911,9 +959,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
                         col_ramp = self.layout.column(align = True)
                         col_ramp.prop(scene, 'rampmode', text = 'Mode')
+                        col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
                         col_ramp.prop(scene, 'rampalpha')
                         col_ramp.operator('sxtools.applyramp', text = 'Apply')
-
 
                     box_occ = layout.box()
                     row_occbox = box_occ.row()
@@ -973,9 +1021,10 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         idx = context.active_object.sxtools.selectedlayer
         layer = sxglobals.refArray[idx]
         rampmode = context.scene.sxtools.rampmode
+        mergebbx = context.scene.sxtools.rampbbox
         overwrite = context.scene.sxtools.rampalpha
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        tools.applyRamp(objects, layer, ramp, rampmode, overwrite)
+        tools.applyRamp(objects, layer, ramp, rampmode, overwrite, mergebbx)
         tools.compositeLayers(objects)
         return {"FINISHED"}
 
@@ -1046,12 +1095,14 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         if event.shift:
-            layer = None
+            inverse = True
         else:
-            idx = context.active_object.sxtools.selectedlayer
-            layer = sxglobals.refArray[idx]
+            inverse = False
 
-        #tools.clearLayers([obj, ], layer)
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refArray[idx]
+
+        tools.selectMask(objects, layer, inverse)
         return {"FINISHED"}
 
 
@@ -1119,6 +1170,7 @@ if __name__ == "__main__":
     register()
 
 #TODO:
+# - Multi-object (and component) gradients 
 # - Indicate active vertex selection?
 # - Selection from mask
 # - Noise is not continuous across faces
