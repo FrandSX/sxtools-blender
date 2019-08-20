@@ -520,15 +520,21 @@ def updateLayers(self, context):
     objects = context.view_layer.objects.selected
     idx = context.scene.sxtools.selectedlayer
     layer = sxglobals.refLayerArray[idx]
-    alphaVal = getattr(context.active_object.sxtools, layer+'Alpha')
-    blendVal = getattr(context.active_object.sxtools, layer+'BlendMode')
-    visVal = getattr(context.active_object.sxtools, layer+'Visibility')
+    alphaVal = getattr(context.active_object.sxtools, 'activeLayerAlpha')
+    blendVal = getattr(context.active_object.sxtools, 'activeLayerBlendMode')
+    visVal = getattr(context.active_object.sxtools, 'activeLayerVisibility')
+    
+    print(alphaVal, blendVal, visVal)
 
     for object in objects:
+        #print(object)
         object.data.vertex_colors.active_index = idx
         setattr(object.sxtools, layer+'Alpha', alphaVal)
         setattr(object.sxtools, layer+'BlendMode', blendVal)
         setattr(object.sxtools, layer+'Visibility', visVal)
+        #print(getattr(object.sxtools, layer+'Alpha'))
+        #print(getattr(object.sxtools, layer+'BlendMode'))
+        #print(getattr(object.sxtools, layer+'Visibility'))
 
     tools.setupGeometry()
     tools.compositeLayers(objects)
@@ -832,11 +838,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     layer = sxglobals.refArray[mesh.vertex_colors.active_index]
                     row_shading = self.layout.row(align = True)
                     row_shading.prop(scene, 'shadingmode', expand = True)
-                    row_blend = self.layout.row(align = True)
-                    row_blend.prop(sxtools, 'activeLayerVisibility')
-                    row_blend.prop(sxtools, 'activeLayerBlendMode', text = 'Blend')
-                    row_alpha = self.layout.row(align = True)
-                    row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
+                    if scene.shadingmode == 'FULL':
+                        row_blend = self.layout.row(align = True)
+                        row_blend.prop(sxtools, 'activeLayerVisibility')
+                        row_blend.prop(sxtools, 'activeLayerBlendMode', text = 'Blend')
+                        row_alpha = self.layout.row(align = True)
+                        row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
                     
                 layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', scene, 'selectedlayer', type = 'DEFAULT')
 
@@ -1082,7 +1089,6 @@ if __name__ == "__main__":
 # - Fix layer change causing synclayers
 # - Refresh ui alphavisblend from active selection on layer change
 # - Selection from mask
-# - Applycolor applygradient overwrite alpha toggle
 # - Noise is not continuous across faces
 # - Exporting to UVs
 # - Filter composite out of layer list
