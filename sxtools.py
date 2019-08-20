@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 22),
+    "version": (0, 0, 25),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -36,6 +36,12 @@ class SXTOOLS_sxglobals(object):
             [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+        self.refChannelArray = [
+            'palettemasks', 'occlusion', 'metallic', 'roughness',
+            'transmission', 'emission']
+        # Brush tools may leave low alpha values that break
+        # palettemasks, alphaTolerance can be used to fix this
+        self.alphaTolerance = 1.0
 
 sxglobals = SXTOOLS_sxglobals()
 
@@ -166,12 +172,12 @@ class SXTOOLS_tools(object):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors[layer].data
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             
-            dicts = self.selectionHandler(object)
+            dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
 
@@ -179,10 +185,8 @@ class SXTOOLS_tools(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         if overwrite:
-                            #print('overwrite on')
                             vertexColors[loop_idx].color = color
                         else:
-                            #print('retaining alpha ', vertexColors[loop_idx].color[0], vertexColors[loop_idx].color[1], vertexColors[loop_idx].color[2], vertexColors[loop_idx].color[3])
                             if vertexColors[loop_idx].color[3] > 0.0:
                                 vertexColors[loop_idx].color[0] = color[0]
                                 vertexColors[loop_idx].color[1] = color[1]
@@ -225,13 +229,13 @@ class SXTOOLS_tools(object):
             ymin, ymax = min(bbx_y), max(bbx_y)
             zmin, zmax = min(bbx_z), max(bbx_z)
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors[layer].data
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
-            mat = object.matrix_world
+            mat = obj.matrix_world
             
-            dicts = self.selectionHandler(object)
+            dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
             
@@ -283,16 +287,15 @@ class SXTOOLS_tools(object):
     def selectMask(self, objects, layer, inverse):
         mode = objects[0].mode
 
-        print('inverse: ', inverse)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors[layer].data
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             
-            dicts = self.selectionHandler(object)
+            dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
 
             selList = []
@@ -300,10 +303,10 @@ class SXTOOLS_tools(object):
                 for loop_idx in loop_indices:
                     if inverse:
                         if vertexColors[loop_idx].color[3] == 0.0:
-                            object.data.vertices[vert_idx].select = True
+                            obj.data.vertices[vert_idx].select = True
                     else:
                         if vertexColors[loop_idx].color[3] > 0.0:
-                            object.data.vertices[vert_idx].select = True
+                            obj.data.vertices[vert_idx].select = True
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -324,10 +327,10 @@ class SXTOOLS_tools(object):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors
             resultLayer = vertexColors['composite'].data
-            for poly in object.data.polygons:
+            for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
                     if shadingmode == 'DEBUG':
                         top = [
@@ -349,12 +352,12 @@ class SXTOOLS_tools(object):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors
             resultLayer = vertexColors[resultLayerName].data
             baseLayer = vertexColors[baseLayerName].data
 
-            for poly in object.data.polygons:
+            for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
                     if baseLayerName == 'composite':
                         base = [0.0, 0.0, 0.0, 1.0]
@@ -365,11 +368,11 @@ class SXTOOLS_tools(object):
                             baseLayer[idx].color[2],
                             baseLayer[idx].color[3]][:]
                     for layer in topLayerArray:
-                        if not getattr(object.sxtools, layer+"Visibility"):
+                        if not getattr(obj.sxtools, layer+"Visibility"):
                             continue
                         else:
-                            blend = getattr(object.sxtools, layer+"BlendMode")
-                            alpha = getattr(object.sxtools, layer+"Alpha")
+                            blend = getattr(obj.sxtools, layer+"BlendMode")
+                            alpha = getattr(obj.sxtools, layer+"Alpha")
                             top = [
                                 vertexColors[layer].data[idx].color[0],
                                 vertexColors[layer].data[idx].color[1],
@@ -400,9 +403,10 @@ class SXTOOLS_tools(object):
                     resultLayer[idx].color = base[:]
         bpy.ops.object.mode_set(mode = mode)
 
-    def copyChannel(self, objects, sourcemap, sourcechannel, targetmap, targetchannel):
+    def copyChannel(self, objects, sourcemap, sourcechannel, targetmap, targetchannel, copymode = 1):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
+        layers = sxglobals.refArray
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
         maps = {
             'LAYER1': sxglobals.refArray[0],
@@ -424,17 +428,51 @@ class SXTOOLS_tools(object):
         layer = maps[sourcemap]
         uvmap = maps[targetmap]
 
+        if copymode == 1:
+            for obj in objects:
+                vertexColors = obj.data.vertex_colors
+                vertexUVs = obj.data.uv_layers
 
-        for obj in objects:
-            vertexColors = obj.data.vertex_colors
-            vertexUVs = obj.data.uv_layers
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = vertexColors[layer].data[idx].color[channels[sourcechannel]]
+                        vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = value
 
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    value = vertexColors[layer].data[idx].color[channels[sourcechannel]]
-                    vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = value
+        # Generate 1-bit layer masks for layers 1-7
+        # so the faces can be re-colored in a game engine
+        elif copymode == 2:
+            for obj in objects:
+                vertexColors = obj.data.vertex_colors
+                vertexUVs = obj.data.uv_layers
+
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        for i, layer in enumerate(layers):
+                            i += 1
+                            if i == 1:
+                                vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
+                            else:
+                                vertexAlpha = vertexColors[layer].data[idx].color[channels[sourcechannel]][3]
+                                if vertexAlpha >= sxglobals.alphaTolerance:
+                                    vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
 
         bpy.ops.object.mode_set(mode = mode)
+
+    def processMesh(self):
+        # placeholder for batch export preprocessor
+        # 0: UV0 for basic automatically laid out UVs
+        # 1: palettemasks to U1
+        # 2: occlusion to V1
+        # 3: transmission U2
+        # 4: emission V2
+        # 5: metallic U3
+        # 6: smoothness V3
+        # (layers 6, 7 are unpaletted)
+        # 7: gradient mask layer8 U4
+        # 8: gradient mask layer9 V4
+        # 9: RGBA overlay UV5, UV6
+        # static flag to object
+        pass
 
     def createSXMaterial(self):
         if 'SXMaterial' not in bpy.data.materials.keys():
@@ -454,9 +492,11 @@ class SXTOOLS_tools(object):
             sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
 
             #node.location = (100,100)
-            #sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            #sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap') # 'UV Map', 'UV Map.001'...
+            #bpy.data.node_groups["Shader Nodetree"].nodes["UV Map.001"].uv_map = "UVMap.001"
             #sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             #sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            #sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
             #bpy.data.materials['SXMaterial'].node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
 
         objects = bpy.context.view_layer.objects.selected
@@ -491,19 +531,15 @@ class SXTOOLS_tools(object):
         layerOrder = sorted((sourceIndex, targetIndex))
         baseLayer = sxglobals.refArray[layerOrder[0]]
         topLayer = [sxglobals.refArray[layerOrder[1]], ]
-        
-        obj = bpy.context.active_object
-        if objects is None:
-            objects = [obj, ]
 
-        for object in objects:
+        for obj in objects:
             setattr(obj.sxtools, sourceLayer+'Visibility', True)
             setattr(obj.sxtools, targetLayer+'Visibility', True)
 
         self.blendLayers(objects, topLayer, baseLayer, targetLayer)
         self.clearLayers(objects, sourceLayer)
 
-        for object in objects:
+        for obj in objects:
             setattr(obj.sxtools, sourceLayer+'BlendMode', 'ALPHA')
             setattr(obj.sxtools, targetLayer+'BlendMode', 'ALPHA')
 
@@ -532,12 +568,12 @@ class SXTOOLS_tools(object):
         for idx in range(rayCount):
             hemiSphere[idx] = self.rayRandomizer()
 
-        for object in objects:
-            vertexColors = object.data.vertex_colors[layer].data
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             
-            dicts = self.selectionHandler(object)
+            dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
 
@@ -546,7 +582,7 @@ class SXTOOLS_tools(object):
                 scnOccValue = 1.0
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
-                mat = object.matrix_world
+                mat = obj.matrix_world
 
                 # Pass 1: Local space occlusion for individual object
                 if 0 <= blend < 1.0:
@@ -563,7 +599,7 @@ class SXTOOLS_tools(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        hit, loc, normal, index = object.ray_cast(vertPos, sample)
+                        hit, loc, normal, index = obj.ray_cast(vertPos, sample)
 
                         if hit:
                             occValue -= contribution
@@ -617,7 +653,6 @@ def updateLayers(self, context):
         visVal = getattr(context.active_object.sxtools, 'activeLayerVisibility')
 
         for obj in objects:
-            #print(object)
             obj.data.vertex_colors.active_index = idx
             setattr(obj.sxtools, layer+'Alpha', alphaVal)
             setattr(obj.sxtools, layer+'BlendMode', blendVal)
@@ -629,16 +664,10 @@ def updateLayers(self, context):
             setattr(obj.sxtools, 'activeLayerVisibility', visVal)
             sxglobals.refreshInProgress = False
 
-            #print('updating, should be: ', alphaVal, blendVal, visVal)
-            #print(getattr(obj.sxtools, layer+'Alpha'))
-            #print(getattr(obj.sxtools, layer+'BlendMode'))
-            #print(getattr(obj.sxtools, layer+'Visibility'))
-
         tools.setupGeometry()
         tools.compositeLayers(objects)
 
 def refreshActives(self, context):
-    #print('refreshing actives')
     sxglobals.refreshInProgress = True
     objects = context.view_layer.objects.selected
     obj = context.active_object.sxtools
@@ -653,14 +682,9 @@ def refreshActives(self, context):
             blendVal = getattr(obj.sxtools, layer+'BlendMode')
             visVal = getattr(obj.sxtools, layer+'Visibility')
 
-            #print('refreshing, should be: ', alphaVal, blendVal, visVal)
             setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
             setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
             setattr(obj.sxtools, 'activeLayerVisibility', visVal)
-
-            #print(getattr(obj.sxtools, 'activeLayerAlpha'))
-            #print(getattr(obj.sxtools, 'activeLayerBlendMode'))
-            #print(getattr(obj.sxtools, 'activeLayerVisibility'))
 
         tools.compositeLayers(objects)
         sxglobals.refreshInProgress = False
@@ -972,7 +996,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
 
 # ------------------------------------------------------------------------
-#    UI Panel and elements
+#    UI Panel and Operators
 # ------------------------------------------------------------------------
 
 class SXTOOLS_PT_panel(bpy.types.Panel):
@@ -1033,9 +1057,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_color = box_fill.column(align = True)
                         col_color.prop(scene, 'fillalpha')
                         col_color.operator('sxtools.applycolor', text = 'Apply')
-
-                    # TODO: Assign fill color from brush color if in vertex paint mode
-                    #color[0] = bpy.data.brushes["Draw"].color[0]
 
                     box = layout.box()
                     row4 = box.row()
@@ -1243,7 +1264,6 @@ class SXTOOLS_OT_copychannel(bpy.types.Operator):
         sourcechannel = context.scene.sxtools.sourcechannel
         targetmap = context.scene.sxtools.targetmap
         targetchannel = context.scene.sxtools.targetchannel
-        #print(sourcemap, sourcechannel, targetmap, targetchannel)
         tools.copyChannel(objects, sourcemap, sourcechannel, targetmap, targetchannel)
         return {"FINISHED"}
 
@@ -1294,17 +1314,48 @@ if __name__ == "__main__":
         pass
     register()
 
-#TODO:
+#MISSING FEATURES FROM SXTOOLS-MAYA:
+# - Parallel layer sets (needs more vertex color layers)
+# - Layer view features:
+#   - Hide/unhide layer
+#   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
+#   - hidden/mask/adjustment indication
+# - Active layer color palette
+# - Color fill history palette
+# - Color fill monochromatic noise
+# - Copy / Paste / Swap layers
+# - Ramp fill color presets
 # - Multi-object (and component) gradients 
-# - Indicate active vertex selection?
-# - Noise is not continuous across faces
-# - Exporting to UVs
-# - Filter composite out of layer list
 # - Curvature ramp
 # - Luminance remap ramp
-# - Custom hide/show icons to layer view items
-# - Swap / copy layers
+# - Occlusion baking temp groundplane
+# - Master palette library load/save/apply/manage
+# - PBR material library load/save/apply/manage
 # - Crease sets
-# - Handle layer renaming
+# - Skinning support?
+# - Export settings:
+#   - Submesh support
+#   - Static vertex colors
+#   - Hard edges on hard creases(!)
+#   - Export subdivision level
+#   - Smoothing angle
+#   - Choose export path
+#   - Export fbx settings
+# - Tool settings:
+#   - Prefs path, palettes path, materials path
+#   - Load/save prefs file
+#   - Channel enable/export prefs
+#   - Export grid spacing
+#   - Layer renaming
+#   - _paletted suffix
+#TODO:
+# - Indicate active vertex selection?
+# - Noise is not continuous across faces
+# - Filter composite out of layer list
+# - Add UV source channels to layer list?
+# - Custom hide/show icons to layer view items
 # - Automatically create UV channels in setupGeometry
 # - SX Material update to handle UV channel inputs
+#   - Dynamic re-configuration based on settings
+# - Assign fill color from brush color if in vertex paint mode
+#   color[0] = bpy.data.brushes["Draw"].color[0]
