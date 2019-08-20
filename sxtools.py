@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 21),
+    "version": (0, 0, 22),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -398,6 +398,42 @@ class SXTOOLS_tools(object):
                                     base[j] = mul * base[j]        
                     
                     resultLayer[idx].color = base[:]
+        bpy.ops.object.mode_set(mode = mode)
+
+    def copyChannel(self, objects, sourcemap, sourcechannel, targetmap, targetchannel):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
+        maps = {
+            'LAYER1': sxglobals.refArray[0],
+            'LAYER2': sxglobals.refArray[1],
+            'LAYER3': sxglobals.refArray[2],
+            'LAYER4': sxglobals.refArray[3],
+            'LAYER5': sxglobals.refArray[4],
+            'LAYER6': sxglobals.refArray[5],
+            'LAYER7': sxglobals.refArray[6],
+            'UVMAP0': 0,
+            'UVMAP1': 1,
+            'UVMAP2': 2,
+            'UVMAP3': 3,
+            'UVMAP4': 4,
+            'UVMAP5': 5,
+            'UVMAP6': 6,
+            'UVMAP7': 7 }
+
+        layer = maps[sourcemap]
+        uvmap = maps[targetmap]
+
+
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors
+            vertexUVs = obj.data.uv_layers
+
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    value = vertexColors[layer].data[idx].color[channels[sourcechannel]]
+                    vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = value
+
         bpy.ops.object.mode_set(mode = mode)
 
     def createSXMaterial(self):
@@ -870,6 +906,48 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min = 1,
         default = 256)
 
+    sourcemap: bpy.props.EnumProperty(
+        name = "Source Map",
+        items = [
+            ('LAYER1','Layer1',''),
+            ('LAYER2','Layer2',''),
+            ('LAYER3','Layer3',''),
+            ('LAYER4','Layer4',''),
+            ('LAYER5','Layer5',''),
+            ('LAYER6','Layer6',''),
+            ('LAYER7','Layer7','')],
+        default = 'LAYER1')
+
+    targetmap: bpy.props.EnumProperty(
+        name = "Target Map",
+        items = [
+            ('UVMAP0','UVMap',''),
+            ('UVMAP1','UVMap 1',''),
+            ('UVMAP2','UVMap 2',''),
+            ('UVMAP3','UVMap 3',''),
+            ('UVMAP4','UVMap 4',''),
+            ('UVMAP5','UVMap 5',''),
+            ('UVMAP6','UVMap 6',''),
+            ('UVMAP7','UVMap 7','')],
+        default = 'UVMAP0')
+
+    sourcechannel: bpy.props.EnumProperty(
+        name = "Source Channel",
+        items = [
+            ('R','R',''),
+            ('G','G',''),
+            ('B','B',''),
+            ('B','B',''),
+            ('A','A','')],
+        default = 'R')
+
+    targetchannel: bpy.props.EnumProperty(
+        name = "Target Channel",
+        items = [
+            ('U','U',''),
+            ('V','V','')],
+        default = 'U')
+
     expandfill: bpy.props.BoolProperty(
         name = "Expand Fill",
         default = False)
@@ -881,6 +959,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     expandocc: bpy.props.BoolProperty(
         name = "Expand Occlusion",
         default = False)
+
+    expandchcopy: bpy.props.BoolProperty(
+        name = "Expand Channelcopy",
+        default = False)
+
 
 # ------------------------------------------------------------------------
 #    UI Panel and elements
@@ -975,6 +1058,23 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_occ.prop(scene, 'occlusionrays', text = 'Ray Count')
                         col_occ.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
                         col_occ.operator('sxtools.bakeocclusion', text = 'Apply')
+
+                    box_chcp = layout.box()
+                    row_chcpbox = box_chcp.row()
+                    row_chcpbox.prop(scene, "expandchcopy",
+                        icon="TRIA_DOWN" if scene.expandchcopy else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+
+                    row_chcpbox.label(text='Channel Copy')
+                    if scene.expandchcopy:
+                        row_chcp = box_chcp.row(align = True)
+                        row_chcp.prop(scene, 'sourcemap', text = 'From')
+                        row_chcp.prop(scene, 'sourcechannel', text = 'Data')
+                        row2_chcp = box_chcp.row(align = True)
+                        row2_chcp.prop(scene, 'targetmap', text = 'To')
+                        row2_chcp.prop(scene, 'targetchannel', text = 'Data')
+                        col_chcp = box_chcp.column(align = True)
+                        col_chcp.operator('sxtools.copychannel', text = 'Apply')
 
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
@@ -1123,6 +1223,24 @@ class SXTOOLS_OT_bakeocclusion(bpy.types.Operator):
         tools.compositeLayers(objects)
         return {"FINISHED"}
 
+
+class SXTOOLS_OT_copychannel(bpy.types.Operator):
+
+    bl_idname = "sxtools.copychannel"
+    bl_label = "Copy Channel"
+    bl_options = {"UNDO"}
+    bl_description = 'Copy channel data'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        sourcemap = context.scene.sxtools.sourcemap
+        sourcechannel = context.scene.sxtools.sourcechannel
+        targetmap = context.scene.sxtools.targetmap
+        targetchannel = context.scene.sxtools.targetchannel
+        #print(sourcemap, sourcechannel, targetmap, targetchannel)
+        tools.copyChannel(objects, sourcemap, sourcechannel, targetmap, targetchannel)
+        return {"FINISHED"}
+
 # ------------------------------------------------------------------------
 #    Registration and initialization
 # ------------------------------------------------------------------------
@@ -1134,6 +1252,7 @@ classes = (
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
     SXTOOLS_OT_bakeocclusion,
+    SXTOOLS_OT_copychannel,
     SXTOOLS_OT_selmask,
     SXTOOLS_OT_clearlayers,
     SXTOOLS_OT_mergeup,
@@ -1172,7 +1291,6 @@ if __name__ == "__main__":
 #TODO:
 # - Multi-object (and component) gradients 
 # - Indicate active vertex selection?
-# - Selection from mask
 # - Noise is not continuous across faces
 # - Exporting to UVs
 # - Filter composite out of layer list
@@ -1182,3 +1300,5 @@ if __name__ == "__main__":
 # - Swap / copy layers
 # - Crease sets
 # - Handle layer renaming
+# - Automatically create UV channels in setupGeometry
+# - SX Material update to handle UV channel inputs
