@@ -65,22 +65,22 @@ class SXTOOLS_tools(object):
 
         self.createSXMaterial()
 
-    def clearLayers(self, objects, layer = None):
+    def clearLayers(self, objects, targetlayer = None):
         for obj in objects:
-            if layer is None:
+            if targetlayer is None:
                 print('SX Tools: Clearing all layers')
                 for i, layer in enumerate(sxglobals.refLayerArray):
                     color = sxglobals.refColorArray[i]
-                    self.applyColor([obj, ], layer, color)
+                    self.applyColor([obj, ], layer, color, True, 0.0)
                     setattr(obj.sxtools, layer+'Alpha', 1.0)
                     setattr(obj.sxtools, layer+'Visibility', True)
                     setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
             else:
-                color = sxglobals.refColorArray[sxglobals.refLayerArray.index(layer)]
-                self.applyColor([obj, ], layer, color)
-                setattr(obj.sxtools, layer+'Alpha', 1.0)
-                setattr(obj.sxtools, layer+'Visibility', True)
-                setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
+                color = sxglobals.refColorArray[sxglobals.refLayerArray.index(targetlayer)]
+                self.applyColor([obj, ], targetlayer, color, True, 0.0)
+                setattr(obj.sxtools, targetlayer+'Alpha', 1.0)
+                setattr(obj.sxtools, targetlayer+'Visibility', True)
+                setattr(obj.sxtools, targetlayer+'BlendMode', 'ALPHA')
 
     def calculateBoundingBox(self, vertDict):
         xmin = None
@@ -180,16 +180,15 @@ class SXTOOLS_tools(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         if overwrite:
+                            #print('overwrite on')
                             vertexColors[loop_idx].color = color
                         else:
-                            print(vertexColors[loop_idx].color[0], vertexColors[loop_idx].color[1], vertexColors[loop_idx].color[2], vertexColors[loop_idx].color[3])
+                            #print('retaining alpha ', vertexColors[loop_idx].color[0], vertexColors[loop_idx].color[1], vertexColors[loop_idx].color[2], vertexColors[loop_idx].color[3])
                             if vertexColors[loop_idx].color[3] > 0.0:
-                                print('writing color')
                                 vertexColors[loop_idx].color[0] = color[0]
                                 vertexColors[loop_idx].color[1] = color[1]
                                 vertexColors[loop_idx].color[2] = color[2]
                             else:
-                                print('writing black')
                                 vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
             else:
                 noiseColor = [color[0], color[1], color[2], 1.0][:]
@@ -253,7 +252,15 @@ class SXTOOLS_tools(object):
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
 
                     ratio = max(min(ratioRaw, 1), 0)
-                    vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
+                    if overwrite:
+                        vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
+                    else:
+                        if vertexColors[loop_idx].color[3] > 0.0:
+                            vertexColors[loop_idx].color[0] = ramp.color_ramp.evaluate(ratio)[0]
+                            vertexColors[loop_idx].color[1] = ramp.color_ramp.evaluate(ratio)[1]
+                            vertexColors[loop_idx].color[2] = ramp.color_ramp.evaluate(ratio)[2]
+                        else:
+                            vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -352,6 +359,8 @@ class SXTOOLS_tools(object):
             sxmaterial.use_nodes = True
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0
+
             sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
             sxmaterial.node_tree.nodes["Attribute"].attribute_name = "composite"
 
@@ -981,7 +990,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             layer = None
         else:
             layer = objects[0].data.vertex_colors.active.name
-            print('clearlayer: ', layer)
+            #print('clearlayer: ', layer)
             # TODO: May return UVMAP?!
 
         tools.clearLayers(objects, layer)
