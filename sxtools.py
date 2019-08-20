@@ -453,6 +453,12 @@ class SXTOOLS_tools(object):
 
             sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
 
+            #node.location = (100,100)
+            #sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            #sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            #sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            #bpy.data.materials['SXMaterial'].node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+
         objects = bpy.context.view_layer.objects.selected
         for obj in objects:
             obj.active_material = bpy.data.materials['SXMaterial']
