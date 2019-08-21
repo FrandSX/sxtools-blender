@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 42),
+    "version": (0, 0, 50),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -435,6 +435,23 @@ class SXTOOLS_tools(object):
                     resultLayer[idx].color = base[:]
         bpy.ops.object.mode_set(mode = mode)
 
+    def assignCrease(self, objects, group):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        for obj in objects:
+            selectedVerts = [vert for vert in obj.data.vertices if vert.select]
+            selectedEdges = [edge for edge in obj.data.edges if edge.select]
+            verts = []
+            edges = []
+            for vert in selectedVerts:
+                verts.append(vert.index)
+            for edge in selectedEdges:
+                edges.append(edge.index)
+            obj.vertex_groups[group].add(verts, 1.0, 'ADD')
+            obj.vertex_groups[group].add(edges, 1.0, 'ADD')
+            #bpy.ops.transform.edge_crease(value=-1)
+        bpy.ops.object.mode_set(mode = mode)
+
     def copyChannel(self, objects, sourcemap, sourcechannel, targetmap, targetchannel, copymode = 1):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -660,6 +677,7 @@ class SXTOOLS_tools(object):
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
+            mat = obj.matrix_world
             
             dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
@@ -671,10 +689,9 @@ class SXTOOLS_tools(object):
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
                 forward = Vector((0, 0, 1))
-                mat = obj.matrix_world
 
                 # Pass 1: Local space occlusion for individual object
-                if 0 <= blend < 1.0:
+                if 0.0 <= blend < 1.0:
                     biasVec = tuple([bias*x for x in vertNormal])
                     rotQuat = forward.rotation_difference(vertNormal)
                     vertPos = vertLoc
@@ -692,7 +709,7 @@ class SXTOOLS_tools(object):
                             occValue -= contribution
 
                 # Pass 2: Worldspace occlusion for scene
-                if 0 < blend <= 1.0:
+                if 0.0 < blend <= 1.0:
                     scnNormal = mat @ vertNormal
                     biasVec = tuple([bias*x for x in scnNormal])
                     rotQuat = forward.rotation_difference(scnNormal)
@@ -705,16 +722,16 @@ class SXTOOLS_tools(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        scnHit, scnLoc, scnNormal, scnIndex, obj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample)
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample)
 
                         if scnHit:
                             scnOccValue -= contribution
 
                 for loop_idx in loop_indices:
                     vertexColors[loop_idx].color = [
-                        (occValue * (1 - blend) + scnOccValue * blend),
-                        (occValue * (1 - blend) + scnOccValue * blend),
-                        (occValue * (1 - blend) + scnOccValue * blend),
+                        (occValue * (1.0 - blend) + scnOccValue * blend),
+                        (occValue * (1.0 - blend) + scnOccValue * blend),
+                        (occValue * (1.0 - blend) + scnOccValue * blend),
                         1.0]
 
         bpy.ops.object.mode_set(mode = mode)
@@ -1106,6 +1123,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Expand Occlusion",
         default = False)
 
+    expandcrease: bpy.props.BoolProperty(
+        name = "Expand Crease",
+        default = False)
+
     expandchcopy: bpy.props.BoolProperty(
         name = "Expand Channelcopy",
         default = False)
@@ -1175,6 +1196,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_color.prop(scene, 'fillalpha')
                         col_color.operator('sxtools.applycolor', text = 'Apply')
 
+                    # Gradient Tool ---------------------------------------------------
                     box = layout.box()
                     row4 = box.row()
                     row4.prop(scene, "expandramp",
@@ -1190,6 +1212,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_ramp.prop(scene, 'rampalpha')
                         col_ramp.operator('sxtools.applyramp', text = 'Apply')
 
+                    # Bake Occlusion ---------------------------------------------------
                     box_occ = layout.box()
                     row_occbox = box_occ.row()
                     row_occbox.prop(scene, "expandocc",
@@ -1203,6 +1226,24 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_occ.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
                         col_occ.operator('sxtools.bakeocclusion', text = 'Apply')
 
+                    # Crease Sets ---------------------------------------------------
+                    box_crease = layout.box()
+                    row_crease = box_crease.row()
+                    row_crease.prop(scene, 'expandcrease',
+                        icon="TRIA_DOWN" if scene.expandcrease else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+
+                    row_crease.label(text='Crease Sets')
+                    if scene.expandcrease:
+                        row_sets = box_crease.row(align = True)
+                        row_sets.operator('sxtools.crease1', text = '25%')
+                        row_sets.operator('sxtools.crease2', text = '50%')
+                        row_sets.operator('sxtools.crease3', text = '75%')
+                        row_sets.operator('sxtools.crease4', text = 'Hard')
+                        col_sets = box_crease.column(align = True)
+                        col_sets.operator('sxtools.crease0', text = 'Uncrease')
+
+                    # Channel Copy ---------------------------------------------------
                     box_chcp = layout.box()
                     row_chcpbox = box_chcp.row()
                     row_chcpbox.prop(scene, "expandchcopy",
@@ -1369,6 +1410,76 @@ class SXTOOLS_OT_bakeocclusion(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SXTOOLS_OT_crease0(bpy.types.Operator):
+
+    bl_idname = "sxtools.crease0"
+    bl_label = "Crease0"
+    bl_options = {"UNDO"}
+    bl_description = 'Uncrease selection (set0)'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        group = 'CreaseSet0'
+        tools.assignCrease(objects, group)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_crease1(bpy.types.Operator):
+
+    bl_idname = "sxtools.crease1"
+    bl_label = "Crease1"
+    bl_options = {"UNDO"}
+    bl_description = 'Add selection to set1'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        group = 'CreaseSet1'
+        tools.assignCrease(objects, group)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_crease2(bpy.types.Operator):
+
+    bl_idname = "sxtools.crease2"
+    bl_label = "Crease2"
+    bl_options = {"UNDO"}
+    bl_description = 'Add selection to set2'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        group = 'CreaseSet2'
+        tools.assignCrease(objects, group)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_crease3(bpy.types.Operator):
+
+    bl_idname = "sxtools.crease3"
+    bl_label = "Crease3"
+    bl_options = {"UNDO"}
+    bl_description = 'Add selection to set3'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        group = 'CreaseSet3'
+        tools.assignCrease(objects, group)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_crease4(bpy.types.Operator):
+
+    bl_idname = "sxtools.crease4"
+    bl_label = "Crease4"
+    bl_options = {"UNDO"}
+    bl_description = 'Add selection to set4'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        group = 'CreaseSet4'
+        tools.assignCrease(objects, group)
+        return {"FINISHED"}
+
+
 class SXTOOLS_OT_copychannel(bpy.types.Operator):
 
     bl_idname = "sxtools.copychannel"
@@ -1396,6 +1507,11 @@ classes = (
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
     SXTOOLS_OT_bakeocclusion,
+    SXTOOLS_OT_crease0,
+    SXTOOLS_OT_crease1,
+    SXTOOLS_OT_crease2,
+    SXTOOLS_OT_crease3,
+    SXTOOLS_OT_crease4,
     SXTOOLS_OT_copychannel,
     SXTOOLS_OT_selmask,
     SXTOOLS_OT_clearlayers,
@@ -1472,8 +1588,5 @@ if __name__ == "__main__":
 # - Filter composite out of layer list
 # - Add UV source channels to layer list?
 # - Custom hide/show icons to layer view items
-# - Automatically create UV channels in setupGeometry
-# - SX Material update to handle UV channel inputs
-#   - Dynamic re-configuration based on settings
 # - Assign fill color from brush color if in vertex paint mode
 #   color[0] = bpy.data.brushes["Draw"].color[0]
