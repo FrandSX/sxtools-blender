@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 25),
+    "version": (0, 0, 26),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -194,11 +194,11 @@ class SXTOOLS_tools(object):
                             else:
                                 vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
             else:
-                noiseColor = [color[0], color[1], color[2], 1.0][:]
                 for vert_idx, loop_indices in vertLoopDict.items():
+                    noiseColor = [color[0], color[1], color[2], 1.0][:]
+                    for i in range(3):
+                        noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
                     for loop_idx in loop_indices:
-                        for i in range(3):
-                            noiseColor[i] = noiseColor[i] + random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
                         if overwrite:
                             vertexColors[loop_idx].color = noiseColor
                         else:
@@ -428,23 +428,19 @@ class SXTOOLS_tools(object):
         layer = maps[sourcemap]
         uvmap = maps[targetmap]
 
-        if copymode == 1:
-            for obj in objects:
-                vertexColors = obj.data.vertex_colors
-                vertexUVs = obj.data.uv_layers
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors
+            vertexUVs = obj.data.uv_layers
 
+            if copymode == 1:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
                         value = vertexColors[layer].data[idx].color[channels[sourcechannel]]
                         vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = value
 
-        # Generate 1-bit layer masks for layers 1-7
-        # so the faces can be re-colored in a game engine
-        elif copymode == 2:
-            for obj in objects:
-                vertexColors = obj.data.vertex_colors
-                vertexUVs = obj.data.uv_layers
-
+            # Generate 1-bit layer masks for layers 1-7
+            # so the faces can be re-colored in a game engine
+            elif copymode == 2:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
                         for i, layer in enumerate(layers):
@@ -582,14 +578,13 @@ class SXTOOLS_tools(object):
                 scnOccValue = 1.0
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
                 mat = obj.matrix_world
 
                 # Pass 1: Local space occlusion for individual object
                 if 0 <= blend < 1.0:
                     biasVec = tuple([bias*x for x in vertNormal])
-                    forward = Vector((0, 0, 1))
                     rotQuat = forward.rotation_difference(vertNormal)
-
                     vertPos = vertLoc
 
                     # offset ray origin with normal bias
@@ -608,9 +603,7 @@ class SXTOOLS_tools(object):
                 if 0 < blend <= 1.0:
                     scnNormal = mat @ vertNormal
                     biasVec = tuple([bias*x for x in scnNormal])
-                    forward = Vector((0, 0, 1))
                     rotQuat = forward.rotation_difference(scnNormal)
-
                     scnVertPos = mat @ vertLoc
 
                     # offset ray origin with normal bias
@@ -893,7 +886,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default = (1.0, 1.0, 1.0, 1.0))
 
     fillalpha: bpy.props.BoolProperty(
-        name = "Overwrite Mask",
+        name = "Overwrite Alpha",
         default = True)
 
     fillnoise: bpy.props.FloatProperty(
@@ -915,7 +908,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default = True)
 
     rampalpha: bpy.props.BoolProperty(
-        name = "Overwrite Mask",
+        name = "Overwrite Alpha",
         default = True)
 
     mergemode: bpy.props.EnumProperty(
