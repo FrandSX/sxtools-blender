@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 50),
+    "version": (0, 0, 85),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -12,6 +12,7 @@ import bpy
 import time
 import random
 import math
+import bmesh
 from collections import defaultdict
 from mathutils import Vector
 
@@ -19,9 +20,6 @@ from mathutils import Vector
 # ------------------------------------------------------------------------
 #    Globals
 # ------------------------------------------------------------------------
-
-global tools, sxglobals
-
 class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
@@ -58,13 +56,13 @@ class SXTOOLS_sxglobals(object):
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
 
-sxglobals = SXTOOLS_sxglobals()
+    def __del__(self):
+        print('SX Tools: Exiting sxglobals')
 
 # ------------------------------------------------------------------------
-#    Tool Actions
+#    Scene Setup
 # ------------------------------------------------------------------------
-
-class SXTOOLS_tools(object):
+class SXTOOLS_setup(object):
     def __init__(self):
         return None
 
@@ -80,7 +78,7 @@ class SXTOOLS_tools(object):
             for layer in sxglobals.refLayerArray:
                 if not layer in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name=layer)
-                    self.clearLayers([obj, ], layer)
+                    tools.clearLayers([obj, ], layer)
 
             if len(mesh.uv_layers.keys()) < 8:
                 for i in range(len(mesh.uv_layers.keys()), (9 - len(mesh.uv_layers.keys()))):
@@ -91,11 +89,111 @@ class SXTOOLS_tools(object):
                         for idx in poly.loop_indices:
                             mesh.uv_layers[uvmap.name].data[idx].uv = [uValue, vValue]
 
-            for i in range(5):
-                if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
-                    obj.vertex_groups.new(name = 'CreaseSet'+str(i))
+            #for i in range(5):
+            #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
+            #        obj.vertex_groups.new(name = 'CreaseSet'+str(i))
 
         self.createSXMaterial()
+
+    def createSXMaterial(self):
+        if 'SXMaterial' not in bpy.data.materials.keys():
+            sxmaterial = bpy.data.materials.new(name = 'SXMaterial')
+            sxmaterial.use_nodes = True
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0
+            sxmaterial.node_tree.nodes['Principled BSDF'].location = (300, 200)
+
+            sxmaterial.node_tree.nodes['Material Output'].location = (600, 200)
+
+            # Gradient tool color ramp
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
+            sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 200)
+
+            # Vertex color source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
+            sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
+            sxmaterial.node_tree.nodes['Attribute'].location = (-600, 200)
+
+            # Occlusion source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            sxmaterial.node_tree.nodes['UV Map'].uv_map = 'UVMap.001'
+            sxmaterial.node_tree.nodes['UV Map'].location = (-600, 0)
+
+            # Metallic and roughness source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            sxmaterial.node_tree.nodes['UV Map.001'].uv_map = 'UVMap.003'
+            sxmaterial.node_tree.nodes['UV Map.001'].location = (-600, -200)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            sxmaterial.node_tree.nodes['Separate XYZ'].location = (-300, 0)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            sxmaterial.node_tree.nodes['Separate XYZ.001'].location = (-300, -200)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeInvert')
+            sxmaterial.node_tree.nodes['Invert'].location = (0, -200)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
+            sxmaterial.node_tree.nodes["Mix"].blend_type = 'MULTIPLY'
+            sxmaterial.node_tree.nodes['Mix'].location = (0, 200)
+
+            # Node connections
+            # Vertex color to mixer
+            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Split occlusion from UV1
+            output = sxmaterial.node_tree.nodes['UV Map'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['Separate XYZ'].inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Occlusion to mixer
+            output = sxmaterial.node_tree.nodes['Separate XYZ'].outputs['Y']
+            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Mixer out to base color
+            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Split metallic and smoothness
+            output = sxmaterial.node_tree.nodes['UV Map.001'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['Separate XYZ.001'].inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # X to metallic
+            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['X']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Invert smoothness to roughness (inverse used by Unity)
+            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['Y']
+            input = sxmaterial.node_tree.nodes['Invert'].inputs['Color']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Y to roughness
+            output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
+            sxmaterial.node_tree.links.new(input, output)
+
+        objects = bpy.context.view_layer.objects.selected
+        for obj in objects:
+            obj.active_material = bpy.data.materials['SXMaterial']
+
+    def __del__(self):
+        print('SX Tools: Exiting setup')
+
+
+# ------------------------------------------------------------------------
+#    Tool Actions
+# ------------------------------------------------------------------------
+class SXTOOLS_tools(object):
+    def __init__(self):
+        return None
 
     def clearLayers(self, objects, targetlayer = None):
         for obj in objects:
@@ -435,21 +533,46 @@ class SXTOOLS_tools(object):
                     resultLayer[idx].color = base[:]
         bpy.ops.object.mode_set(mode = mode)
 
+    def selectCrease(self, objects, group):
+        creaseDict = {
+            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
+            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
+            'CreaseSet4': 1.0 }
+        weight = creaseDict[group]
+        bpy.ops.object.mode_set(mode = 'EDIT')
+
+        for obj in objects:
+            bm = bmesh.from_edit_mesh(obj.data)
+
+            creaseLayer = bm.edges.layers.crease['SubSurfCrease']
+            creaseEdges = [edge for edge in bm.edges if edge[creaseLayer] == weight]
+            for edge in creaseEdges:
+                edge.select = True
+
+            bmesh.update_edit_mesh(obj.data)
+
     def assignCrease(self, objects, group):
         mode = objects[0].mode
-        bpy.ops.object.mode_set(mode = 'OBJECT')
+        creaseDict = {
+            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
+            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
+            'CreaseSet4': 1.0 }
+        weight = creaseDict[group]
+        bpy.ops.object.mode_set(mode = 'EDIT')
+
         for obj in objects:
-            selectedVerts = [vert for vert in obj.data.vertices if vert.select]
-            selectedEdges = [edge for edge in obj.data.edges if edge.select]
-            verts = []
-            edges = []
-            for vert in selectedVerts:
-                verts.append(vert.index)
+            bm = bmesh.from_edit_mesh(obj.data)
+
+            creaseLayer = bm.edges.layers.crease['SubSurfCrease']
+            selectedEdges = [edge for edge in bm.edges if edge.select]
             for edge in selectedEdges:
-                edges.append(edge.index)
-            obj.vertex_groups[group].add(verts, 1.0, 'ADD')
-            obj.vertex_groups[group].add(edges, 1.0, 'ADD')
-            #bpy.ops.transform.edge_crease(value=-1)
+                edge[creaseLayer] = weight
+                if weight == 1.0:
+                    edge.smooth = False
+                else:
+                    edge.smooth = True
+
+            bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode = mode)
 
     def copyChannel(self, objects, sourcemap, sourcechannel, targetmap, targetchannel, copymode = 1):
@@ -519,94 +642,6 @@ class SXTOOLS_tools(object):
         # static flag to object
         pass
 
-    def createSXMaterial(self):
-        if 'SXMaterial' not in bpy.data.materials.keys():
-            sxmaterial = bpy.data.materials.new(name = 'SXMaterial')
-            sxmaterial.use_nodes = True
-            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
-            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
-            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0
-            sxmaterial.node_tree.nodes['Principled BSDF'].location = (900, 300)
-
-            sxmaterial.node_tree.nodes['Material Output'].location = (1200, 300)
-
-            # Gradient tool color ramp
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
-            sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 300)
-
-            # Vertex color source
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
-            sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
-            sxmaterial.node_tree.nodes['Attribute'].location = (-600, 300)
-
-            # Occlusion source
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            sxmaterial.node_tree.nodes['UV Map'].uv_map = 'UVMap.001'
-            sxmaterial.node_tree.nodes['UV Map'].location = (-600, 0)
-
-            # Metallic and roughness source
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            sxmaterial.node_tree.nodes['UV Map.001'].uv_map = 'UVMap.003'
-            sxmaterial.node_tree.nodes['UV Map.001'].location = (-600, -300)
-
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            sxmaterial.node_tree.nodes['Separate XYZ'].location = (-300, 0)
-
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            sxmaterial.node_tree.nodes['Separate XYZ.001'].location = (-300, -300)
-
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeInvert')
-            sxmaterial.node_tree.nodes['Invert'].location = (0, -300)
-
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-            sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
-            sxmaterial.node_tree.nodes["Mix"].blend_type = 'MULTIPLY'
-            sxmaterial.node_tree.nodes['Mix'].location = (0, 300)
-
-            # Node connections
-            # Vertex color to mixer
-            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Split occlusion from UV1
-            output = sxmaterial.node_tree.nodes['UV Map'].outputs['UV']
-            input = sxmaterial.node_tree.nodes['Separate XYZ'].inputs['Vector']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Occlusion to mixer
-            output = sxmaterial.node_tree.nodes['Separate XYZ'].outputs['Y']
-            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color2']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Mixer out to base color
-            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Split metallic and smoothness
-            output = sxmaterial.node_tree.nodes['UV Map.001'].outputs['UV']
-            input = sxmaterial.node_tree.nodes['Separate XYZ.001'].inputs['Vector']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # X to metallic
-            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['X']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Invert smoothness to roughness (inverse used by Unity)
-            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['Y']
-            input = sxmaterial.node_tree.nodes['Invert'].inputs['Color']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Y to roughness
-            output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
-            sxmaterial.node_tree.links.new(input, output)
-
-        objects = bpy.context.view_layer.objects.selected
-        for obj in objects:
-            obj.active_material = bpy.data.materials['SXMaterial']
 
     def mergeLayersManager(self, objects, sourceLayer, direction):
         #TODO: fix layer7 with layerCount
@@ -739,11 +774,11 @@ class SXTOOLS_tools(object):
     def __del__(self):
         print('SX Tools: Exiting tools')
 
-# Instantiate tools
-tools = SXTOOLS_tools()
 
+# ------------------------------------------------------------------------
+#    Core Functions
+# ------------------------------------------------------------------------
 def updateLayers(self, context):
-    #print('updateLayers called')
     if not sxglobals.refreshInProgress:
         shadingMode(self, context)
 
@@ -766,7 +801,7 @@ def updateLayers(self, context):
             setattr(obj.sxtools, 'activeLayerVisibility', visVal)
             sxglobals.refreshInProgress = False
 
-        tools.setupGeometry()
+        setup.setupGeometry()
         tools.compositeLayers(objects)
 
 def refreshActives(self, context):
@@ -1147,7 +1182,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
         obj = context.active_object
         objType = getattr(obj, 'type', '')
 
-        if (objType in ['MESH','CURVE']) and (len(context.view_layer.objects.selected) > 0):  
+        if (objType in ['MESH','CURVE']) and (len(context.view_layer.objects.selected) > 0):
 
             layout = self.layout
             mesh = context.active_object.data
@@ -1156,7 +1191,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             
             if mesh.vertex_colors.active is None:
                 col = self.layout.column(align = True)
-                col.operator("sxtools.scenesetup", text = "Set Up Object")
+                if (len(context.view_layer.objects.selected) == 1):
+                    col.operator('sxtools.scenesetup', text = 'Set Up Object')
+                else:
+                    col.operator('sxtools.scenesetup', text = 'Set Up Objects')
             else:
                 if mesh.vertex_colors.active.name != 'composite':
                     layer = sxglobals.refArray[mesh.vertex_colors.active_index]
@@ -1260,6 +1298,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row2_chcp.prop(scene, 'targetchannel', text = 'Data')
                         col_chcp = box_chcp.column(align = True)
                         col_chcp.operator('sxtools.copychannel', text = 'Apply')
+        else:
+            layout = self.layout               
+            col = self.layout.column(align = True)
+            col.label(text = 'Select a mesh to continue')
 
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
@@ -1271,7 +1313,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
-        tools.setupGeometry()
+        setup.setupGeometry()
         return {"FINISHED"}
 
 
@@ -1415,12 +1457,15 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
     bl_idname = "sxtools.crease0"
     bl_label = "Crease0"
     bl_options = {"UNDO"}
-    bl_description = 'Uncrease selection (set0)'
+    bl_description = 'Uncrease selection, shift-click to select creased edges'
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         group = 'CreaseSet0'
-        tools.assignCrease(objects, group)
+        if event.shift:
+            tools.selectCrease(objects, group)
+        else:
+            tools.assignCrease(objects, group)
         return {"FINISHED"}
 
 
@@ -1429,12 +1474,15 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
     bl_idname = "sxtools.crease1"
     bl_label = "Crease1"
     bl_options = {"UNDO"}
-    bl_description = 'Add selection to set1'
+    bl_description = 'Add selection to set1, shift-click to select creased edges'
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         group = 'CreaseSet1'
-        tools.assignCrease(objects, group)
+        if event.shift:
+            tools.selectCrease(objects, group)
+        else:
+            tools.assignCrease(objects, group)
         return {"FINISHED"}
 
 
@@ -1443,12 +1491,15 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
     bl_idname = "sxtools.crease2"
     bl_label = "Crease2"
     bl_options = {"UNDO"}
-    bl_description = 'Add selection to set2'
+    bl_description = 'Add selection to set2, shift-click to select creased edges'
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         group = 'CreaseSet2'
-        tools.assignCrease(objects, group)
+        if event.shift:
+            tools.selectCrease(objects, group)
+        else:
+            tools.assignCrease(objects, group)
         return {"FINISHED"}
 
 
@@ -1457,12 +1508,15 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
     bl_idname = "sxtools.crease3"
     bl_label = "Crease3"
     bl_options = {"UNDO"}
-    bl_description = 'Add selection to set3'
+    bl_description = 'Add selection to set3, shift-click to select creased edges'
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         group = 'CreaseSet3'
-        tools.assignCrease(objects, group)
+        if event.shift:
+            tools.selectCrease(objects, group)
+        else:
+            tools.assignCrease(objects, group)
         return {"FINISHED"}
 
 
@@ -1471,12 +1525,15 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
     bl_idname = "sxtools.crease4"
     bl_label = "Crease4"
     bl_options = {"UNDO"}
-    bl_description = 'Add selection to set4'
+    bl_description = 'Add selection to set4, shift-click to select creased edges'
 
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         group = 'CreaseSet4'
-        tools.assignCrease(objects, group)
+        if event.shift:
+            tools.selectCrease(objects, group)
+        else:
+            tools.assignCrease(objects, group)
         return {"FINISHED"}
 
 
@@ -1496,9 +1553,13 @@ class SXTOOLS_OT_copychannel(bpy.types.Operator):
         tools.copyChannel(objects, sourcemap, sourcechannel, targetmap, targetchannel)
         return {"FINISHED"}
 
+
 # ------------------------------------------------------------------------
 #    Registration and initialization
 # ------------------------------------------------------------------------
+sxglobals = SXTOOLS_sxglobals()
+setup = SXTOOLS_setup()
+tools = SXTOOLS_tools()
 
 classes = (
     SXTOOLS_objectprops,
@@ -1529,7 +1590,6 @@ def register():
 
     bpy.types.Object.sxtools = bpy.props.PointerProperty(type=SXTOOLS_objectprops)
     bpy.types.Scene.sxtools = bpy.props.PointerProperty(type=SXTOOLS_sceneprops)
-    init()
 
 def unregister():
     from bpy.utils import unregister_class
@@ -1546,6 +1606,7 @@ if __name__ == "__main__":
         unregister()
     except:
         pass
+    init()
     register()
 
 #MISSING FEATURES FROM SXTOOLS-MAYA:
@@ -1564,7 +1625,6 @@ if __name__ == "__main__":
 # - Occlusion baking temp groundplane
 # - Master palette library load/save/apply/manage
 # - PBR material library load/save/apply/manage
-# - Crease sets
 # - Skinning support?
 # - Export settings:
 #   - Submesh support
@@ -1582,6 +1642,7 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Set proper shading mode after scene setup
 # - Create custom layerview list items, to include UV channel properties
 #   - Automatically set paint operation targets if UV channel selected?
 # - Indicate active vertex selection?
@@ -1590,3 +1651,7 @@ if __name__ == "__main__":
 # - Custom hide/show icons to layer view items
 # - Assign fill color from brush color if in vertex paint mode
 #   color[0] = bpy.data.brushes["Draw"].color[0]
+#C.active_object.modifiers.new(type = 'EDGE_SPLIT', name = 'SX EdgeSplit')
+#bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
+#C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
+# - Store crease weigths in vertex groups?
