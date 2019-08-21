@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 26),
+    "version": (0, 0, 27),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -168,7 +168,7 @@ class SXTOOLS_tools(object):
 
         return (vertLoopDict, vertPosDict, objSel, faceSel, vertSel)
 
-    def applyColor(self, objects, layer, color, overwrite, noise = 0.0):
+    def applyColor(self, objects, layer, color, overwrite, noise = 0.0, mono = False):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -196,8 +196,13 @@ class SXTOOLS_tools(object):
             else:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     noiseColor = [color[0], color[1], color[2], 1.0][:]
-                    for i in range(3):
-                        noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
+                    if mono:
+                        monoNoise = random.uniform(-noise, noise)
+                        for i in range(3):
+                            noiseColor[i] += monoNoise
+                    else:
+                        for i in range(3):
+                            noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
                     for loop_idx in loop_indices:
                         if overwrite:
                             vertexColors[loop_idx].color = noiseColor
@@ -895,6 +900,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max = 1.0,
         default = 0.0)
 
+    fillmono: bpy.props.BoolProperty(
+        name = "Monochrome",
+        default = False)
+
     rampmode: bpy.props.EnumProperty(
         name = "Ramp Mode",
         items = [
@@ -1048,6 +1057,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_noise = box_fill.row(align = True)
                         row_noise.prop(scene, 'fillnoise', slider = True)
                         col_color = box_fill.column(align = True)
+                        col_color.prop(scene, 'fillmono', text = 'Monochromatic')
                         col_color.prop(scene, 'fillalpha')
                         col_color.operator('sxtools.applycolor', text = 'Apply')
 
@@ -1124,7 +1134,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         color = context.scene.sxtools.fillcolor
         overwrite = context.scene.sxtools.fillalpha
         noise = context.scene.sxtools.fillnoise
-        tools.applyColor(objects, layer, color, overwrite, noise)
+        mono = context.scene.sxtools.fillmono
+        tools.applyColor(objects, layer, color, overwrite, noise, mono)
         tools.compositeLayers(objects)
         return {"FINISHED"}
 
@@ -1314,11 +1325,10 @@ if __name__ == "__main__":
 #   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
 #   - hidden/mask/adjustment indication
 # - Active layer color palette
-# - Color fill history palette
-# - Color fill monochromatic noise
+# - Color fill recent colors palette
 # - Copy / Paste / Swap layers
 # - Ramp fill color presets
-# - Multi-object (and component) gradients 
+# - Multi-object (and component) gradients
 # - Curvature ramp
 # - Luminance remap ramp
 # - Occlusion baking temp groundplane
@@ -1343,7 +1353,6 @@ if __name__ == "__main__":
 #   - _paletted suffix
 #TODO:
 # - Indicate active vertex selection?
-# - Noise is not continuous across faces
 # - Filter composite out of layer list
 # - Add UV source channels to layer list?
 # - Custom hide/show icons to layer view items
