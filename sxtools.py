@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 27),
+    "version": (0, 0, 42),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -37,14 +37,28 @@ class SXTOOLS_sxglobals(object):
             [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
         self.refChannelArray = [
-            'palettemasks', 'occlusion', 'metallic', 'roughness',
-            'transmission', 'emission']
+            ('textureU', 'textureV'),
+            ('palettemasks', 'occlusion'),
+            ('transmission', 'emission'),
+            ('metallic', 'smoothness'),
+            ('gradient1', 'gradient2'),
+            ('overlayR', 'overlayG'),
+            ('overlayB', 'overlayA'),
+            ('unused', 'unused') ]
+        self.refChannels = {
+            'textureU': 0, 'textureV': 0,
+            'palettemasks': 0, 'occlusion': 1,
+            'metallic': 0, 'smoothness': 0,
+            'transmission': 0, 'emission': 0,
+            'gradient1': 0, 'gradient2': 0,
+            'overlayR': 0, 'overlayG': 0,
+            'overlayB': 0, 'overlayA': 0,
+            'unused': 0}
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
 
 sxglobals = SXTOOLS_sxglobals()
-
 
 # ------------------------------------------------------------------------
 #    Tool Actions
@@ -67,6 +81,19 @@ class SXTOOLS_tools(object):
                 if not layer in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name=layer)
                     self.clearLayers([obj, ], layer)
+
+            if len(mesh.uv_layers.keys()) < 8:
+                for i in range(len(mesh.uv_layers.keys()), (9 - len(mesh.uv_layers.keys()))):
+                    uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
+                    vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
+                    uvmap = mesh.uv_layers.new()
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            mesh.uv_layers[uvmap.name].data[idx].uv = [uValue, vValue]
+
+            for i in range(5):
+                if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
+                    obj.vertex_groups.new(name = 'CreaseSet'+str(i))
 
         self.createSXMaterial()
 
@@ -468,7 +495,7 @@ class SXTOOLS_tools(object):
         # 4: emission V2
         # 5: metallic U3
         # 6: smoothness V3
-        # (layers 6, 7 are unpaletted)
+        # (layers 6, 7 are unpaletted, metallic color in 7?)
         # 7: gradient mask layer8 U4
         # 8: gradient mask layer9 V4
         # 9: RGBA overlay UV5, UV6
@@ -482,23 +509,83 @@ class SXTOOLS_tools(object):
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0
+            sxmaterial.node_tree.nodes['Principled BSDF'].location = (900, 300)
 
+            sxmaterial.node_tree.nodes['Material Output'].location = (1200, 300)
+
+            # Gradient tool color ramp
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
+            sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 300)
+
+            # Vertex color source
             sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
-            sxmaterial.node_tree.nodes["Attribute"].attribute_name = "composite"
+            sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
+            sxmaterial.node_tree.nodes['Attribute'].location = (-600, 300)
 
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+            # Occlusion source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            sxmaterial.node_tree.nodes['UV Map'].uv_map = 'UVMap.001'
+            sxmaterial.node_tree.nodes['UV Map'].location = (-600, 0)
+
+            # Metallic and roughness source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            sxmaterial.node_tree.nodes['UV Map.001'].uv_map = 'UVMap.003'
+            sxmaterial.node_tree.nodes['UV Map.001'].location = (-600, -300)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            sxmaterial.node_tree.nodes['Separate XYZ'].location = (-300, 0)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            sxmaterial.node_tree.nodes['Separate XYZ.001'].location = (-300, -300)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeInvert')
+            sxmaterial.node_tree.nodes['Invert'].location = (0, -300)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
+            sxmaterial.node_tree.nodes["Mix"].blend_type = 'MULTIPLY'
+            sxmaterial.node_tree.nodes['Mix'].location = (0, 300)
+
+            # Node connections
+            # Vertex color to mixer
             output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
             sxmaterial.node_tree.links.new(input, output)
 
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
+            # Split occlusion from UV1
+            output = sxmaterial.node_tree.nodes['UV Map'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['Separate XYZ'].inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
 
-            #node.location = (100,100)
-            #sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap') # 'UV Map', 'UV Map.001'...
-            #bpy.data.node_groups["Shader Nodetree"].nodes["UV Map.001"].uv_map = "UVMap.001"
-            #sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            #sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-            #sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
-            #bpy.data.materials['SXMaterial'].node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            # Occlusion to mixer
+            output = sxmaterial.node_tree.nodes['Separate XYZ'].outputs['Y']
+            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Mixer out to base color
+            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Split metallic and smoothness
+            output = sxmaterial.node_tree.nodes['UV Map.001'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['Separate XYZ.001'].inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # X to metallic
+            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['X']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Invert smoothness to roughness (inverse used by Unity)
+            output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['Y']
+            input = sxmaterial.node_tree.nodes['Invert'].inputs['Color']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Y to roughness
+            output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
+            sxmaterial.node_tree.links.new(input, output)
 
         objects = bpy.context.view_layer.objects.selected
         for obj in objects:
@@ -703,11 +790,27 @@ def shadingMode(self, context):
                     if (space.shading.type == 'WIREFRAME') or (space.shading.type == 'SOLID'):
                         space.shading.type = shading
 
-        sxmaterial.node_tree.nodes["Attribute"].attribute_name = 'composite'
+        # Disconnect vertex color output from emission
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         sxmaterial.node_tree.links.remove(attrLink)
+
+        # Reconnect vertex color to mixer
+        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+        sxmaterial.node_tree.links.new(input, output)
+
+        # Reconnect mixer to base color
+        output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+        sxmaterial.node_tree.links.new(input, output)
+
+        # Reconnect metallic and roughness
+        output = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs['X']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
+        sxmaterial.node_tree.links.new(input, output)
+
+        output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
         sxmaterial.node_tree.links.new(input, output)
 
     else:
@@ -718,11 +821,22 @@ def shadingMode(self, context):
                 if space.type == 'VIEW_3D':
                     space.shading.type = shading
 
-        sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
+        # Disconnect base color, metallic and roughness
         attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         sxmaterial.node_tree.links.remove(attrLink)
+
+        # Check if already debug
+        if len(sxmaterial.node_tree.nodes['Mix'].outputs[0].links) > 0:
+            attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
+            attrLink = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
+            attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
+
+        # Connect vertex color source to emission
+        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         sxmaterial.node_tree.links.new(input, output)
 
 
@@ -1352,6 +1466,8 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Create custom layerview list items, to include UV channel properties
+#   - Automatically set paint operation targets if UV channel selected?
 # - Indicate active vertex selection?
 # - Filter composite out of layer list
 # - Add UV source channels to layer list?
