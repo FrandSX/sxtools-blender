@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (0, 0, 85),
+    "version": (0, 0, 92),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -52,6 +52,17 @@ class SXTOOLS_sxglobals(object):
             'overlayR': 0, 'overlayG': 0,
             'overlayB': 0, 'overlayA': 0,
             'unused': 0}
+        # The mapping of material channels to UVs (setindex, uv)
+        self.refExports = {
+            'OCC': [('UVMAP1', 'V')],
+            'TRNS': [('UVMAP2', 'U')],
+            'EMISS': [('UVMAP2', 'V')],
+            'MET': [('UVMAP3', 'U')],
+            'SMTH': [('UVMAP3', 'V')],
+            'GRD1': [('UVMAP4', 'U')],
+            'GRD2': [('UVMAP4', 'V')],
+            'OVR': [('UVMAP5', 'U'), ('UVMAP5', 'V'), ('UVMAP6', 'U'), ('UVMAP6', 'V')] }
+ 
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
@@ -139,6 +150,20 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes["Mix"].blend_type = 'MULTIPLY'
             sxmaterial.node_tree.nodes['Mix'].location = (0, 200)
 
+            # Emission and transmission source
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            sxmaterial.node_tree.nodes['UV Map.002'].uv_map = 'UVMap.002'
+            sxmaterial.node_tree.nodes['UV Map.002'].location = (-600, -400)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            sxmaterial.node_tree.nodes['Separate XYZ.002'].location = (-300, -400)
+
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            sxmaterial.node_tree.nodes["Mix.001"].inputs[0].default_value = 1
+            sxmaterial.node_tree.nodes["Mix.001"].blend_type = 'MULTIPLY'
+            sxmaterial.node_tree.nodes['Mix.001'].location = (0, -400)
+
+
             # Node connections
             # Vertex color to mixer
             output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
@@ -178,6 +203,29 @@ class SXTOOLS_setup(object):
             # Y to roughness
             output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Split transmission and emission
+            output = sxmaterial.node_tree.nodes['UV Map.002'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['Separate XYZ.002'].inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # X to transmission
+            output = sxmaterial.node_tree.nodes['Separate XYZ.002'].outputs['X']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Y to multiply occ/base mix
+            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+            sxmaterial.node_tree.links.new(input, output)
+            output = sxmaterial.node_tree.nodes['Separate XYZ.002'].outputs['Y']            
+            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Mix to emission
+            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
         objects = bpy.context.view_layer.objects.selected
@@ -626,22 +674,21 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode = mode)
 
-    def processMesh(self):
+    # take sourcemap and targetmap, translate to copychannel batches
+    def layerToMaterial(self, objects, sourcemap, materialmap):
+        sourcechannels = ['R', 'G', 'B', 'A']
+        for obj in objects:
+            for i, value in enumerate(sxglobals.refExports[materialmap]):
+                print(obj, sourcemap, sourcechannels[i], value[0], value[1])
+                self.copyChannel([obj, ], sourcemap, sourcechannels[i], value[0], value[1])
+
+    def processMesh(self, objects):
         # placeholder for batch export preprocessor
         # 0: UV0 for basic automatically laid out UVs
         # 1: palettemasks to U1
-        # 2: occlusion to V1
-        # 3: transmission U2
-        # 4: emission V2
-        # 5: metallic U3
-        # 6: smoothness V3
-        # (layers 6, 7 are unpaletted, metallic color in 7?)
-        # 7: gradient mask layer8 U4
-        # 8: gradient mask layer9 V4
-        # 9: RGBA overlay UV5, UV6
+        self.copyChannel(objects, 'LAYER1', 'R', 'UVMAP1', 'U', copymode = 2)
         # static flag to object
-        pass
-
+        # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
 
     def mergeLayersManager(self, objects, sourceLayer, direction):
         #TODO: fix layer7 with layerCount
@@ -865,6 +912,22 @@ def shadingMode(self, context):
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
         sxmaterial.node_tree.links.new(input, output)
 
+        # Reconnect transmission
+        output = sxmaterial.node_tree.nodes['Separate XYZ.002'].outputs['X']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+        sxmaterial.node_tree.links.new(input, output)
+
+        # Reconnect emission
+        output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
+        sxmaterial.node_tree.links.new(input, output)
+
+        # Reconnect base mix
+        output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+        sxmaterial.node_tree.links.new(input, output)
+
+
     else:
         areas = bpy.context.workspace.screens[0].areas
         shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
@@ -878,12 +941,14 @@ def shadingMode(self, context):
         sxmaterial.node_tree.links.remove(attrLink)
 
         # Check if already debug
-        if len(sxmaterial.node_tree.nodes['Mix'].outputs[0].links) > 0:
+        if len(sxmaterial.node_tree.nodes['Mix.001'].outputs[0].links) > 0:
             attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
             attrLink = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
             attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
+            attrLink = sxmaterial.node_tree.nodes['Separate XYZ.002'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
 
         # Connect vertex color source to emission
@@ -1129,6 +1194,19 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('UVMAP7','UVMap 7','')],
         default = 'UVMAP0')
 
+    materialmap: bpy.props.EnumProperty(
+        name = "Channel Map",
+        items = [
+            ('OCC','Occlusion',''),
+            ('TRNS','Transmission',''),
+            ('EMISS','Emission',''),
+            ('MET','Metallic',''),
+            ('SMTH','Smoothness',''),
+            ('GRD1','Gradient 1',''),
+            ('GRD2','Gradient 2',''),
+            ('OVR','Overlay','')],
+        default = 'OCC')
+
     sourcechannel: bpy.props.EnumProperty(
         name = "Source Channel",
         items = [
@@ -1290,6 +1368,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                     row_chcpbox.label(text='Channel Copy')
                     if scene.expandchcopy:
+                        col_l2m = box_chcp.column(align = True)
+                        col_l2m.prop(scene, 'sourcemap', text = 'From')
+                        col_l2m.prop(scene, 'materialmap', text = 'To')
+                        col_l2m.operator('sxtools.layertomaterial', text = 'Apply')
                         row_chcp = box_chcp.row(align = True)
                         row_chcp.prop(scene, 'sourcemap', text = 'From')
                         row_chcp.prop(scene, 'sourcechannel', text = 'Data')
@@ -1537,6 +1619,20 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SXTOOLS_OT_layertomaterial(bpy.types.Operator):
+
+    bl_idname = "sxtools.layertomaterial"
+    bl_label = "Layer to Material"
+    bl_options = {"UNDO"}
+    bl_description = 'Copy layer to material UV channels'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        sourcemap = context.scene.sxtools.sourcemap
+        materialmap = context.scene.sxtools.materialmap
+        tools.layerToMaterial(objects, sourcemap, materialmap)
+        return {"FINISHED"}
+
 class SXTOOLS_OT_copychannel(bpy.types.Operator):
 
     bl_idname = "sxtools.copychannel"
@@ -1573,6 +1669,7 @@ classes = (
     SXTOOLS_OT_crease2,
     SXTOOLS_OT_crease3,
     SXTOOLS_OT_crease4,
+    SXTOOLS_OT_layertomaterial,
     SXTOOLS_OT_copychannel,
     SXTOOLS_OT_selmask,
     SXTOOLS_OT_clearlayers,
