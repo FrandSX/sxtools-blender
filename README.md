@@ -64,7 +64,7 @@ Shift-clicking will clear ALL layers.
 Fills selected objects or components (faces, edges, verts supported). When applying noise, low values (<0.05) seem to provide tolerable results.
 
 ### Gradient Tool
-Fills selected objects or components with a gradient across the selected axis. The global bbox option stretches the gradient over multiple objects.
+Fills selected objects or components with a gradient across the selected axis. The global bbox option stretches the gradient over multiple objects. Additional modes 'Curvature' and 'Normalized Curvature' map the gradient across the convex and concave sections of the surface. The normalized curvature option takes better advantage of the full range of the gradient for stylistic purposes.
 
 ### Ambient Occlusion
 A simple occlusion baking tool with selectable ray count. Supports blending between object/local and scene/global occlusion results.
