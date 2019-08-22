@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 0, 127),
+    "version": (1, 1, 2),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -634,6 +634,12 @@ class SXTOOLS_tools(object):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
+        curvatures = []
+        if rampmode == 'C':
+            curvatures = self.calculateCurvature(objects, False)
+        elif rampmode == 'CN':
+            curvatures = self.calculateCurvature(objects, True)
+
         if mergebbx:
             bbx_x = []
             bbx_y = []
@@ -649,6 +655,8 @@ class SXTOOLS_tools(object):
             zmin, zmax = min(bbx_z), max(bbx_z)
 
         for obj in objects:
+            if rampmode == 'C' or rampmode == 'CN':
+                curvDict = curvatures[obj]
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
@@ -658,7 +666,7 @@ class SXTOOLS_tools(object):
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
             
-            if not mergebbx:
+            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN'):
                 bbx = self.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
@@ -688,6 +696,8 @@ class SXTOOLS_tools(object):
                         if zdiv == 0:
                             zdiv = 1.0
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
+                    elif rampmode == 'C' or rampmode == 'CN':
+                        ratioRaw = curvDict[vert_idx]
 
                     ratio = max(min(ratioRaw, 1), 0)
                     if overwrite:
@@ -897,6 +907,67 @@ class SXTOOLS_tools(object):
                         1.0]
 
         bpy.ops.object.mode_set(mode = mode)
+
+    def calculateCurvature(self, objects, normalize=False):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'EDIT')
+
+        objCurvatures = {}
+
+        for obj in objects:
+            vtxCurvatures = {}
+            bm = bmesh.from_edit_mesh(obj.data)
+            for vert in bm.verts:
+                numConnected = len(vert.link_edges)
+                edgeWeights = []
+                angles = []
+                for edge in vert.link_edges:
+                    edgeWeights.append(edge.calc_length())
+                    pos1 = vert.co
+                    pos2 = edge.other_vert(vert).co
+                    edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
+                    angles.append(math.acos(vert.normal.normalized() @ edgeVec.normalized()))
+
+                vtxCurvature = 0.0
+                for i in range(numConnected):
+                    curvature = angles[i] / math.pi - 0.5
+                    vtxCurvature += curvature
+
+                vtxCurvature = vtxCurvature / float(numConnected)
+                if vtxCurvature > 1.0:
+                    vtxCurvature = 1.0
+
+                vtxCurvatures[vert.index] = vtxCurvature
+            objCurvatures[obj] = vtxCurvatures
+
+        # Normalize convex and concave separately
+        # to maximize artist ability to crease
+
+        if normalize:
+            maxArray = []
+            minArray = []
+            for vtxCurvature in objCurvatures.values():
+                minArray.append(min(vtxCurvature.values()))
+                maxArray.append(max(vtxCurvature.values()))
+            minCurv = min(minArray)
+            maxCurv = max(maxArray)
+
+            for vtxCurvatures in objCurvatures.values():
+                for vert, vtxCurvature in vtxCurvatures.items():
+                    if vtxCurvature < 0:
+                        vtxCurvatures[vert] = (vtxCurvature / float(minCurv)) * -0.5 + 0.5
+                    else:
+                        vtxCurvatures[vert] = (vtxCurvature / float(maxCurv)) * 0.5 + 0.5
+        else:
+            for vtxCurvatures in objCurvatures.values():
+                for vert, vtxCurvature in vtxCurvatures.items():
+                    vtxCurvatures[vert] = (vtxCurvature + 0.5)
+
+            bmesh.update_edit_mesh(obj.data)
+        bpy.ops.object.mode_set(mode = mode)
+
+        return objCurvatures
+
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -1357,7 +1428,9 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items = [
             ('X','X-Axis',''),
             ('Y','Y-Axis',''),
-            ('Z','Z-Axis','')],
+            ('Z','Z-Axis',''),
+            ('C','Curvature',''),
+            ('CN', 'Normalized Curvature', '')],
         default = 'X')
 
     rampbbox: bpy.props.BoolProperty(
