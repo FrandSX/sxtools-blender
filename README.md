@@ -79,13 +79,21 @@ Works around Blender's current limitation of only 8 vertex color layers by allow
 
 The package contains example shader graphs for both HDRP and LWRP renderers in Unity 2019.
 Currently the export channels are set in the following way:
+
 UV0 - Reserved for a regular texture
+
 U1 - Currently not in use
+
 V1 - Occlusion
+
 U2 - Transmission
+
 V2 - Emission
+
 U3 - Metallic
+
 V3 - Smoothness
+
 UV4-UV7 - Currently not in use
 
 Vertex colors are exported from the Composite layer. Material properties are assigned according to the list above.
