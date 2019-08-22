@@ -3,7 +3,7 @@
 ![Early Example](/sxtools-blender.png)
 
 ### Overview
-SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs.
+SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs. It supports driving a full PBR (physically based rendering) game material with vertex color -based data.
 
 ### Features
 - Multi-layer vertex color editing
@@ -12,7 +12,8 @@ SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The 
 - Color gradient tool
 - Vertex ambient occlusion baking
 - Quick-crease tools
-- Exporting rich vertex-colors to Unity via UV channels
+- Vertex-color -based material channel inputs
+- Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
 
 Installation:
 - Install and enable sxtools.py through the Blender add-on interface
