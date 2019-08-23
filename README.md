@@ -10,6 +10,7 @@ SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The 
 - Layer blend modes (alpha, additive, multiply)
 - Color filler with noise
 - Color gradient tool
+- Curvature-based shading
 - Vertex ambient occlusion baking
 - Quick-crease tools
 - Vertex-color -based material channel inputs
