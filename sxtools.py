@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 2, 1),
+    "version": (1, 2, 2),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -1494,6 +1494,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     occlusionrays: bpy.props.IntProperty(
         name = "Ray Count",
         min = 1,
+        max = 2000,
         default = 256)
 
     sourcemap: bpy.props.EnumProperty(
@@ -1674,7 +1675,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
                         col_ramp.prop(scene, 'rampalpha')
                         if scene.rampmode == 'OCC':
-                            col_ramp.prop(scene, 'occlusionrays', text = 'Ray Count')
+                            col_ramp.prop(scene, 'occlusionrays', slider = True, text = 'Ray Count')
                             col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
 
                         col_ramp.operator('sxtools.applyramp', text = 'Apply')
@@ -2082,16 +2083,12 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Hard edges on hard creases(!)
-# - Export subdivision level
-# - Smoothing angle
 # - UI Palette layout for color swatches
-# - Set proper shading mode after scene setup
+# - Set proper shading mode, layer1 selected, after scene setup
 # - Create custom layerview list items, to include UV channel properties
 #   - Automatically set paint operation targets if UV channel selected?
 # - Indicate active vertex selection?
 # - Filter composite out of layer list
-# - Add UV source channels to layer list?
 # - Custom hide/show icons to layer view items
 # - Assign fill color from brush color if in vertex paint mode
 #   color[0] = bpy.data.brushes["Draw"].color[0]
