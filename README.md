@@ -103,3 +103,23 @@ UV4-UV7 - Currently not in use
 
 Vertex colors are exported from the Composite layer. Material properties are assigned according to the list above.
 Note that emission is only an 8-bit mask for base vertex color, not a full RGBA-channel.
+
+(c) 2017-2019 Jani Kahrama / Secret Exit Ltd.
+
+
+# Acknowledgments
+
+Thanks to:
+
+Rory Driscoll for tips on better sampling
+
+Serge Scherbakov for tips on working with iterators
+
+SX Tools builds on the following work:
+
+### Vertex-to-edge curvature calculation method 
+Algorithm by Stepan Jirka
+
+http://www.stepanjirka.com/maya-api-curvature-shader/
+
+Integrated into SX Tools under MIT license with permission from the author.
