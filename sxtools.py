@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 1, 2),
+    "version": (1, 2, 1),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -71,6 +71,7 @@ class SXTOOLS_sxglobals(object):
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
+        self.copyLayer = None
 
     def __del__(self):
         print('SX Tools: Exiting sxglobals')
@@ -429,6 +430,39 @@ class SXTOOLS_layers(object):
         bpy.context.active_object.data.vertex_colors.active_index = targetIndex
         bpy.context.active_object.sxtools.selectedlayer = targetIndex
 
+    def pasteLayer(self, objects, sourceLayer, targetLayer, swap):
+        for obj in objects:
+            sourceVertexColors = obj.data.vertex_colors[sourceLayer].data
+            targetVertexColors = obj.data.vertex_colors[targetLayer].data
+            tempVertexColors = obj.data.vertex_colors['composite'].data
+
+            sourceBlend = getattr(obj.sxtools, sourceLayer+'BlendMode')[:]
+            targetBlend = getattr(obj.sxtools, targetLayer+'BlendMode')[:]
+
+            print('before: ', sourceBlend, targetBlend)
+
+            if swap == True:
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = targetVertexColors[idx].color[:]
+                        tempVertexColors[idx].color = value
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = sourceVertexColors[idx].color[:]
+                        targetVertexColors[idx].color = value
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = tempVertexColors[idx].color[:]
+                        sourceVertexColors[idx].color = value
+                setattr(obj.sxtools, sourceLayer+'BlendMode', targetBlend)
+                setattr(obj.sxtools, targetLayer+'BlendMode', sourceBlend)
+            else:
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = sourceVertexColors[idx].color[:]
+                        targetVertexColors[idx].color = value
+                setattr(obj.sxtools, targetLayer+'BlendMode', sourceBlend)
+            print('after: ', sourceBlend, targetBlend)
 
     def updateLayerPalette(self, obj, layer):
         mode = obj.mode
@@ -620,7 +654,8 @@ class SXTOOLS_tools(object):
             color, palCols[0], palCols[1], palCols[2],
             palCols[3], palCols[4], palCols[5], palCols[6]]
 
-        if (color not in palCols) and (color[3] > 0.0):
+        fillColor = color[:]
+        if (fillColor not in palCols) and (fillColor[3] > 0.0):
             scn.fillpalette1 = colorArray[0][:]
             scn.fillpalette2 = colorArray[1][:]
             scn.fillpalette3 = colorArray[2][:]
@@ -636,9 +671,11 @@ class SXTOOLS_tools(object):
 
         curvatures = []
         if rampmode == 'C':
-            curvatures = self.calculateCurvature(objects, False)
+            objValues = self.calculateCurvature(objects, False)
         elif rampmode == 'CN':
-            curvatures = self.calculateCurvature(objects, True)
+            objValues = self.calculateCurvature(objects, True)
+        elif rampmode == 'OCC':
+            objValues = self.bakeOcclusion(objects, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend)
 
         if mergebbx:
             bbx_x = []
@@ -655,8 +692,8 @@ class SXTOOLS_tools(object):
             zmin, zmax = min(bbx_z), max(bbx_z)
 
         for obj in objects:
-            if rampmode == 'C' or rampmode == 'CN':
-                curvDict = curvatures[obj]
+            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC':
+                valueDict = objValues[obj]
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
@@ -666,7 +703,7 @@ class SXTOOLS_tools(object):
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
             
-            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN'):
+            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC'):
                 bbx = self.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
@@ -696,8 +733,8 @@ class SXTOOLS_tools(object):
                         if zdiv == 0:
                             zdiv = 1.0
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
-                    elif rampmode == 'C' or rampmode == 'CN':
-                        ratioRaw = curvDict[vert_idx]
+                    elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC':
+                        ratioRaw = valueDict[vert_idx]
 
                     ratio = max(min(ratioRaw, 1), 0)
                     if overwrite:
@@ -802,7 +839,6 @@ class SXTOOLS_tools(object):
         # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
 
     def mergeLayersManager(self, objects, sourceLayer, direction):
-        #TODO: fix layer7 with layerCount
         forbidden = ['composite', 'occlusion', 'metallic', 'roughness', 'transmission', 'emission']
         if (sourceLayer == 'layer1') and (direction == 'UP'):
             print('SX Tools Error: Cannot merge layer1')
@@ -834,7 +870,7 @@ class SXTOOLS_tools(object):
 
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
-    def bakeOcclusion(self, objects, layer, rayCount=250, blend=0.0, bias=0.000001):
+    def bakeOcclusion(self, objects, rayCount=250, blend=0.0, bias=0.000001):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
         scene = bpy.context.scene
@@ -842,11 +878,12 @@ class SXTOOLS_tools(object):
         hemiSphere = [None] * rayCount
         bias = 1e-5
 
+        objOcclusion = {}
+
         for idx in range(rayCount):
             hemiSphere[idx] = self.rayRandomizer()
 
         for obj in objects:
-            vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             mat = obj.matrix_world
@@ -854,6 +891,7 @@ class SXTOOLS_tools(object):
             dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
+            vertOccDict = {}
 
             for vert_idx, loop_indices in vertLoopDict.items():
                 occValue = 1.0
@@ -900,13 +938,11 @@ class SXTOOLS_tools(object):
                             scnOccValue -= contribution
 
                 for loop_idx in loop_indices:
-                    vertexColors[loop_idx].color = [
-                        (occValue * (1.0 - blend) + scnOccValue * blend),
-                        (occValue * (1.0 - blend) + scnOccValue * blend),
-                        (occValue * (1.0 - blend) + scnOccValue * blend),
-                        1.0]
+                    vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
+            objOcclusion[obj] = vertOccDict
 
         bpy.ops.object.mode_set(mode = mode)
+        return objOcclusion
 
     def calculateCurvature(self, objects, normalize=False):
         mode = objects[0].mode
@@ -1430,7 +1466,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('Y','Y-Axis',''),
             ('Z','Z-Axis',''),
             ('C','Curvature',''),
-            ('CN', 'Normalized Curvature', '')],
+            ('CN', 'Normalized Curvature', ''),
+            ('OCC', 'Ambient Occlusion', '')],
         default = 'X')
 
     rampbbox: bpy.props.BoolProperty(
@@ -1526,10 +1563,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Expand Ramp",
         default = False)
 
-    expandocc: bpy.props.BoolProperty(
-        name = "Expand Occlusion",
-        default = False)
-
     expandcrease: bpy.props.BoolProperty(
         name = "Expand Crease",
         default = False)
@@ -1590,12 +1623,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type = 'DEFAULT')
 
                 if sxtools.selectedlayer != 0:
-                    row_merge = self.layout.row(align = True)
-                    row_merge.operator('sxtools.mergeup')
-                    row_merge.operator('sxtools.mergedown')
-                    row_misc = self.layout.row(align = True)
-                    row_misc.operator('sxtools.selmask', text = 'Select Mask')
-                    row_misc.operator('sxtools.clear', text = 'Clear Layer')
+                    row_misc1 = self.layout.row(align = True)
+                    row_misc1.operator('sxtools.mergeup')
+                    row_misc1.operator('sxtools.copylayer', text = 'Copy')
+                    row_misc1.operator('sxtools.clear', text = 'Clear')
+                    row_misc2 = self.layout.row(align = True)
+                    row_misc2.operator('sxtools.mergedown')
+                    row_misc2.operator('sxtools.pastelayer', text = 'Paste')
+                    row_misc2.operator('sxtools.selmask', text = 'Select Mask')
 
                     # Color Fill ---------------------------------------------------
                     box_fill = layout.box()
@@ -1638,21 +1673,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_ramp.prop(scene, 'rampmode', text = 'Mode')
                         col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
                         col_ramp.prop(scene, 'rampalpha')
+                        if scene.rampmode == 'OCC':
+                            col_ramp.prop(scene, 'occlusionrays', text = 'Ray Count')
+                            col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
+
                         col_ramp.operator('sxtools.applyramp', text = 'Apply')
-
-                    # Bake Occlusion ---------------------------------------------------
-                    box_occ = layout.box()
-                    row_occbox = box_occ.row()
-                    row_occbox.prop(scene, "expandocc",
-                        icon="TRIA_DOWN" if scene.expandocc else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
-
-                    row_occbox.label(text='Ambient Occlusion')
-                    if scene.expandocc:
-                        col_occ = box_occ.column(align = True)
-                        col_occ.prop(scene, 'occlusionrays', text = 'Ray Count')
-                        col_occ.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
-                        col_occ.operator('sxtools.bakeocclusion', text = 'Apply')
 
                     # Crease Sets ---------------------------------------------------
                     box_crease = layout.box()
@@ -1700,7 +1725,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
-
     bl_idname = "sxtools.scenesetup"
     bl_label = "Set Up Object"
     bl_options = {"UNDO"}
@@ -1713,7 +1737,6 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 
 
 class SXTOOLS_OT_applycolor(bpy.types.Operator):
-
     bl_idname = "sxtools.applycolor"
     bl_label = "Apply Color"
     bl_options = {"UNDO"}
@@ -1728,12 +1751,11 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         noise = context.scene.sxtools.fillnoise
         mono = context.scene.sxtools.fillmono
         tools.applyColor(objects, layer, color, overwrite, noise, mono)
-        layers.compositeLayers(objects)
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
 class SXTOOLS_OT_applyramp(bpy.types.Operator):
-
     bl_idname = "sxtools.applyramp"
     bl_label = "Apply Gradient"
     bl_options = {"UNDO"}
@@ -1748,12 +1770,11 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         overwrite = context.scene.sxtools.rampalpha
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         tools.applyRamp(objects, layer, ramp, rampmode, overwrite, mergebbx)
-        layers.compositeLayers(objects)
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
 class SXTOOLS_OT_mergeup(bpy.types.Operator):
-
     bl_idname = "sxtools.mergeup"
     bl_label = "Merge Up"
     bl_options = {"UNDO"}
@@ -1765,12 +1786,11 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
         layer = sxglobals.refLayerArray[idx]
         mergemode = 'UP'
         tools.mergeLayersManager(objects, layer, mergemode)
-        layers.compositeLayers(objects)
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
 class SXTOOLS_OT_mergedown(bpy.types.Operator):
-
     bl_idname = "sxtools.mergedown"
     bl_label = "Merge Down"
     bl_options = {"UNDO"}
@@ -1782,12 +1802,47 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
         layer = sxglobals.refLayerArray[idx]
         mergemode = 'DOWN'
         tools.mergeLayersManager(objects, layer, mergemode)
-        layers.compositeLayers(objects)
+        refreshActives(self, context)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_copylayer(bpy.types.Operator):
+    bl_idname = "sxtools.copylayer"
+    bl_label = "Copy Layer"
+    bl_options = {"UNDO"}
+    bl_description = 'Copy selected layer'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refLayerArray[idx]
+        sxglobals.copyLayer = layer
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_pastelayer(bpy.types.Operator):
+    bl_idname = "sxtools.pastelayer"
+    bl_label = "Paste Layer"
+    bl_options = {"UNDO"}
+    bl_description = 'Shift-click to swap with copied layer'
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        idx = context.active_object.sxtools.selectedlayer
+        sourcelayer = sxglobals.copyLayer
+        targetlayer = sxglobals.refLayerArray[idx]
+
+        if event.shift:
+            mode = True
+        else:
+            mode = False
+
+        layers.pasteLayer(objects, sourcelayer, targetlayer, mode)
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
-
     bl_idname = "sxtools.clear"
     bl_label = "Clear Layer"
     bl_options = {"UNDO"}
@@ -1804,12 +1859,11 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             # TODO: May return UVMAP?!
 
         layers.clearLayers(objects, layer)
-        layers.compositeLayers(objects)
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
 class SXTOOLS_OT_selmask(bpy.types.Operator):
-
     bl_idname = "sxtools.selmask"
     bl_label = "Select Layer Mask"
     bl_options = {"UNDO"}
@@ -1829,26 +1883,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class SXTOOLS_OT_bakeocclusion(bpy.types.Operator):
-
-    bl_idname = "sxtools.bakeocclusion"
-    bl_label = "Bake Occlusion"
-    bl_options = {"UNDO"}
-    bl_description = 'Bake ambient occlusion to vertex color'
-
-    def invoke(self, context, event):
-        objects = context.view_layer.objects.selected
-        idx = context.active_object.sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
-        blend = context.scene.sxtools.occlusionblend
-        rayCount = context.scene.sxtools.occlusionrays
-        tools.bakeOcclusion(objects, layer, rayCount, blend)
-        layers.compositeLayers(objects)
-        return {"FINISHED"}
-
-
 class SXTOOLS_OT_crease0(bpy.types.Operator):
-
     bl_idname = "sxtools.crease0"
     bl_label = "Crease0"
     bl_options = {"UNDO"}
@@ -1866,7 +1901,6 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
 
 
 class SXTOOLS_OT_crease1(bpy.types.Operator):
-
     bl_idname = "sxtools.crease1"
     bl_label = "Crease1"
     bl_options = {"UNDO"}
@@ -1884,7 +1918,6 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
 
 
 class SXTOOLS_OT_crease2(bpy.types.Operator):
-
     bl_idname = "sxtools.crease2"
     bl_label = "Crease2"
     bl_options = {"UNDO"}
@@ -1902,7 +1935,6 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
 
 
 class SXTOOLS_OT_crease3(bpy.types.Operator):
-
     bl_idname = "sxtools.crease3"
     bl_label = "Crease3"
     bl_options = {"UNDO"}
@@ -1920,7 +1952,6 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
 
 
 class SXTOOLS_OT_crease4(bpy.types.Operator):
-
     bl_idname = "sxtools.crease4"
     bl_label = "Crease4"
     bl_options = {"UNDO"}
@@ -1938,7 +1969,6 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
 
 
 class SXTOOLS_OT_layertomaterial(bpy.types.Operator):
-
     bl_idname = "sxtools.layertomaterial"
     bl_label = "Layer to Material"
     bl_options = {"UNDO"}
@@ -1951,8 +1981,8 @@ class SXTOOLS_OT_layertomaterial(bpy.types.Operator):
         tools.layerToMaterial(objects, sourcemap, materialmap)
         return {"FINISHED"}
 
-class SXTOOLS_OT_copychannel(bpy.types.Operator):
 
+class SXTOOLS_OT_copychannel(bpy.types.Operator):
     bl_idname = "sxtools.copychannel"
     bl_label = "Copy Channel"
     bl_options = {"UNDO"}
@@ -1982,7 +2012,6 @@ classes = (
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
-    SXTOOLS_OT_bakeocclusion,
     SXTOOLS_OT_crease0,
     SXTOOLS_OT_crease1,
     SXTOOLS_OT_crease2,
@@ -1994,6 +2023,8 @@ classes = (
     SXTOOLS_OT_clearlayers,
     SXTOOLS_OT_mergeup,
     SXTOOLS_OT_mergedown,
+    SXTOOLS_OT_copylayer,
+    SXTOOLS_OT_pastelayer,
     SXTOOLS_PT_panel)
 
 def init():
@@ -2031,10 +2062,8 @@ if __name__ == "__main__":
 #   - Hide/unhide layer
 #   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
 #   - hidden/mask/adjustment indication
-# - Copy / Paste / Swap layers
 # - Ramp fill color presets
 # - Multi-object (and component) gradients
-# - Curvature ramp
 # - Luminance remap ramp
 # - Occlusion baking temp groundplane
 # - Master palette library load/save/apply/manage
