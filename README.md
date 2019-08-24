@@ -82,7 +82,7 @@ Modes:
 Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier.
 
 ### Channel Copy
-Works around Blender's current limitation of only 8 vertex color layers by allowing artists to copy vertex color layers to UV channels, which are then used as material properties. The same UV channels are also exported to Unity, and supported in the example material.
+Works around Blender's current limitation of only 8 vertex color layers by allowing artists to copy vertex color layers to UV channels, which are then used as material properties. The same UV channels are also exported to Unity, and supported in the example material. Note that the material properties Gradient 1, Gradient 2 and Overlay are not in use in the current release of the tool.
 
 
 ## Exporting to Unity
