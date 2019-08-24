@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 2, 2),
+    "version": (1, 2, 6),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -9,10 +9,12 @@ bl_info = {
 }
 
 import bpy
+import os
 import time
 import random
 import math
 import bmesh
+import json
 from collections import defaultdict
 from mathutils import Vector
 
@@ -23,6 +25,9 @@ from mathutils import Vector
 class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
+        self.paletteDict = {}
+        self.masterPaletteArray = []
+        self.materialArray = []
         self.refArray = [
             'layer1', 'layer2', 'layer3', 'layer4',
             'layer5', 'layer6', 'layer7']
@@ -75,6 +80,66 @@ class SXTOOLS_sxglobals(object):
 
     def __del__(self):
         print('SX Tools: Exiting sxglobals')
+
+
+# ------------------------------------------------------------------------
+#    File IO
+# ------------------------------------------------------------------------
+class SXTOOLS_files(object):
+    def __init__(self):
+        return None
+
+    def __del__(self):
+        print('SX Tools: Exiting tools')
+
+    def loadFile(self, mode):
+        directory = bpy.context.scene.sxtools.libraryfolder
+        filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
+        # Palettes.json Materials.json
+
+        if len(directory) > 0:
+            try:
+                with open(filePath, 'r') as input:
+                    if mode == 'palettes':
+                        tempDict = {}
+                        tempDict = json.load(input)
+                        del sxglobals.masterPaletteArray[:]
+                        sxglobals.masterPaletteArray = tempDict['Palettes']
+                    elif mode == 'materials':
+                        tempDict = {}
+                        tempDict = json.load(input)
+                        del sxglobals.materialArray[:]
+                        sxglobals.materialArray = tempDict['Materials']
+                    input.close()
+                print('SX Tools: ' + mode + ' loaded from ' + filePath)
+            except ValueError:
+                print('SX Tools Error: Invalid ' + mode + ' file.')
+                bpy.context.scene.sxtools.libraryfolder = ''
+            except IOError:
+                print('SX Tools Error: ' + mode + ' file not found!')
+        else:
+            print('SX Tools: No ' + mode + ' file found')
+
+    def saveFile(self, mode):
+        directory = bpy.context.scene.sxtools.libraryfolder
+        filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
+        # Palettes.json Materials.json
+
+        if len(directory) > 0:
+            with open(filePath, 'w') as output:
+                if mode == 'palettes':
+                    tempDict = {}
+                    tempDict['palettes'] = sxglobals.masterPaletteArray
+                    json.dump(tempDict, output, indent=4)
+                elif mode == 'materials':
+                    tempDict = {}
+                    tempDict['materials'] = sxglobals.materialArray
+                    json.dump(tempDict, output, indent=4)
+                output.close()
+            print('SX Tools: ' + mode + ' saved')
+        else:
+            print('SX Tools Warning: ' + mode + ' file location not set!')
+
 
 # ------------------------------------------------------------------------
 #    Scene Setup
@@ -676,6 +741,8 @@ class SXTOOLS_tools(object):
             objValues = self.calculateCurvature(objects, True)
         elif rampmode == 'OCC':
             objValues = self.bakeOcclusion(objects, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend)
+        elif rampmode == 'LUM':
+            objValues = self.calculateLuminance(objects, layer)
 
         if mergebbx:
             bbx_x = []
@@ -692,7 +759,7 @@ class SXTOOLS_tools(object):
             zmin, zmax = min(bbx_z), max(bbx_z)
 
         for obj in objects:
-            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC':
+            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM':
                 valueDict = objValues[obj]
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
@@ -703,14 +770,14 @@ class SXTOOLS_tools(object):
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
             
-            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC'):
+            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM'):
                 bbx = self.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
                 zmin, zmax = bbx[2][0], bbx[2][1]
 
             for vert_idx, loop_indices in vertLoopDict.items():
-                for loop_idx in loop_indices:
+                for i, loop_idx in enumerate(loop_indices):
                     ratioRaw = None
                     ratio = None
 
@@ -735,18 +802,33 @@ class SXTOOLS_tools(object):
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
                     elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC':
                         ratioRaw = valueDict[vert_idx]
+                    elif rampmode == 'LUM':
+                        ratioRaw = valueDict[vert_idx][1]
 
-                    ratio = max(min(ratioRaw, 1), 0)
-                    if overwrite:
-                        vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
-                    else:
-                        if vertexColors[loop_idx].color[3] > 0.0:
-                            vertexColors[loop_idx].color[0] = ramp.color_ramp.evaluate(ratio)[0]
-                            vertexColors[loop_idx].color[1] = ramp.color_ramp.evaluate(ratio)[1]
-                            vertexColors[loop_idx].color[2] = ramp.color_ramp.evaluate(ratio)[2]
-                            vertexColors[loop_idx].color[3] = ramp.color_ramp.evaluate(ratio)[3]
+                    if rampmode == 'LUM':
+                        ratio = []
+                        for rt in ratioRaw:
+                            ratio.append(max(min(rt, 1), 0))
+                        if overwrite:
+                            vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio[i])
                         else:
-                            vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color[0] = ramp.color_ramp.evaluate(ratio[i])[0]
+                                vertexColors[loop_idx].color[1] = ramp.color_ramp.evaluate(ratio[i])[1]
+                                vertexColors[loop_idx].color[2] = ramp.color_ramp.evaluate(ratio[i])[2]
+                            else:
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                    else:
+                        ratio = max(min(ratioRaw, 1), 0)
+                        if overwrite:
+                            vertexColors[loop_idx].color = ramp.color_ramp.evaluate(ratio)
+                        else:
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color[0] = ramp.color_ramp.evaluate(ratio)[0]
+                                vertexColors[loop_idx].color[1] = ramp.color_ramp.evaluate(ratio)[1]
+                                vertexColors[loop_idx].color[2] = ramp.color_ramp.evaluate(ratio)[2]
+                            else:
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -944,6 +1026,36 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode)
         return objOcclusion
 
+    def calculateLuminance(self, objects, layer):
+        mode = objects[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        objLuminances = {}
+
+        for obj in objects:
+            vertexColors = obj.data.vertex_colors[layer].data
+            vertLoopDict = defaultdict(list)
+            dicts = self.selectionHandler(obj)
+            vertLoopDict = dicts[0]
+            vtxLuminances = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                loopLuminances = []
+                for loop_idx in loop_indices:
+                    fvColor = vertexColors[loop_idx].color
+                    luminance = ((fvColor[0] +
+                                  fvColor[0] +
+                                  fvColor[2] +
+                                  fvColor[1] +
+                                  fvColor[1] +
+                                  fvColor[1]) / float(6.0))
+                    loopLuminances.append(luminance)
+                vertLoopDict[vert_idx] = (loop_indices, loopLuminances)
+            objLuminances[obj] = vertLoopDict
+
+        bpy.ops.object.mode_set(mode = mode)
+        return objLuminances
+
     def calculateCurvature(self, objects, normalize=False):
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'EDIT')
@@ -999,9 +1111,7 @@ class SXTOOLS_tools(object):
                 for vert, vtxCurvature in vtxCurvatures.items():
                     vtxCurvatures[vert] = (vtxCurvature + 0.5)
 
-            bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode = mode)
-
         return objCurvatures
 
 
@@ -1465,6 +1575,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('X','X-Axis',''),
             ('Y','Y-Axis',''),
             ('Z','Z-Axis',''),
+            ('LUM', 'Luminance', ''),
             ('C','Curvature',''),
             ('CN', 'Normalized Curvature', ''),
             ('OCC', 'Ambient Occlusion', '')],
@@ -1572,6 +1683,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Expand Channelcopy",
         default = False)
 
+    libraryfolder : bpy.props.StringProperty(
+        name = 'Library Folder',
+        description = 'Folder containing Materials and Palettes files',
+        default = '',
+        maxlen = 1024,
+        subtype = 'DIR_PATH',
+        update = updateLayers)
 
 # ------------------------------------------------------------------------
 #    UI Panel and Operators
@@ -1719,9 +1837,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         #row2_chcp.prop(scene, 'targetchannel', text = 'Data')
                         #col_chcp = box_chcp.column(align = True)
                         #col_chcp.operator('sxtools.copychannel', text = 'Apply')
+
         else:
             layout = self.layout               
             col = self.layout.column(align = True)
+            #col.prop(bpy.context.scene.sxtools, 'libraryfolder', text = 'Set Library Data Folder')
+            #col.operator('sxtools.loadlibraries', text = 'Load Palettes and Materials')
+            col.separator()
             col.label(text = 'Select a mesh to continue')
 
 
@@ -1734,6 +1856,17 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
     def invoke(self, context, event):
         objects = context.view_layer.objects.selected
         setup.setupGeometry()
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
+    bl_idname = "sxtools.loadlibraries"
+    bl_label = "Load Libraries"
+    bl_description = 'Load Palettes and Materials'
+
+    def invoke(self, context, event):
+        files.loadFile('palettes')
+        files.loadFile('materials')
         return {"FINISHED"}
 
 
@@ -2003,6 +2136,7 @@ class SXTOOLS_OT_copychannel(bpy.types.Operator):
 #    Registration and initialization
 # ------------------------------------------------------------------------
 sxglobals = SXTOOLS_sxglobals()
+files = SXTOOLS_files()
 layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
 tools = SXTOOLS_tools()
@@ -2011,6 +2145,7 @@ classes = (
     SXTOOLS_objectprops,
     SXTOOLS_sceneprops,
     SXTOOLS_OT_scenesetup,
+    SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
     SXTOOLS_OT_crease0,
@@ -2097,3 +2232,4 @@ if __name__ == "__main__":
 #C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
 # - Store crease weigths in vertex groups?
 # - Crease tool select edges stops working after object/edit mode change
+
