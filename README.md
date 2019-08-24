@@ -69,6 +69,7 @@ Fills selected objects or components with the selected gradient. The global bbox
 
 Modes:
 * X-Axis / Y-Axis / Z-Axis - maps the gradient across the bounding volume in the selected world axis
+* Luminance - remaps the brightness values of the existing layer to the tones of the gradient
 * Curvature - drives the gradient tones using the convex/concave characteristics of the surface
 * Normalized Curvature - provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
 * Ambient Occlusion - maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
