@@ -16,10 +16,14 @@ SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The 
 - Vertex-color -based material channel inputs
 - Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
 
-Installation:
+## Installation:
 - Install and enable sxtools.py through the Blender add-on interface
 - SX Tools will appear in the top right corner of the 3D view
-- The tool will automatically generate vertex color layers and the necessary material
+
+## Quick Start
+- After installation, open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
+- Create a mesh object, select it, and press the "Set Up Object" button in SX Tools panel
+- The tool will automatically generate the necessary vertex color layers and the material (Layer names Composite and Layer1-Layer7)
 
 ## The Interface
 ### Shading Modes
