@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 2, 6),
+    "version": (1, 4, 9),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -92,11 +92,12 @@ class SXTOOLS_files(object):
     def __del__(self):
         print('SX Tools: Exiting tools')
 
+    # Loads palettes.json and materials.json
     def loadFile(self, mode):
         directory = bpy.context.scene.sxtools.libraryfolder
         filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
-        # Palettes.json Materials.json
 
+        #print('loading ', mode)
         if len(directory) > 0:
             try:
                 with open(filePath, 'r') as input:
@@ -104,11 +105,15 @@ class SXTOOLS_files(object):
                         tempDict = {}
                         tempDict = json.load(input)
                         del sxglobals.masterPaletteArray[:]
+                        while len(bpy.context.scene.sxpalettes.keys()) > 0:
+                            bpy.context.scene.sxpalettes.remove(0)
                         sxglobals.masterPaletteArray = tempDict['Palettes']
                     elif mode == 'materials':
                         tempDict = {}
                         tempDict = json.load(input)
                         del sxglobals.materialArray[:]
+                        while len(bpy.context.scene.sxmaterials.keys()) > 0:
+                            bpy.context.scene.sxmaterials.remove(0)
                         sxglobals.materialArray = tempDict['Materials']
                     input.close()
                 print('SX Tools: ' + mode + ' loaded from ' + filePath)
@@ -119,6 +124,13 @@ class SXTOOLS_files(object):
                 print('SX Tools Error: ' + mode + ' file not found!')
         else:
             print('SX Tools: No ' + mode + ' file found')
+
+        if mode == 'palettes':
+            #print('calling loadpalettes')
+            self.loadPalettes()
+        elif mode == 'materials':
+            #print('calling loadmaterials')
+            self.loadMaterials()
 
     def saveFile(self, mode):
         directory = bpy.context.scene.sxtools.libraryfolder
@@ -139,6 +151,34 @@ class SXTOOLS_files(object):
             print('SX Tools: ' + mode + ' saved')
         else:
             print('SX Tools Warning: ' + mode + ' file location not set!')
+
+    def loadPalettes(self):
+        for categoryDict in sxglobals.masterPaletteArray:
+            for category in categoryDict.keys():
+                for palette in categoryDict[category]:
+                    item = bpy.context.scene.sxpalettes.add()
+                    item.name = palette
+                    item.category = category
+                    for i in range(5):
+                        incolor = [0.0, 0.0, 0.0, 1.0]
+                        incolor[0] = categoryDict[category][palette][i][0]
+                        incolor[1] = categoryDict[category][palette][i][1]
+                        incolor[2] = categoryDict[category][palette][i][2]
+                        setattr(item, 'color'+str(i), incolor[:])
+
+    def loadMaterials(self):
+        for categoryDict in sxglobals.materialArray:
+            for category in categoryDict.keys():
+                for material in categoryDict[category]:
+                    item = bpy.context.scene.sxmaterials.add()
+                    item.name = material
+                    item.category = category
+                    for i in range(3):
+                        incolor = [0.0, 0.0, 0.0, 1.0]
+                        incolor[0] = categoryDict[category][material][i][0]
+                        incolor[1] = categoryDict[category][material][i][1]
+                        incolor[2] = categoryDict[category][material][i][2]
+                        setattr(item, 'color'+str(i), incolor[:])
 
 
 # ------------------------------------------------------------------------
@@ -323,12 +363,24 @@ class SXTOOLS_layers(object):
                     setattr(obj.sxtools, layer+'Alpha', 1.0)
                     setattr(obj.sxtools, layer+'Visibility', True)
                     setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
+                # Also clear material UV channels
+                self.clearUVs(obj)
             else:
                 color = sxglobals.refColorDict[targetlayer]
                 tools.applyColor([obj, ], targetlayer, color, True, 0.0)
                 setattr(obj.sxtools, targetlayer+'Alpha', 1.0)
                 setattr(obj.sxtools, targetlayer+'Visibility', True)
                 setattr(obj.sxtools, targetlayer+'BlendMode', 'ALPHA')
+
+    def clearUVs(self, obj):
+        mesh = obj.data
+        for i, key in enumerate(mesh.uv_layers.keys()):
+            uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
+            vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
+            uvmap = mesh.uv_layers[i]
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    mesh.uv_layers[uvmap.name].data[idx].uv = [uValue, vValue]
 
     def compositeLayers(self, objects):
         #then = time.time()
@@ -1114,6 +1166,37 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode)
         return objCurvatures
 
+    def applyPalette(self, objects, palette, noise, mono):
+        palette = [
+            bpy.context.scene.sxpalettes[palette].color0,
+            bpy.context.scene.sxpalettes[palette].color1,
+            bpy.context.scene.sxpalettes[palette].color2,
+            bpy.context.scene.sxpalettes[palette].color3,
+            bpy.context.scene.sxpalettes[palette].color4]
+
+        for i in range(1, 6):
+            layer = sxglobals.refLayerArray[i]
+            color = palette[i-1]
+
+            self.applyColor(objects, layer, color, False, noise, mono)
+
+    def applyMaterial(self, objects, layer, material, noise, mono):
+        sourcelayer = str(layer).upper()
+        # get mask from metallic/smoothness?
+        # apply smoothness -> copy channel
+        # apply metallic -> copy channel
+        # apply color
+        palette = [
+            bpy.context.scene.sxmaterials[material].color0,
+            bpy.context.scene.sxmaterials[material].color1,
+            bpy.context.scene.sxmaterials[material].color2]
+
+        # Set material properties to layer, copy to UV
+        self.applyColor(objects, layer, palette[2], False, noise, mono)
+        self.layerToMaterial(objects, sourcelayer, 'SMTH')
+        self.applyColor(objects, layer, palette[1], False, noise, mono)
+        self.layerToMaterial(objects, sourcelayer, 'MET')
+        self.applyColor(objects, layer, palette[0], False, noise, mono)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -1172,6 +1255,7 @@ def refreshActives(self, context):
 
     layers.updateLayerPalette(context.active_object, layer)
 
+# Clicking a palette color would ideally set it in fillcolor, TBD
 def updateColorSwatches(self, context):
     pass
 
@@ -1284,6 +1368,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         max = 1.0,
         default = 1.0,
         update = updateLayers)
+
     activeLayerBlendMode: bpy.props.EnumProperty(
         name = "Blend Mode",
         items = [
@@ -1292,6 +1377,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('MUL','Multiply','')],
         default = 'ALPHA',
         update = updateLayers)
+
     activeLayerVisibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True,
@@ -1608,6 +1694,26 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max = 2000,
         default = 256)
 
+    palettenoise: bpy.props.FloatProperty(
+        name = "Noise",
+        min = 0.0,
+        max = 1.0,
+        default = 0.0)
+
+    palettemono: bpy.props.BoolProperty(
+        name = "Monochrome",
+        default = False)
+
+    materialnoise: bpy.props.FloatProperty(
+        name = "Noise",
+        min = 0.0,
+        max = 1.0,
+        default = 0.0)
+
+    materialmono: bpy.props.BoolProperty(
+        name = "Monochrome",
+        default = False)
+
     sourcemap: bpy.props.EnumProperty(
         name = "Source Map",
         items = [
@@ -1679,17 +1785,103 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Expand Crease",
         default = False)
 
+    expandpalette: bpy.props.BoolProperty(
+        name = "Expand Palette",
+        default = False)
+
+    expandmaterials: bpy.props.BoolProperty(
+        name = "Expand Materials",
+        default = False)
+
     expandchcopy: bpy.props.BoolProperty(
         name = "Expand Channelcopy",
         default = False)
 
-    libraryfolder : bpy.props.StringProperty(
+    libraryfolder: bpy.props.StringProperty(
         name = 'Library Folder',
         description = 'Folder containing Materials and Palettes files',
         default = '',
         maxlen = 1024,
-        subtype = 'DIR_PATH',
-        update = updateLayers)
+        subtype = 'DIR_PATH')
+
+
+class SXTOOLS_masterpalettes(bpy.types.PropertyGroup):
+    category: bpy.props.StringProperty(
+        name = 'Category',
+        description = 'Palette Category',
+        default = '')
+
+    color0: bpy.props.FloatVectorProperty(
+        name = 'Palette Color 0',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color1: bpy.props.FloatVectorProperty(
+        name = 'Palette Color 1',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color2: bpy.props.FloatVectorProperty(
+        name = 'Palette Color 2',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color3: bpy.props.FloatVectorProperty(
+        name = 'Palette Color 3',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color4: bpy.props.FloatVectorProperty(
+        name = 'Palette Color 4',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+
+class SXTOOLS_materials(bpy.types.PropertyGroup):
+    category: bpy.props.StringProperty(
+        name = 'Category',
+        description = 'Material Category',
+        default = '')
+
+    color0: bpy.props.FloatVectorProperty(
+        name = 'Material Color',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color1: bpy.props.FloatVectorProperty(
+        name = 'Material Metallic',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
+    color2: bpy.props.FloatVectorProperty(
+        name = 'Material Smoothness',
+        subtype = "COLOR",
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (1.0, 1.0, 1.0, 1.0))
+
 
 # ------------------------------------------------------------------------
 #    UI Panel and Operators
@@ -1712,6 +1904,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             mesh = context.active_object.data
             sxtools = context.active_object.sxtools
             scene = context.scene.sxtools
+            palettes = context.scene.sxpalettes
             
             if mesh.vertex_colors.active is None:
                 col = self.layout.column(align = True)
@@ -1798,6 +1991,68 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                         col_ramp.operator('sxtools.applyramp', text = 'Apply')
 
+                    # Master Palette ---------------------------------------------------
+                    box_palette = layout.box()
+                    row_palette = box_palette.row()
+                    row_palette.prop(scene, "expandpalette",
+                        icon="TRIA_DOWN" if scene.expandpalette else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+                    row_palette.label(text = 'Master Palettes')
+
+                    palettes = context.scene.sxpalettes
+
+                    if scene.expandpalette:
+                        category = ''
+                        for name in palettes.keys():
+                            palette = palettes[name]
+                            if palette.category != category:
+                                category = palette.category
+                                row_category = box_palette.row(align = True)
+                                row_category.label(text = 'CATEGORY: ' + category)
+                                row_category.separator()
+                            row_mpalette = box_palette.row(align = True)
+                            row_mpalette.label(text = name)
+                            for i in range(5):
+                                row_mpalette.prop(palette, 'color'+str(i), text = '')
+                            mp_button = row_mpalette.operator('sxtools.applypalette', text = 'Apply')
+                            mp_button.label = palette.name[:]
+
+                        row_mnoise = box_palette.row(align = True)
+                        row_mnoise.prop(scene, 'palettenoise', slider = True)
+                        col_mcolor = box_palette.column(align = True)
+                        col_mcolor.prop(scene, 'palettemono', text = 'Monochromatic')
+
+                    # PBR Materials ---------------------------------------------------
+                    box_materials = layout.box()
+                    row_materials = box_materials.row()
+                    row_materials.prop(scene, "expandmaterials",
+                        icon="TRIA_DOWN" if scene.expandmaterials else "TRIA_RIGHT",
+                        icon_only=True, emboss=False)
+                    row_materials.label(text = 'PBR Materials')
+
+                    materials = context.scene.sxmaterials
+
+                    if scene.expandmaterials:
+                        category = ''
+                        for name in materials.keys():
+                            material = materials[name]
+                            if material.category != category:
+                                category = material.category
+                                row_category = box_materials.row(align = True)
+                                row_category.label(text = 'CATEGORY: ' + category)
+                                row_category.separator()
+                            row_mat = box_materials.row(align = True)
+                            row_mat.label(text = name)
+                            for i in range(3):
+                                row_mat.prop(material, 'color'+str(i), text = '')
+                            mat_button = row_mat.operator('sxtools.applymaterial', text = 'Apply')
+                            mat_button.label = material.name[:]
+
+                        row_pbrnoise = box_materials.row(align = True)
+                        row_pbrnoise.prop(scene, 'materialnoise', slider = True)
+                        col_matcolor = box_materials.column(align = True)
+                        col_matcolor.prop(scene, 'materialmono', text = 'Monochromatic')
+
                     # Crease Sets ---------------------------------------------------
                     box_crease = layout.box()
                     row_crease = box_crease.row()
@@ -1841,8 +2096,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
         else:
             layout = self.layout               
             col = self.layout.column(align = True)
-            #col.prop(bpy.context.scene.sxtools, 'libraryfolder', text = 'Set Library Data Folder')
-            #col.operator('sxtools.loadlibraries', text = 'Load Palettes and Materials')
+            col.prop(bpy.context.scene.sxtools, 'libraryfolder', text = 'Set Library Data Folder')
+            col.operator('sxtools.loadlibraries', text = 'Load Palettes and Materials')
             col.separator()
             col.label(text = 'Select a mesh to continue')
 
@@ -2102,6 +2357,46 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SXTOOLS_OT_applypalette(bpy.types.Operator):
+    bl_idname = 'sxtools.applypalette'
+    bl_label = 'Apply Palette'
+    bl_options = {"UNDO"}
+    bl_description = 'Applies selected palette to selection'
+
+    label: bpy.props.StringProperty()
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        palette = self.label
+        noise = context.scene.sxtools.palettenoise
+        mono = context.scene.sxtools.palettemono
+
+        tools.applyPalette(objects, palette, noise, mono)
+        refreshActives(self, context)
+        return {"FINISHED"}
+
+
+class SXTOOLS_OT_applymaterial(bpy.types.Operator):
+    bl_idname = 'sxtools.applymaterial'
+    bl_label = 'Apply PBR Material'
+    bl_options = {"UNDO"}
+    bl_description = 'Applies selected material to selection'
+
+    label: bpy.props.StringProperty()
+
+    def invoke(self, context, event):
+        objects = context.view_layer.objects.selected
+        material = self.label
+        idx = context.active_object.sxtools.selectedlayer
+        layer = sxglobals.refLayerArray[idx]
+        noise = context.scene.sxtools.palettenoise
+        mono = context.scene.sxtools.palettemono
+
+        tools.applyMaterial(objects, layer, material, noise, mono)
+        refreshActives(self, context)
+        return {"FINISHED"}
+
+
 class SXTOOLS_OT_layertomaterial(bpy.types.Operator):
     bl_idname = "sxtools.layertomaterial"
     bl_label = "Layer to Material"
@@ -2144,6 +2439,8 @@ tools = SXTOOLS_tools()
 classes = (
     SXTOOLS_objectprops,
     SXTOOLS_sceneprops,
+    SXTOOLS_masterpalettes,
+    SXTOOLS_materials,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
@@ -2153,6 +2450,8 @@ classes = (
     SXTOOLS_OT_crease2,
     SXTOOLS_OT_crease3,
     SXTOOLS_OT_crease4,
+    SXTOOLS_OT_applypalette,
+    SXTOOLS_OT_applymaterial,
     SXTOOLS_OT_layertomaterial,
     SXTOOLS_OT_copychannel,
     SXTOOLS_OT_selmask,
@@ -2173,6 +2472,8 @@ def register():
 
     bpy.types.Object.sxtools = bpy.props.PointerProperty(type=SXTOOLS_objectprops)
     bpy.types.Scene.sxtools = bpy.props.PointerProperty(type=SXTOOLS_sceneprops)
+    bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type=SXTOOLS_masterpalettes)
+    bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_materials)
 
 def unregister():
     from bpy.utils import unregister_class
@@ -2181,6 +2482,8 @@ def unregister():
 
     del bpy.types.Object.sxtools
     del bpy.types.Scene.sxtools
+    del bpy.types.Scene.sxpalettes
+    del bpy.types.Scene.sxmaterials
     #del tools
     #del sxglobals
 
@@ -2200,36 +2503,40 @@ if __name__ == "__main__":
 #   - hidden/mask/adjustment indication
 # - Ramp fill color presets
 # - Multi-object (and component) gradients
-# - Luminance remap ramp
 # - Occlusion baking temp groundplane
-# - Master palette library load/save/apply/manage
-# - PBR material library load/save/apply/manage
+# - Master palette library save/manage
+# - PBR material library save/manage
 # - Skinning support?
 # - Export settings:
 #   - Submesh support
-#   - Static vertex colors
+#   - Static vs. paletted vertex colors
 #   - Choose export path
 #   - Export fbx settings
 # - Tool settings:
-#   - Prefs path, palettes path, materials path
 #   - Load/save prefs file
 #   - Channel enable/export prefs
 #   - Export grid spacing
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Clear all layers with component selection not working
+# - Blend mode not properly moved with layer copy/swap
+# - Crease tool select edges stops working after object/edit mode change
+#   - Store crease weigths in vertex groups?
+# - Component selection should always overwrite alpha
 # - UI Palette layout for color swatches
 # - Set proper shading mode, layer1 selected, after scene setup
-# - Create custom layerview list items, to include UV channel properties
-#   - Automatically set paint operation targets if UV channel selected?
-# - Indicate active vertex selection?
-# - Filter composite out of layer list
-# - Custom hide/show icons to layer view items
+# - Create custom layerview:
+#   - Include UV material channel properties
+#   - Automatically set paint operation targets if UV channel selected
+#   - Filter composite out of layer list
+#   - Custom hide/show icons to layer view items
+# - Indicate active component selection?
 # - Assign fill color from brush color if in vertex paint mode
 #   color[0] = bpy.data.brushes["Draw"].color[0]
-#C.active_object.modifiers.new(type = 'EDGE_SPLIT', name = 'SX EdgeSplit')
-#bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
-#C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
-# - Store crease weigths in vertex groups?
-# - Crease tool select edges stops working after object/edit mode change
-
+# - Automate modifier creation?
+#   - C.active_object.modifiers.new(type = 'EDGE_SPLIT', name = 'SX EdgeSplit')
+#   - bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
+#   - C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
+#   - And toggle modifiers in viewport:
+#   - bpy.context.object.modifiers["Subdivision"].show_viewport = False
