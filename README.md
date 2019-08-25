@@ -12,6 +12,8 @@ SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The 
 - Color gradient tool
 - Curvature-based shading
 - Vertex ambient occlusion baking
+- Master Palette Tool for quickly replacing the color scheme of object/objects
+- PBR Material Tool that allows driving shader properties with real-world values
 - Quick-crease tools
 - Vertex-color -based material channel inputs
 - Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
@@ -77,6 +79,12 @@ Modes:
 * Curvature - drives the gradient tones using the convex/concave characteristics of the surface
 * Normalized Curvature - provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
 * Ambient Occlusion - maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
+
+### Master Palettes
+Clicking Apply will replace colors in layers 1-5 with the colors of the palette while retaining alpha channels.
+
+### PBR Materials
+Clicking Apply on a material will fill the current layer with the material color, and fill the Metallic and Smoothness/Roughness UV channels with the respective values. Currently respects the active layer Alpha channel, so fill with color before applying material!
 
 ### Crease Edges
 Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier.
