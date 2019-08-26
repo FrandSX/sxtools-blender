@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 5, 23),
+    "version": (1, 5, 24),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -97,7 +97,6 @@ class SXTOOLS_files(object):
         directory = bpy.context.scene.sxtools.libraryfolder
         filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
 
-        #print('loading ', mode)
         if len(directory) > 0:
             try:
                 with open(filePath, 'r') as input:
@@ -126,10 +125,8 @@ class SXTOOLS_files(object):
             print('SX Tools: No ' + mode + ' file found')
 
         if mode == 'palettes':
-            #print('calling loadpalettes')
             self.loadPalettes()
         elif mode == 'materials':
-            #print('calling loadmaterials')
             self.loadMaterials()
 
     def saveFile(self, mode):
@@ -739,7 +736,6 @@ class SXTOOLS_tools(object):
         return objDicts
 
     def applyColor(self, objs, layer, color, overwrite, noise = 0.0, mono = False):
-        #objDicts = {}
         objDicts = self.selectionHandler(objs)
 
         mode = objs[0].mode
@@ -815,7 +811,6 @@ class SXTOOLS_tools(object):
             scn.fillpalette8 = colorArray[7][:]
 
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
-        #objDicts = {}
         objDicts = self.selectionHandler(objs)
 
         mode = objs[0].mode
@@ -925,7 +920,6 @@ class SXTOOLS_tools(object):
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
-        #objDicts = {}
         objDicts = self.selectionHandler(objs)
 
         for obj in objs:
@@ -1283,7 +1277,6 @@ def refreshActives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
         objs = selectionValidator(self, context)
-        #obj = objs[0].sxtools
         idx = objs[0].sxtools.selectedlayer
         layer = sxglobals.refLayerArray[idx]
 
@@ -1313,11 +1306,9 @@ def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
     layer = sxglobals.refLayerArray[objs[0].sxtools.selectedlayer]
-    #layer = context.active_object.data.vertex_colors.active.name
     sxmaterial = bpy.data.materials['SXMaterial']
     
     if mode == 'FULL':
-        #bpy.ops.object.mode_set(mode = 'OBJECT')
         areas = bpy.context.workspace.screens[0].areas
         shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
         for area in areas:
@@ -2576,7 +2567,6 @@ if __name__ == "__main__":
 #   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
 #   - hidden/mask/adjustment indication
 # - Ramp fill color presets
-# - Occlusion baking temp groundplane
 # - Master palette library save/manage
 # - PBR material library save/manage
 # - Skinning support?
@@ -2592,6 +2582,7 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - AO behaves oddly in origin
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
