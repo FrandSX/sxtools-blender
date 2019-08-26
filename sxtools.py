@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 4, 9),
+    "version": (1, 4, 12),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -670,14 +670,16 @@ class SXTOOLS_tools(object):
 
         return ((xmin,xmax), (ymin,ymax), (zmin,zmax))
 
-    def selectionHandler(self, object):
-        mesh = object.data
+    def selectionHandler(self, obj):
+        mesh = obj.data
+        mat = obj.matrix_world
         objSel = False
         faceSel = False
         vertSel = False
 
         vertLoopDict = defaultdict(list)
         vertPosDict = defaultdict(list)
+        vertWorldPosDict = defaultdict(list)
 
         # If components selected, apply to selection
         if (True in [poly.select for poly in mesh.polygons]):
@@ -700,14 +702,16 @@ class SXTOOLS_tools(object):
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         vertLoopDict[vert_idx].append(loop_idx)
                         vertPosDict[vert_idx] = (mesh.vertices[vert_idx].co, mesh.vertices[vert_idx].normal)
+                        vertWorldPosDict[vert_idx] = (mat @ mesh.vertices[vert_idx].co, mat @ mesh.vertices[vert_idx].normal)
         else:
             for poly in mesh.polygons:
                 for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                     if mesh.vertices[vert_idx].select:
                         vertLoopDict[vert_idx].append(loop_idx)
                         vertPosDict[vert_idx] = (mesh.vertices[vert_idx].co, mesh.vertices[vert_idx].normal)
+                        vertWorldPosDict[vert_idx] = (mat @ mesh.vertices[vert_idx].co, mat @ mesh.vertices[vert_idx].normal)
 
-        return (vertLoopDict, vertPosDict, objSel, faceSel, vertSel)
+        return (vertLoopDict, vertPosDict, vertWorldPosDict, objSel, faceSel, vertSel)
 
     def applyColor(self, objects, layer, color, overwrite, noise = 0.0, mono = False):
         mode = objects[0].mode
@@ -783,7 +787,8 @@ class SXTOOLS_tools(object):
             scn.fillpalette8 = colorArray[7][:]
 
     def applyRamp(self, objects, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
-        mode = objects[0].mode
+        objs = objects[:]
+        mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
         curvatures = []
@@ -810,7 +815,7 @@ class SXTOOLS_tools(object):
             ymin, ymax = min(bbx_y), max(bbx_y)
             zmin, zmax = min(bbx_z), max(bbx_z)
 
-        for obj in objects:
+        for obj in objs:
             if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM':
                 valueDict = objValues[obj]
             vertexColors = obj.data.vertex_colors[layer].data
@@ -1005,6 +1010,7 @@ class SXTOOLS_tools(object):
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
     def bakeOcclusion(self, objects, rayCount=250, blend=0.0, bias=0.000001):
+        objs = objects[:]
         mode = objects[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
         scene = bpy.context.scene
@@ -1012,19 +1018,28 @@ class SXTOOLS_tools(object):
         hemiSphere = [None] * rayCount
         bias = 1e-5
 
-        objOcclusion = {}
+        objOcclusions = {}
+        objDicts = {}
 
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
-
-        for obj in objects:
+        # Generate vertex dictionaries
+        for obj in objs:
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
-            mat = obj.matrix_world
             
             dicts = self.selectionHandler(obj)
             vertLoopDict = dicts[0]
             vertPosDict = dicts[1]
+            vertWorldPosDict = dicts[2]
+
+            objDicts[obj] = (vertLoopDict, vertPosDict, vertWorldPosDict)
+
+        for idx in range(rayCount):
+            hemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+            vertWorldPosDict = objDicts[obj][2]
             vertOccDict = {}
 
             for vert_idx, loop_indices in vertLoopDict.items():
@@ -1032,6 +1047,8 @@ class SXTOOLS_tools(object):
                 scnOccValue = 1.0
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
+                vertWorldLoc = Vector(vertWorldPosDict[vert_idx][0])
+                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
                 forward = Vector((0, 0, 1))
 
                 # Pass 1: Local space occlusion for individual object
@@ -1054,10 +1071,10 @@ class SXTOOLS_tools(object):
 
                 # Pass 2: Worldspace occlusion for scene
                 if 0.0 < blend <= 1.0:
-                    scnNormal = mat @ vertNormal
+                    scnNormal = vertWorldNormal
                     biasVec = tuple([bias*x for x in scnNormal])
                     rotQuat = forward.rotation_difference(scnNormal)
-                    scnVertPos = mat @ vertLoc
+                    scnVertPos = vertWorldLoc
 
                     # offset ray origin with normal bias
                     scnVertPos = (scnVertPos[0] + biasVec[0], scnVertPos[1] + biasVec[1], scnVertPos[2] + biasVec[2])
@@ -1073,10 +1090,10 @@ class SXTOOLS_tools(object):
 
                 for loop_idx in loop_indices:
                     vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
-            objOcclusion[obj] = vertOccDict
+            objOcclusions[obj] = vertOccDict
 
         bpy.ops.object.mode_set(mode = mode)
-        return objOcclusion
+        return objOcclusions
 
     def calculateLuminance(self, objects, layer):
         mode = objects[0].mode
