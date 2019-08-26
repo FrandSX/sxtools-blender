@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 5, 15),
+    "version": (1, 5, 18),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -359,11 +359,10 @@ class SXTOOLS_layers(object):
                 for layer in sxglobals.refLayerArray:
                     color = sxglobals.refColorDict[layer]
                     tools.applyColor([obj, ], layer, color, True, 0.0)
-                    setattr(obj.sxtools, layer+'Alpha', 1.0)
-                    setattr(obj.sxtools, layer+'Visibility', True)
-                    setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
-                # Also clear material UV channels
-                self.clearUVs(obj)
+                    if layer != 'composite':
+                        setattr(obj.sxtools, layer+'Alpha', 1.0)
+                        setattr(obj.sxtools, layer+'Visibility', True)
+                        setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
             else:
                 color = sxglobals.refColorDict[targetlayer]
                 tools.applyColor([obj, ], targetlayer, color, True, 0.0)
@@ -371,15 +370,27 @@ class SXTOOLS_layers(object):
                 setattr(obj.sxtools, targetlayer+'Visibility', True)
                 setattr(obj.sxtools, targetlayer+'BlendMode', 'ALPHA')
 
-    def clearUVs(self, obj):
-        mesh = obj.data
-        for i, key in enumerate(mesh.uv_layers.keys()):
-            uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
-            vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
-            uvmap = mesh.uv_layers[i]
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    mesh.uv_layers[uvmap.name].data[idx].uv = [uValue, vValue]
+        if targetlayer is None:
+            self.clearUVs(objs)
+
+    def clearUVs(self, objs):
+        objDicts = tools.selectionHandler(objs)
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
+        for obj in objs:
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
+
+            mesh = obj.data
+            for i, key in enumerate(mesh.uv_layers.keys()):
+                uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
+                vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
+                uvmap = mesh.uv_layers[i]
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        mesh.uv_layers[uvmap.name].data[loop_idx].uv = [uValue, vValue]
 
     def compositeLayers(self, objs):
         #then = time.time()
@@ -2566,7 +2577,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Clear all layers with component selection not working
 # - Blend mode not properly moved with layer copy/swap
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
@@ -2577,7 +2587,6 @@ if __name__ == "__main__":
 #   - Automatically set paint operation targets if UV channel selected
 #   - Filter composite out of layer list
 #   - Custom hide/show icons to layer view items
-# - Indicate active component selection?
 # - Assign fill color from brush color if in vertex paint mode
 #   color[0] = bpy.data.brushes["Draw"].color[0]
 # - Automate modifier creation?
