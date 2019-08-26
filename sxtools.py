@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 5, 8),
+    "version": (1, 5, 15),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -670,50 +670,66 @@ class SXTOOLS_tools(object):
 
         return ((xmin,xmax), (ymin,ymax), (zmin,zmax))
 
-    def selectionHandler(self, obj):
-        mesh = obj.data
-        mat = obj.matrix_world
+    # Analyze if multi-object selection is in object or component mode,
+    # return appropriate vertices
+    def selectionHandler(self, objs):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        objDicts = {}
         objSel = False
         faceSel = False
         vertSel = False
 
-        vertLoopDict = defaultdict(list)
-        vertPosDict = defaultdict(list)
-        vertWorldPosDict = defaultdict(list)
-
-        # If components selected, apply to selection
-        if (True in [poly.select for poly in mesh.polygons]):
-            objSel = False
-            faceSel = True
-            vertSel = False
-        elif (True in [vertex.select for vertex in mesh.vertices]):
-            objSel = False
-            faceSel = False
-            vertSel = True
-        else:
-            # Apply to entire object
+        if mode == 'OBJECT':
             objSel = True
-            faceSel = False
-            vertSel = False
-
-        if objSel or faceSel:
-            for poly in mesh.polygons:
-                if poly.select or objSel:
-                    for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
-                        vertLoopDict[vert_idx].append(loop_idx)
-                        vertPosDict[vert_idx] = (mesh.vertices[vert_idx].co, mesh.vertices[vert_idx].normal)
-                        vertWorldPosDict[vert_idx] = (mat @ mesh.vertices[vert_idx].co, mat @ mesh.vertices[vert_idx].normal)
         else:
-            for poly in mesh.polygons:
-                for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
-                    if mesh.vertices[vert_idx].select:
-                        vertLoopDict[vert_idx].append(loop_idx)
-                        vertPosDict[vert_idx] = (mesh.vertices[vert_idx].co, mesh.vertices[vert_idx].normal)
-                        vertWorldPosDict[vert_idx] = (mat @ mesh.vertices[vert_idx].co, mat @ mesh.vertices[vert_idx].normal)
+            for obj in objs:
+                mesh = obj.data
+                if (True in [poly.select for poly in mesh.polygons]):
+                    faceSel = True
+                elif (True in [vertex.select for vertex in mesh.vertices]):
+                    vertSel = True
 
-        return (vertLoopDict, vertPosDict, vertWorldPosDict, objSel, faceSel, vertSel)
+        for obj in objs:
+            mesh = obj.data
+            mat = obj.matrix_world
+
+            vertLoopDict = defaultdict(list)
+            vertPosDict = defaultdict(list)
+            vertWorldPosDict = defaultdict(list)
+
+            if objSel or faceSel:
+                for poly in mesh.polygons:
+                    if poly.select or objSel:
+                        for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                            vertLoopDict[vert_idx].append(loop_idx)
+                            vertPosDict[vert_idx] = (
+                                mesh.vertices[vert_idx].co,
+                                mesh.vertices[vert_idx].normal)
+                            vertWorldPosDict[vert_idx] = (
+                                mat @ mesh.vertices[vert_idx].co,
+                                mat @ mesh.vertices[vert_idx].normal)
+            else:
+                for poly in mesh.polygons:
+                    for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                        if mesh.vertices[vert_idx].select:
+                            vertLoopDict[vert_idx].append(loop_idx)
+                            vertPosDict[vert_idx] = (
+                                mesh.vertices[vert_idx].co,
+                                mesh.vertices[vert_idx].normal)
+                            vertWorldPosDict[vert_idx] = (
+                                mat @ mesh.vertices[vert_idx].co,
+                                mat @ mesh.vertices[vert_idx].normal)
+
+            objDicts[obj] = (vertLoopDict, vertPosDict, vertWorldPosDict)
+
+        bpy.ops.object.mode_set(mode = mode)
+        return objDicts
 
     def applyColor(self, objs, layer, color, overwrite, noise = 0.0, mono = False):
+        #objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -722,9 +738,8 @@ class SXTOOLS_tools(object):
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             
-            dicts = self.selectionHandler(obj)
-            vertLoopDict = dicts[0]
-            vertPosDict = dicts[1]
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
 
             if noise == 0.0:
                 for vert_idx, loop_indices in vertLoopDict.items():
@@ -787,6 +802,9 @@ class SXTOOLS_tools(object):
             scn.fillpalette8 = colorArray[7][:]
 
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
+        #objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -822,9 +840,8 @@ class SXTOOLS_tools(object):
             vertPosDict = defaultdict(list)
             mat = obj.matrix_world
             
-            dicts = self.selectionHandler(obj)
-            vertLoopDict = dicts[0]
-            vertPosDict = dicts[1]
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
             
             if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM'):
                 bbx = self.calculateBoundingBox(vertPosDict)
@@ -895,12 +912,14 @@ class SXTOOLS_tools(object):
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
+        #objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
         for obj in objs:
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
-            
-            dicts = self.selectionHandler(obj)
-            vertLoopDict = dicts[0]
+
+            vertLoopDict = objDicts[obj][0]
 
             selList = []
             for vert_idx, loop_indices in vertLoopDict.items():
@@ -1009,6 +1028,9 @@ class SXTOOLS_tools(object):
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
     def bakeOcclusion(self, objs, rayCount=250, blend=0.0, bias=0.000001):
+        objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
         scene = bpy.context.scene
@@ -1017,19 +1039,6 @@ class SXTOOLS_tools(object):
         bias = 1e-5
 
         objOcclusions = {}
-        objDicts = {}
-
-        # Generate vertex dictionaries
-        for obj in objs:
-            vertLoopDict = defaultdict(list)
-            vertPosDict = defaultdict(list)
-            
-            dicts = self.selectionHandler(obj)
-            vertLoopDict = dicts[0]
-            vertPosDict = dicts[1]
-            vertWorldPosDict = dicts[2]
-
-            objDicts[obj] = (vertLoopDict, vertPosDict, vertWorldPosDict)
 
         for idx in range(rayCount):
             hemiSphere[idx] = self.rayRandomizer()
@@ -1094,6 +1103,9 @@ class SXTOOLS_tools(object):
         return objOcclusions
 
     def calculateLuminance(self, objs, layer):
+        objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -1102,8 +1114,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             vertexColors = obj.data.vertex_colors[layer].data
             vertLoopDict = defaultdict(list)
-            dicts = self.selectionHandler(obj)
-            vertLoopDict = dicts[0]
+            vertLoopDict = objDicts[obj][0]
             vtxLuminances = {}
 
             for vert_idx, loop_indices in vertLoopDict.items():
@@ -1195,23 +1206,19 @@ class SXTOOLS_tools(object):
 
             self.applyColor(objs, layer, color, False, noise, mono)
 
-    def applyMaterial(self, objs, layer, material, noise, mono):
+    def applyMaterial(self, objs, layer, material, overwrite, noise, mono):
         sourcelayer = str(layer).upper()
-        # get mask from metallic/smoothness?
-        # apply smoothness -> copy channel
-        # apply metallic -> copy channel
-        # apply color
         palette = [
             bpy.context.scene.sxmaterials[material].color0,
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
         # Set material properties to layer, copy to UV
-        self.applyColor(objs, layer, palette[2], False, noise, mono)
+        self.applyColor(objs, layer, palette[2], overwrite, noise, mono)
         self.layerToMaterial(objs, sourcelayer, 'SMTH')
-        self.applyColor(objs, layer, palette[1], False, noise, mono)
+        self.applyColor(objs, layer, palette[1], overwrite, noise, mono)
         self.layerToMaterial(objs, sourcelayer, 'MET')
-        self.applyColor(objs, layer, palette[0], False, noise, mono)
+        self.applyColor(objs, layer, palette[0], overwrite, noise, mono)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -1730,6 +1737,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Monochrome",
         default = False)
 
+    materialalpha: bpy.props.BoolProperty(
+        name = "Overwrite Alpha",
+        default = True)
+
     materialnoise: bpy.props.FloatProperty(
         name = "Noise",
         min = 0.0,
@@ -1927,6 +1938,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
             layout = self.layout
             mesh = obj.data
+            mode = obj.mode
             sxtools = obj.sxtools
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
@@ -1993,7 +2005,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_noise.prop(scene, 'fillnoise', slider = True)
                         col_color = box_fill.column(align = True)
                         col_color.prop(scene, 'fillmono', text = 'Monochromatic')
-                        col_color.prop(scene, 'fillalpha')
+                        if mode == 'OBJECT':
+                            col_color.prop(scene, 'fillalpha')
                         col_color.operator('sxtools.applycolor', text = 'Apply')
 
                     # Gradient Tool ---------------------------------------------------
@@ -2009,7 +2022,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_ramp = self.layout.column(align = True)
                         col_ramp.prop(scene, 'rampmode', text = 'Mode')
                         col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
-                        col_ramp.prop(scene, 'rampalpha')
+                        if mode == 'OBJECT':
+                            col_ramp.prop(scene, 'rampalpha')
                         if scene.rampmode == 'OCC':
                             col_ramp.prop(scene, 'occlusionrays', slider = True, text = 'Ray Count')
                             col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
@@ -2077,6 +2091,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_pbrnoise.prop(scene, 'materialnoise', slider = True)
                         col_matcolor = box_materials.column(align = True)
                         col_matcolor.prop(scene, 'materialmono', text = 'Monochromatic')
+                        if mode == 'OBJECT':
+                            col_matcolor.prop(scene, 'materialalpha')
 
                     # Crease Sets ---------------------------------------------------
                     box_crease = layout.box()
@@ -2162,6 +2178,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         layer = sxglobals.refLayerArray[idx]
         color = context.scene.sxtools.fillcolor
         overwrite = context.scene.sxtools.fillalpha
+        if objs[0].mode == 'EDIT':
+            overwrite = True
         noise = context.scene.sxtools.fillnoise
         mono = context.scene.sxtools.fillmono
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
@@ -2182,6 +2200,8 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         rampmode = context.scene.sxtools.rampmode
         mergebbx = context.scene.sxtools.rampbbox
         overwrite = context.scene.sxtools.rampalpha
+        if objs[0].mode == 'EDIT':
+            overwrite = True
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx)
         refreshActives(self, context)
@@ -2414,10 +2434,13 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         material = self.label
         idx = objs[0].sxtools.selectedlayer
         layer = sxglobals.refLayerArray[idx]
-        noise = context.scene.sxtools.palettenoise
-        mono = context.scene.sxtools.palettemono
+        overwrite = context.scene.sxtools.materialalpha
+        if objs[0].mode == 'EDIT':
+            overwrite = True
+        noise = context.scene.sxtools.materialnoise
+        mono = context.scene.sxtools.materialmono
 
-        tools.applyMaterial(objs, layer, material, noise, mono)
+        tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
         refreshActives(self, context)
         return {"FINISHED"}
 
@@ -2527,7 +2550,6 @@ if __name__ == "__main__":
 #   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
 #   - hidden/mask/adjustment indication
 # - Ramp fill color presets
-# - Multi-object (and component) gradients
 # - Occlusion baking temp groundplane
 # - Master palette library save/manage
 # - PBR material library save/manage
@@ -2548,7 +2570,6 @@ if __name__ == "__main__":
 # - Blend mode not properly moved with layer copy/swap
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
-# - Component selection should always overwrite alpha
 # - UI Palette layout for color swatches
 # - Set proper shading mode, layer1 selected, after scene setup
 # - Create custom layerview:
