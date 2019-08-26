@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 5, 18),
+    "version": (1, 5, 23),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -558,6 +558,8 @@ class SXTOOLS_layers(object):
         objs[0].sxtools.selectedlayer = targetIndex
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         for obj in objs:
             sourceVertexColors = obj.data.vertex_colors[sourceLayer].data
             targetVertexColors = obj.data.vertex_colors[targetLayer].data
@@ -565,8 +567,6 @@ class SXTOOLS_layers(object):
 
             sourceBlend = getattr(obj.sxtools, sourceLayer+'BlendMode')[:]
             targetBlend = getattr(obj.sxtools, targetLayer+'BlendMode')[:]
-
-            #print('before: ', sourceBlend, targetBlend)
 
             if swap == True:
                 for poly in obj.data.polygons:
@@ -589,7 +589,8 @@ class SXTOOLS_layers(object):
                         value = sourceVertexColors[idx].color[:]
                         targetVertexColors[idx].color = value
                 setattr(obj.sxtools, targetLayer+'BlendMode', sourceBlend)
-            #print('after: ', sourceBlend, targetBlend)
+
+        bpy.ops.object.mode_set(mode = mode)
 
     def updateLayerPalette(self, obj, layer):
         #print('updateLayerPalette called')
@@ -787,6 +788,7 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode = mode)
 
+    def updateRecentColors(self, color):
         scn = bpy.context.scene.sxtools
         palCols = [
             scn.fillpalette1[:],
@@ -1043,7 +1045,7 @@ class SXTOOLS_tools(object):
         objDicts = self.selectionHandler(objs)
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode = 'OBJECT')
+        #bpy.ops.object.mode_set(mode = 'OBJECT')
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
@@ -1053,6 +1055,13 @@ class SXTOOLS_tools(object):
 
         for idx in range(rayCount):
             hemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
+        #bpy.ops.object.mode_set(mode = 'EDIT')
+        bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1109,6 +1118,11 @@ class SXTOOLS_tools(object):
                 for loop_idx in loop_indices:
                     vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
             objOcclusions[obj] = vertOccDict
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = True
 
         bpy.ops.object.mode_set(mode = mode)
         return objOcclusions
@@ -2194,6 +2208,7 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         noise = context.scene.sxtools.fillnoise
         mono = context.scene.sxtools.fillmono
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        tools.updateRecentColors(color)
         refreshActives(self, context)
         return {"FINISHED"}
 
@@ -2577,7 +2592,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Blend mode not properly moved with layer copy/swap
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
@@ -2588,8 +2602,8 @@ if __name__ == "__main__":
 #   - Filter composite out of layer list
 #   - Custom hide/show icons to layer view items
 # - Assign fill color from brush color if in vertex paint mode
-#   color[0] = bpy.data.brushes["Draw"].color[0]
-# - Automate modifier creation?
+#   - color[0] = bpy.data.brushes["Draw"].color[0]
+# - Automate modifier creation / Add visibility toggle button
 #   - C.active_object.modifiers.new(type = 'EDGE_SPLIT', name = 'SX EdgeSplit')
 #   - bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
 #   - C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
