@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 5, 24),
+    "version": (1, 8, 1),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -28,40 +28,33 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
-        self.refArray = [
-            'layer1', 'layer2', 'layer3', 'layer4',
-            'layer5', 'layer6', 'layer7']
-        self.refLayerArray = [
-            'composite',
-            'layer1', 'layer2', 'layer3', 'layer4',
-            'layer5', 'layer6', 'layer7']
-        self.refColorDict = {
-            'composite': [0.0, 0.0, 0.0, 1.0],
-            'layer1': [0.5, 0.5, 0.5, 1.0],
-            'layer2': [0.0, 0.0, 0.0, 0.0],
-            'layer3': [0.0, 0.0, 0.0, 0.0],
-            'layer4': [0.0, 0.0, 0.0, 0.0],
-            'layer5': [0.0, 0.0, 0.0, 0.0],
-            'layer6': [0.0, 0.0, 0.0, 0.0],
-            'layer7': [0.0, 0.0, 0.0, 0.0] }
-        self.refChannelArray = [
-            ('textureU', 'textureV'),
-            ('palettemasks', 'occlusion'),
-            ('transmission', 'emission'),
-            ('metallic', 'smoothness'),
-            ('gradient1', 'gradient2'),
-            ('overlayR', 'overlayG'),
-            ('overlayB', 'overlayA'),
-            ('unused', 'unused') ]
-        self.refChannels = {
-            'textureU': 0, 'textureV': 0,
-            'palettemasks': 0, 'occlusion': 1,
-            'metallic': 0, 'smoothness': 0,
-            'transmission': 0, 'emission': 0,
-            'gradient1': 0, 'gradient2': 0,
-            'overlayR': 0, 'overlayG': 0,
-            'overlayB': 0, 'overlayA': 0,
-            'unused': 0}
+
+        # name, showInLayerList, index, layerType (COLOR/UV),
+        # defaultColor, defaultValue,
+        # visibility, alpha, blendMode, vertexColorLayer,
+        # uvLayer0, uvChannel0, uvLayer1, uvChannel1,
+        # uvLayer2, uvChannel2, uvLayer3, uvChannel3,
+        # hidden_in_layerView
+        self.layerInitArray = [
+            ('composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer1', True, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer2', True, 2, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer3', True, 3, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer4', True, 4, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor4', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer5', True, 5, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor5', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer6', True, 6, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor6', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('layer7', True, 7, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor7', '', 'U', '', 'U', '', 'U', '', 'U'),
+            ('occlusion', True, 11, 'UV', [0.0, 0.0, 0.0, 0.0], 1.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'V', '', 'U', '', 'U', '', 'U'),
+            ('transmission', True, 14, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'U', '', 'U', '', 'U', '', 'U'),
+            ('emission', True, 15, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U'),
+            ('metallic', True, 12, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U'),
+            ('smoothness', True, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U'),
+            ('gradient1', True, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U'),
+            ('gradient2', True, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U'),
+            ('overlay', True, 10, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'),
+            ('texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U'),
+            ('masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U')]
+
         # The mapping of material channels to UVs (setindex, uv)
         self.refExports = {
             'OCC': [('UVMAP1', 'V')],
@@ -179,37 +172,171 @@ class SXTOOLS_files(object):
 
 
 # ------------------------------------------------------------------------
+#    Layer Data Find Functions
+# ------------------------------------------------------------------------
+class SXTOOLS_utils(object):
+    def __init__(self):
+        return None
+
+    def findColorLayers(self, obj):
+        sxLayerArray = []
+        for sxLayer in obj.sxlayers:
+            if sxLayer.layerType == 'COLOR':
+                sxLayerArray.append(sxLayer)
+        sxLayerArray.sort(key=lambda x: sxLayer.index)
+
+        return sxLayerArray
+
+    def findDefaultValues(self, obj, mode):
+        sxLayerArray = []
+        valueArray = []
+        valueDict = {}
+        for sxLayer in obj.sxlayers:
+            if sxLayer.layerType == 'UV':
+                sxLayerArray.append(sxLayer)
+
+        nameArray = []
+        for sxLayer in sxLayerArray:
+            nameArray.extend((sxLayer.uvLayer0, sxLayer.uvLayer1, sxLayer.uvLayer2, sxLayer.uvLayer3))
+        nameSet = set(nameArray)
+
+        empty = False
+        for name in nameSet:
+            if name == '':
+                empty = True
+        if empty:
+            nameSet.remove('')
+        uvSets = sorted(nameSet)
+
+        for uvSet in uvSets:
+            values = [uvSet, None, None]
+            for sxLayer in obj.sxlayers:
+                if sxLayer.uvLayer0 == uvSet:
+                    if sxLayer.uvChannel0 == 'U':
+                        values[1] = sxLayer.defaultValue
+                    else:
+                        values[2] = sxLayer.defaultValue
+
+                if sxLayer.uvLayer1 == uvSet:
+                    if sxLayer.uvChannel1 == 'U':
+                        values[1] = sxLayer.defaultValue
+                    else:
+                        values[2] = sxLayer.defaultValue
+
+                if sxLayer.uvLayer2 == uvSet:
+                    if sxLayer.uvChannel2 == 'U':
+                        values[1] = sxLayer.defaultValue
+                    else:
+                        values[2] = sxLayer.defaultValue
+
+                if sxLayer.uvLayer3 == uvSet:
+                    if sxLayer.uvChannel3 == 'U':
+                        values[1] = sxLayer.defaultValue
+                    else:
+                        values[2] = sxLayer.defaultValue
+
+            valueDict[uvSet] = (values[1], values[2])
+            valueArray.append(values)
+
+        if mode == 'Array':
+            return valueArray
+        elif mode == 'Dict':
+            return valueDict
+
+    def findCompLayers(self, obj):
+        compLayers = []
+        for sxLayer in obj.sxlayers:
+            if (sxLayer.layerType == 'COLOR') and (sxLayer.showInLayerList == True):
+                compLayers.append(sxLayer)
+        compLayers.sort(key=lambda x: sxLayer.index)
+        return compLayers
+
+    def findListLayers(self, obj):
+        listLayers = []
+        for sxLayer in obj.sxlayers:
+            if sxLayer.showInLayerList == True:
+                listLayers.append(sxLayer)
+        listLayers.sort(key=lambda x: sxLayer.index)
+        return listLayers
+
+    def findLayerFromIndex(self, obj, index):
+        for sxLayer in obj.sxlayers:
+            if sxLayer.index == index:
+                return sxLayer
+
+    def __del__(self):
+        print('SX Tools: Exiting utils')
+
+
+# ------------------------------------------------------------------------
 #    Scene Setup
 # ------------------------------------------------------------------------
 class SXTOOLS_setup(object):
     def __init__(self):
         return None
 
-    def setupGeometry(self, objs):
+    def setupListItems(self):
+        if 'sxlistitems' not in bpy.context.scene.keys():
+            listItemArray = []
+            for values in sxglobals.layerInitArray:
+                if values[1]:
+                    listItemArray.append(values)
+            listItemArray.sort(key=lambda tup: tup[2]) 
 
+            for values in listItemArray:
+                    item = bpy.context.scene.sxlistitems.add()
+                    item.name = values[0]
+                    item.index = values[2]
+
+    def setupLayers(self):
+        for values in sxglobals.layerInitArray:
+            item = bpy.context.object.sxlayers.add()
+            item.name = values[0]
+            item.showInLayerList = values[1]
+            item.index = values[2]
+            item.layerType = values[3]
+            item.defaultColor = values[4]
+            item.defaultValue = values[5]
+            item.visibility = values[6]
+            item.alpha = values[7]
+            item.blendMode = values[8]
+            item.vertexColorLayer = values[9]
+            item.uvLayer0 = values[10]
+            item.uvChannel0 = values[11]
+            item.uvLayer1 = values[12]
+            item.uvChannel1 = values[13]
+            item.uvLayer2 = values[14]
+            item.uvChannel2 = values[15]
+            item.uvLayer3 = values[16]
+            item.uvChannel3 = values[17]
+
+    def setupGeometry(self, objs):
         if 'SXMaterial' not in bpy.data.materials.keys():
             self.createSXMaterial()
+
+        sxLayers = utils.findColorLayers(objs[0])
+        sxUVs = utils.findDefaultValues(objs[0], 'Array')
 
         for obj in objs:
             mesh = obj.data
 
-            if not 'layer1' in mesh.vertex_colors.keys():
-                for vcol in mesh.vertex_colors:
-                    mesh.vertex_colors.remove(vcol)
+            for vertexColor in mesh.vertex_colors.keys():
+                if not 'VertexColor' in vertexColor:
+                    mesh.vertex_colors.remove(vertexColor)
 
-            for layer in sxglobals.refLayerArray:
-                if not layer in mesh.vertex_colors.keys():
-                    mesh.vertex_colors.new(name=layer)
-                    layers.clearLayers([obj, ], layer)
+            for sxLayer in sxLayers:
+                if not sxLayer.vertexColorLayer in mesh.vertex_colors.keys():
+                    mesh.vertex_colors.new(name = sxLayer.vertexColorLayer)
+                    layers.clearLayers([obj, ], sxLayer)
 
-            if len(mesh.uv_layers.keys()) < 8:
-                for i in range(len(mesh.uv_layers.keys()), (8 - len(mesh.uv_layers.keys()))):
-                    uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
-                    vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
-                    uvmap = mesh.uv_layers.new()
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            mesh.uv_layers[uvmap.name].data[idx].uv = [uValue, vValue]
+            for uvSet in mesh.uv_layers.keys():
+                if not 'UVSet' in uvSet:
+                    mesh.uv_layers.remove(mesh.uv_layers[uvSet])
+
+            for uvSet in sxUVs:
+                if not uvSet[0] in mesh.uv_layers.keys():
+                    uvmap = mesh.uv_layers.new(name = uvSet[0])
+                    layers.clearUVs([obj, ], uvSet)
 
             #for i in range(5):
             #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
@@ -218,6 +345,20 @@ class SXTOOLS_setup(object):
             obj.active_material = bpy.data.materials['SXMaterial']
 
     def createSXMaterial(self):
+        for values in sxglobals.layerInitArray:
+            if values[0] == 'composite':
+                compositeUVSet = values[9]
+            elif values[0] == 'occlusion':
+                occlusionUVSet = values[10]
+            elif values[0] == 'metallic':
+                metallicUVSet = values[10]
+            elif values[0] == 'smoothness':
+                smoothnessUVSet = values[10]
+            elif values[0] == 'transmission':
+                transmissionUVSet = values[10]
+            elif values[0] == 'emission':
+                emissionUVSet = values[10]
+
         sxmaterial = bpy.data.materials.new(name = 'SXMaterial')
         sxmaterial.use_nodes = True
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
@@ -233,17 +374,17 @@ class SXTOOLS_setup(object):
 
         # Vertex color source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
-        sxmaterial.node_tree.nodes['Attribute'].attribute_name = 'composite'
+        sxmaterial.node_tree.nodes['Attribute'].attribute_name = compositeUVSet
         sxmaterial.node_tree.nodes['Attribute'].location = (-600, 200)
 
         # Occlusion source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-        sxmaterial.node_tree.nodes['UV Map'].uv_map = 'UVMap.001'
+        sxmaterial.node_tree.nodes['UV Map'].uv_map = occlusionUVSet
         sxmaterial.node_tree.nodes['UV Map'].location = (-600, 0)
 
         # Metallic and roughness source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-        sxmaterial.node_tree.nodes['UV Map.001'].uv_map = 'UVMap.003'
+        sxmaterial.node_tree.nodes['UV Map.001'].uv_map = metallicUVSet
         sxmaterial.node_tree.nodes['UV Map.001'].location = (-600, -200)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
@@ -262,7 +403,7 @@ class SXTOOLS_setup(object):
 
         # Emission and transmission source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-        sxmaterial.node_tree.nodes['UV Map.002'].uv_map = 'UVMap.002'
+        sxmaterial.node_tree.nodes['UV Map.002'].uv_map = transmissionUVSet
         sxmaterial.node_tree.nodes['UV Map.002'].location = (-600, -400)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
@@ -349,29 +490,31 @@ class SXTOOLS_layers(object):
     def __init__(self):
         return None
 
-    def clearLayers(self, objs, targetlayer = None):
+    def clearLayers(self, objs, targetLayer = None):
+        sxLayers = utils.findColorLayers(objs[0])
+
         for obj in objs:
-            if targetlayer is None:
+            if targetLayer is None:
                 print('SX Tools: Clearing all layers')
-                for layer in sxglobals.refLayerArray:
-                    color = sxglobals.refColorDict[layer]
-                    tools.applyColor([obj, ], layer, color, True, 0.0)
-                    if layer != 'composite':
-                        setattr(obj.sxtools, layer+'Alpha', 1.0)
-                        setattr(obj.sxtools, layer+'Visibility', True)
-                        setattr(obj.sxtools, layer+'BlendMode', 'ALPHA')
+                for sxLayer in sxLayers:
+                    color = sxLayer.defaultColor
+                    tools.applyColor([obj, ], sxLayer, color, True, 0.0)
+                    setattr(obj.sxlayers[sxLayer.name], 'alpha', 1.0)
+                    setattr(obj.sxlayers[sxLayer.name], 'visibility', True)
+                    setattr(obj.sxlayers[sxLayer.name], 'blendMode', 'ALPHA')
             else:
-                color = sxglobals.refColorDict[targetlayer]
-                tools.applyColor([obj, ], targetlayer, color, True, 0.0)
-                setattr(obj.sxtools, targetlayer+'Alpha', 1.0)
-                setattr(obj.sxtools, targetlayer+'Visibility', True)
-                setattr(obj.sxtools, targetlayer+'BlendMode', 'ALPHA')
+                color = targetLayer.defaultColor
+                tools.applyColor([obj, ], targetLayer, color, True, 0.0)
+                setattr(obj.sxlayers[targetLayer.name], 'alpha', 1.0)
+                setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
+                setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
-        if targetlayer is None:
-            self.clearUVs(objs)
+        if targetLayer is None:
+            self.clearUVs(objs, None)
 
-    def clearUVs(self, objs):
+    def clearUVs(self, objs, uvSet = None):
         objDicts = tools.selectionHandler(objs)
+        sxUVs = utils.findDefaultValues(objs[0], 'Dict')
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -382,23 +525,49 @@ class SXTOOLS_layers(object):
 
             mesh = obj.data
             for i, key in enumerate(mesh.uv_layers.keys()):
-                uValue = sxglobals.refChannels[sxglobals.refChannelArray[i][0]]
-                vValue = sxglobals.refChannels[sxglobals.refChannelArray[i][1]]
-                uvmap = mesh.uv_layers[i]
+                uvName = mesh.uv_layers[i].name
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
-                        mesh.uv_layers[uvmap.name].data[loop_idx].uv = [uValue, vValue]
+                        mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
 
     def compositeLayers(self, objs):
         #then = time.time()
+        compLayers = utils.findCompLayers(objs[0])
         shadingmode = bpy.context.scene.sxtools.shadingmode
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        for sxLayer in objs[0].sxlayers:
+            if sxLayer.index == (idx + 1):
+                layer = sxLayer
+
+        channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
+        maps = {
+            'UVMAP0': 0,
+            'occlusion': 1,
+            'emission': 2,
+            'transmission': 2,
+            'metallic': 3,
+            'smoothness': 3,
+            'UVMAP4': 4,
+            'UVMAP5': 5,
+            'UVMAP6': 6,
+            'UVMAP7': 7 }
 
         if shadingmode == 'FULL':
-            self.blendLayers(objs, sxglobals.refArray, 'composite', 'composite')
+            self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
         else:
-            self.blendDebug(objs, layer, shadingmode)
+            if layer.layerType == 'COLOR':
+                self.blendDebug(objs, layer, shadingmode)
+            elif layer.name == 'overlay':
+                pass
+            else:
+                for obj in objs:
+                    vertexColors = obj.data.vertex_colors
+                    vertexUVs = obj.data.uv_layers
+
+                    for poly in obj.data.polygons:
+                        for loop_idx in poly.loop_indices:
+                            value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
+                            vertexColors[obj.sxlayers['composite'].vertexColorLayer].data[loop_idx].color = [value, value, value, 1.0]
         #now = time.time()
         #print("Compositing duration: ", now-then, " seconds")
 
@@ -408,55 +577,55 @@ class SXTOOLS_layers(object):
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
-            resultLayer = vertexColors['composite'].data
+            resultLayer = vertexColors[obj.sxlayers['composite'].vertexColorLayer].data
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
                     if shadingmode == 'DEBUG':
                         top = [
-                            vertexColors[layer].data[idx].color[0],
-                            vertexColors[layer].data[idx].color[1],
-                            vertexColors[layer].data[idx].color[2],
-                            vertexColors[layer].data[idx].color[3]][:]
+                            vertexColors[layer.vertexColorLayer].data[idx].color[0],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[1],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[2],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
                     elif shadingmode == 'ALPHA':
                         top = [
-                            vertexColors[layer].data[idx].color[3],
-                            vertexColors[layer].data[idx].color[3],
-                            vertexColors[layer].data[idx].color[3],
-                            vertexColors[layer].data[idx].color[3]][:]
+                            vertexColors[layer.vertexColorLayer].data[idx].color[3],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[3],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[3],
+                            vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
                     resultLayer[idx].color = top[:]
 
         bpy.ops.object.mode_set(mode = mode)
 
-    def blendLayers(self, objs, topLayerArray, baseLayerName, resultLayerName):
+    def blendLayers(self, objs, topLayerArray, baseLayer, resultLayer):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
-            resultLayer = vertexColors[resultLayerName].data
-            baseLayer = vertexColors[baseLayerName].data
+            resultColors = vertexColors[resultLayer.vertexColorLayer].data
+            baseColors = vertexColors[baseLayer.vertexColorLayer].data
 
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
-                    if baseLayerName == 'composite':
+                    if baseLayer.name == 'composite':
                         base = [0.0, 0.0, 0.0, 1.0]
                     else:
                         base = [
-                            baseLayer[idx].color[0],
-                            baseLayer[idx].color[1],
-                            baseLayer[idx].color[2],
-                            baseLayer[idx].color[3]][:]
+                            baseColors[idx].color[0],
+                            baseColors[idx].color[1],
+                            baseColors[idx].color[2],
+                            baseColors[idx].color[3]][:]
                     for layer in topLayerArray:
-                        if not getattr(obj.sxtools, layer+"Visibility"):
+                        if not getattr(obj.sxlayers[layer.name], 'visibility'):
                             continue
                         else:
-                            blend = getattr(obj.sxtools, layer+"BlendMode")
-                            alpha = getattr(obj.sxtools, layer+"Alpha")
+                            blend = getattr(obj.sxlayers[layer.name], 'blendMode')
+                            alpha = getattr(obj.sxlayers[layer.name], 'alpha')
                             top = [
-                                vertexColors[layer].data[idx].color[0],
-                                vertexColors[layer].data[idx].color[1],
-                                vertexColors[layer].data[idx].color[2],
-                                vertexColors[layer].data[idx].color[3]][:]
+                                vertexColors[layer.vertexColorLayer].data[idx].color[0],
+                                vertexColors[layer.vertexColorLayer].data[idx].color[1],
+                                vertexColors[layer.vertexColorLayer].data[idx].color[2],
+                                vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
 
                             # alpha blend
                             if blend == 'ALPHA':
@@ -479,22 +648,22 @@ class SXTOOLS_layers(object):
                                     mul = ((top[j] * (top[3] * alpha) + (1.0 * (1 - (top[3] * alpha)))))
                                     base[j] = mul * base[j]        
                     
-                    resultLayer[idx].color = base[:]
+                    resultColors[idx].color = base[:]
         bpy.ops.object.mode_set(mode = mode)
 
     def copyChannel(self, objs, sourcemap, sourcechannel, targetmap, targetchannel, copymode = 1):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
-        layers = sxglobals.refArray
+        layers = utils.findCompLayers(objs[0])
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
         maps = {
-            'LAYER1': sxglobals.refArray[0],
-            'LAYER2': sxglobals.refArray[1],
-            'LAYER3': sxglobals.refArray[2],
-            'LAYER4': sxglobals.refArray[3],
-            'LAYER5': sxglobals.refArray[4],
-            'LAYER6': sxglobals.refArray[5],
-            'LAYER7': sxglobals.refArray[6],
+            'LAYER1': layers[0],
+            'LAYER2': layers[1],
+            'LAYER3': layers[2],
+            'LAYER4': layers[3],
+            'LAYER5': layers[4],
+            'LAYER6': layers[5],
+            'LAYER7': layers[6],
             'UVMAP0': 0,
             'UVMAP1': 1,
             'UVMAP2': 2,
@@ -514,7 +683,7 @@ class SXTOOLS_layers(object):
             if copymode == 1:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
-                        value = vertexColors[layer].data[idx].color[channels[sourcechannel]]
+                        value = vertexColors[layer.vertexColorLayer].data[idx].color[channels[sourcechannel]]
                         vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = value
 
             # Generate 1-bit layer masks for layers 1-7
@@ -527,43 +696,44 @@ class SXTOOLS_layers(object):
                             if i == 1:
                                 vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
                             else:
-                                vertexAlpha = vertexColors[layer].data[idx].color[channels[sourcechannel]][3]
+                                vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourcechannel]][3]
                                 if vertexAlpha >= sxglobals.alphaTolerance:
                                     vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
 
         bpy.ops.object.mode_set(mode = mode)
 
     def mergeLayers(self, objs, sourceLayer, targetLayer):
-        sourceIndex = sxglobals.refLayerArray.index(sourceLayer)
-        targetIndex = sxglobals.refLayerArray.index(targetLayer)
-        layerOrder = sorted((sourceIndex, targetIndex))
-        baseLayer = sxglobals.refLayerArray[layerOrder[0]]
-        topLayer = [sxglobals.refLayerArray[layerOrder[1]], ]
+        if sourceLayer.index < targetLayer.index:
+            baseLayer = sourceLayer
+            topLayer = targetLayer
+        else:
+            baseLayer = targetLayer
+            topLayer = sourceLayer
 
         for obj in objs:
-            setattr(obj.sxtools, sourceLayer+'Visibility', True)
-            setattr(obj.sxtools, targetLayer+'Visibility', True)
+            setattr(obj.sxlayers[sourceLayer.name], 'visibility', True)
+            setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
 
-        self.blendLayers(objs, topLayer, baseLayer, targetLayer)
+        self.blendLayers(objs, [topLayer, ], baseLayer, targetLayer)
         self.clearLayers(objs, sourceLayer)
 
         for obj in objs:
-            setattr(obj.sxtools, sourceLayer+'BlendMode', 'ALPHA')
-            setattr(obj.sxtools, targetLayer+'BlendMode', 'ALPHA')
+            setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
+            setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
-        objs[0].data.vertex_colors.active_index = targetIndex
-        objs[0].sxtools.selectedlayer = targetIndex
+        objs[0].data.vertex_colors.active_index = targetLayer.index
+        objs[0].sxtools.selectedlayer = targetLayer.index - 1
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
         for obj in objs:
-            sourceVertexColors = obj.data.vertex_colors[sourceLayer].data
-            targetVertexColors = obj.data.vertex_colors[targetLayer].data
-            tempVertexColors = obj.data.vertex_colors['composite'].data
+            sourceVertexColors = obj.data.vertex_colors[sourceLayer.vertexColorLayer].data
+            targetVertexColors = obj.data.vertex_colors[targetLayer.vertexColorLayer].data
+            tempVertexColors = obj.data.vertex_colors[obj.sxlayers['composite'].vertexColorLayer].data
 
-            sourceBlend = getattr(obj.sxtools, sourceLayer+'BlendMode')[:]
-            targetBlend = getattr(obj.sxtools, targetLayer+'BlendMode')[:]
+            sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
+            targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
 
             if swap == True:
                 for poly in obj.data.polygons:
@@ -578,14 +748,14 @@ class SXTOOLS_layers(object):
                     for idx in poly.loop_indices:
                         value = tempVertexColors[idx].color[:]
                         sourceVertexColors[idx].color = value
-                setattr(obj.sxtools, sourceLayer+'BlendMode', targetBlend)
-                setattr(obj.sxtools, targetLayer+'BlendMode', sourceBlend)
+                setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
+                setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
             else:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
                         value = sourceVertexColors[idx].color[:]
                         targetVertexColors[idx].color = value
-                setattr(obj.sxtools, targetLayer+'BlendMode', sourceBlend)
+                setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -594,15 +764,28 @@ class SXTOOLS_layers(object):
         mode = obj.mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
         mesh = obj.data
-        vertexColors = obj.data.vertex_colors[layer].data
+        if layer.layerType == 'COLOR':
+            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+        else:
+            uvValues = obj.data.uv_layers[layer.uvLayer0].data
         colorArray = []
 
         for poly in mesh.polygons:
             for loop_idx in poly.loop_indices:
-                vcolor = vertexColors[loop_idx].color[:]
-                if vcolor[3] != 0.0:
-                    listcolor = (round(vcolor[0], 1), round(vcolor[1], 1), round(vcolor[2], 1), 1.0)
-                    colorArray.append(listcolor)
+                if layer.layerType == 'COLOR':
+                    vColor = vertexColors[loop_idx].color[:]
+                else:
+                    if layer.uvChannel0 == 'U':
+                        vValue = uvValues[loop_idx].uv[0]
+                    else:
+                        vValue = round(uvValues[loop_idx].uv[1], 1)
+
+                if (layer.layerType == 'COLOR') and (vColor[3] != 0.0):
+                    listColor = (round(vColor[0], 1), round(vColor[1], 1), round(vColor[2], 1), 1.0)
+                    colorArray.append(listColor)
+                elif layer.layerType == 'UV':
+                    listColor = (vValue, vValue, vValue, 1.0)
+                    colorArray.append(listColor)
 
         colorSet = set(colorArray)
         colorFreq = []
@@ -742,7 +925,7 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors[layer].data
+            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             
@@ -843,7 +1026,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM':
                 valueDict = objValues[obj]
-            vertexColors = obj.data.vertex_colors[layer].data
+            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
             vertLoopDict = defaultdict(list)
             vertPosDict = defaultdict(list)
             mat = obj.matrix_world
@@ -923,7 +1106,7 @@ class SXTOOLS_tools(object):
         objDicts = self.selectionHandler(objs)
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors[layer].data
+            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
             vertLoopDict = defaultdict(list)
 
             vertLoopDict = objDicts[obj][0]
@@ -1014,12 +1197,12 @@ class SXTOOLS_tools(object):
             print('SX Tools Error: Cannot merge selected channel')
             return
 
-        layerIndex = sxglobals.refLayerArray.index(sourceLayer)
+        layerIndex = sourceLayer.index
 
         if direction == 'UP':
-            targetLayer = sxglobals.refLayerArray[layerIndex - 1]
+            targetLayer = utils.findLayerFromIndex(objs[0], layerIndex - 1)
         else:
-            targetLayer = sxglobals.refLayerArray[layerIndex + 1]
+            targetLayer = utils.findLayerFromIndex(objs[0], layerIndex + 1)
 
         layers.mergeLayers(objs, sourceLayer, targetLayer)    
 
@@ -1131,7 +1314,7 @@ class SXTOOLS_tools(object):
         objLuminances = {}
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors[layer].data
+            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
             vtxLuminances = {}
@@ -1219,14 +1402,14 @@ class SXTOOLS_tools(object):
             bpy.context.scene.sxpalettes[palette].color3,
             bpy.context.scene.sxpalettes[palette].color4]
 
-        for i in range(1, 6):
-            layer = sxglobals.refLayerArray[i]
-            color = palette[i-1]
+        for idx in range(1, 6):
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            color = palette[idx - 1]
 
             self.applyColor(objs, layer, color, False, noise, mono)
 
     def applyMaterial(self, objs, layer, material, overwrite, noise, mono):
-        sourcelayer = str(layer).upper()
+        sourceLayer = str(layer).upper()
         palette = [
             bpy.context.scene.sxmaterials[material].color0,
             bpy.context.scene.sxmaterials[material].color1,
@@ -1234,9 +1417,9 @@ class SXTOOLS_tools(object):
 
         # Set material properties to layer, copy to UV
         self.applyColor(objs, layer, palette[2], overwrite, noise, mono)
-        self.layerToMaterial(objs, sourcelayer, 'SMTH')
+        self.layerToMaterial(objs, sourceLayer, 'SMTH')
         self.applyColor(objs, layer, palette[1], overwrite, noise, mono)
-        self.layerToMaterial(objs, sourcelayer, 'MET')
+        self.layerToMaterial(objs, sourceLayer, 'MET')
         self.applyColor(objs, layer, palette[0], overwrite, noise, mono)
 
     def __del__(self):
@@ -1252,22 +1435,23 @@ def updateLayers(self, context):
 
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
         blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            obj.data.vertex_colors.active_index = idx
-            setattr(obj.sxtools, layer+'Alpha', alphaVal)
-            setattr(obj.sxtools, layer+'BlendMode', blendVal)
-            setattr(obj.sxtools, layer+'Visibility', visVal)
+            obj.data.vertex_colors.active_index = idx + 1
+            if obj.sxlayers[layer.name].layerType == 'COLOR':
+                setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
+                setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
+                setattr(obj.sxlayers[layer.name], 'visibility', visVal)
 
-            sxglobals.refreshInProgress = True
-            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
-            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
-            sxglobals.refreshInProgress = False
+                sxglobals.refreshInProgress = True
+                setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+                setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+                sxglobals.refreshInProgress = False
 
         setup.setupGeometry(objs)
         layers.compositeLayers(objs)
@@ -1278,16 +1462,16 @@ def refreshActives(self, context):
         sxglobals.refreshInProgress = True
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
 
-        if layer != 'composite':
-            for obj in objs:
-                obj.sxtools.selectedlayer = idx
-                obj.data.vertex_colors.active_index = idx
+        for obj in objs:
+            obj.sxtools.selectedlayer = idx
+            if obj.sxlayers[layer.name].layerType == 'COLOR':
+                obj.data.vertex_colors.active_index = idx + 1
 
-                alphaVal = getattr(obj.sxtools, layer+'Alpha')
-                blendVal = getattr(obj.sxtools, layer+'BlendMode')
-                visVal = getattr(obj.sxtools, layer+'Visibility')
+                alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
+                blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
+                visVal = getattr(obj.sxlayers[layer.name], 'visibility')
 
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
@@ -1305,7 +1489,7 @@ def updateColorSwatches(self, context):
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
-    layer = sxglobals.refLayerArray[objs[0].sxtools.selectedlayer]
+    layer = utils.findLayerFromIndex(objs[0], objs[0].sxtools.selectedlayer)
     sxmaterial = bpy.data.materials['SXMaterial']
     
     if mode == 'FULL':
@@ -1357,7 +1541,6 @@ def shadingMode(self, context):
         input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
         sxmaterial.node_tree.links.new(input, output)
 
-
     else:
         areas = bpy.context.workspace.screens[0].areas
         shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
@@ -1388,7 +1571,6 @@ def shadingMode(self, context):
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         sxmaterial.node_tree.links.new(input, output)
 
-
 def selectionValidator(self, context):
     selObjs = []
     for obj in context.view_layer.objects.selected:
@@ -1407,7 +1589,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     selectedlayer: bpy.props.IntProperty(
         name = 'Selected Layer',
         min = 0,
-        max = 7,
+        max = 20,
         default = 0,
         update = refreshActives)
 
@@ -1430,119 +1612,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     activeLayerVisibility: bpy.props.BoolProperty(
         name = "Visibility",
         default = True,
-        update = updateLayers)    
-
-    layer1Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer1BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer1Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer2Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer2BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer2Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer3Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer3BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer3Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer4Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer4BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer4Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer5Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer5BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer5Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer6Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer6BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer6Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
-
-    layer7Alpha: bpy.props.FloatProperty(
-        name = "Opacity",
-        min = 0.0,
-        max = 1.0,
-        default = 1.0)
-    layer7BlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
-        items = [
-            ('ALPHA','Alpha',''),
-            ('ADD','Additive',''),
-            ('MUL','Multiply','')],
-        default = 'ALPHA')
-    layer7Visibility: bpy.props.BoolProperty(
-        name = "Visibility",
-        default = True)
+        update = updateLayers)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -1561,7 +1631,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette2: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 2',
@@ -1569,7 +1639,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette3: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 3',
@@ -1577,7 +1647,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette4: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 4',
@@ -1585,7 +1655,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette5: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 5',
@@ -1593,7 +1663,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette6: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 6',
@@ -1601,14 +1671,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
     layerpalette7: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 7',
         subtype = "COLOR",
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     layerpalette8: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 8',
@@ -1616,7 +1686,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette1: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 1',
@@ -1624,7 +1694,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette2: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 2',
@@ -1632,7 +1702,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette3: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 3',
@@ -1640,7 +1710,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette4: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 4',
@@ -1648,7 +1718,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette5: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 5',
@@ -1656,7 +1726,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette6: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 6',
@@ -1664,7 +1734,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette7: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 7',
@@ -1672,7 +1742,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillpalette8: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 8',
@@ -1680,7 +1750,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size = 4,
         min = 0.0,
         max = 1.0,
-        default = (1.0, 1.0, 1.0, 1.0))
+        default = (0.0, 0.0, 0.0, 1.0))
 
     fillcolor: bpy.props.FloatVectorProperty(
         name = "Fill Color",
@@ -1858,7 +1928,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         subtype = 'DIR_PATH')
 
 
-class SXTOOLS_masterpalettes(bpy.types.PropertyGroup):
+class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
         name = 'Category',
         description = 'Palette Category',
@@ -1905,7 +1975,7 @@ class SXTOOLS_masterpalettes(bpy.types.PropertyGroup):
         default = (1.0, 1.0, 1.0, 1.0))
 
 
-class SXTOOLS_materials(bpy.types.PropertyGroup):
+class SXTOOLS_material(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
         name = 'Category',
         description = 'Material Category',
@@ -1935,6 +2005,122 @@ class SXTOOLS_materials(bpy.types.PropertyGroup):
         max = 1.0,
         default = (1.0, 1.0, 1.0, 1.0))
 
+
+class SXTOOLS_layer(bpy.types.PropertyGroup):
+    # name: inherited from PropertyGroup
+
+    index: bpy.props.IntProperty(
+        name = 'Layer Index',
+        min = 0,
+        max = 100,
+        default = 0)
+
+    layerType: bpy.props.EnumProperty(
+        name = 'Layer Type',
+        items = [
+            ('COLOR','Color',''),
+            ('UV','UV','')],
+        default = 'COLOR')
+
+    defaultColor: bpy.props.FloatVectorProperty(
+        name = 'Default Color',
+        subtype = 'COLOR',
+        size = 4,
+        min = 0.0,
+        max = 1.0,
+        default = (0.0, 0.0, 0.0, 0.0))
+
+    defaultValue: bpy.props.FloatProperty(
+        name = 'Default Value',
+        min = 0.0,
+        max = 1.0,
+        default = 0.0)
+
+    visibility: bpy.props.BoolProperty(
+        name = 'Layer Visibility',
+        default = True)
+
+    alpha: bpy.props.FloatProperty(
+        name = 'Layer Alpha',
+        min = 0.0,
+        max = 1.0,
+        default = 1.0)
+
+    blendMode: bpy.props.EnumProperty(
+        name = "Layer Blend Mode",
+        items = [
+            ('ALPHA','Alpha',''),
+            ('ADD','Additive',''),
+            ('MUL','Multiply','')],
+        default = 'ALPHA')
+
+    vertexColorLayer: bpy.props.StringProperty(
+        name = 'Vertex Color Layer',
+        description = 'Maps a list item to a vertex color layer',
+        default = '')
+
+    uvLayer0: bpy.props.StringProperty(
+        name = 'UV Map',
+        description = 'Maps a list item to a UV set',
+        default = '')
+
+    uvChannel0: bpy.props.EnumProperty(
+        name = 'UV Channel',
+        items = [
+            ('U','U',''),
+            ('V','V','')],
+        default = 'U')
+
+    uvLayer1: bpy.props.StringProperty(
+        name = 'UV Map',
+        description = 'Maps a list item to a UV set',
+        default = '')
+
+    uvChannel1: bpy.props.EnumProperty(
+        name = 'UV Channel',
+        items = [
+            ('U','U',''),
+            ('V','V','')],
+        default = 'U')
+
+    uvLayer2: bpy.props.StringProperty(
+        name = 'UV Map',
+        description = 'Maps a list item to a UV set',
+        default = '')
+
+    uvChannel2: bpy.props.EnumProperty(
+        name = 'UV Channel',
+        items = [
+            ('U','U',''),
+            ('V','V','')],
+        default = 'U')
+
+    uvLayer3: bpy.props.StringProperty(
+        name = 'UV Map',
+        description = 'Maps a list item to a UV set',
+        default = '')
+
+    uvChannel3: bpy.props.EnumProperty(
+        name = 'UV Channel',
+        items = [
+            ('U','U',''),
+            ('V','V','')],
+        default = 'U')
+
+
+    showInLayerList: bpy.props.BoolProperty(
+        name = "Show in Layer List",
+        default = True)
+
+
+class SXTOOLS_listitem(bpy.types.PropertyGroup):
+    # name: from PropertyGroup
+
+    index: bpy.props.IntProperty(
+        name = 'Item Index',
+        min = 0,
+        max = 100,
+        default = 0)
 
 # ------------------------------------------------------------------------
 #    UI Panel and Operators
@@ -1966,28 +2152,34 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 else:
                     col.operator('sxtools.scenesetup', text = 'Set Up Objects')
             else:
-                if sxtools.selectedlayer != 0:
-                    row_shading = self.layout.row(align = True)
-                    row_shading.prop(scene, 'shadingmode', expand = True)
-                    if (scene.shadingmode == 'FULL'):
-                        row_blend = self.layout.row(align = True)
-                        row_blend.prop(sxtools, 'activeLayerVisibility')
-                        row_blend.prop(sxtools, 'activeLayerBlendMode', text = 'Blend')
-                        row_alpha = self.layout.row(align = True)
-                        row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
-                    row_palette = self.layout.row(align = True)
-                    row_palette.prop(scene, 'layerpalette1', text = '')
-                    row_palette.prop(scene, 'layerpalette2', text = '')
-                    row_palette.prop(scene, 'layerpalette3', text = '')
-                    row_palette.prop(scene, 'layerpalette4', text = '')
-                    row_palette.prop(scene, 'layerpalette5', text = '')
-                    row_palette.prop(scene, 'layerpalette6', text = '')
-                    row_palette.prop(scene, 'layerpalette7', text = '')
-                    row_palette.prop(scene, 'layerpalette8', text = '')
+                #if sxtools.selectedlayer < 7:
+                row_shading = self.layout.row(align = True)
+                row_shading.prop(scene, 'shadingmode', expand = True)
+                #if (scene.shadingmode == 'FULL'):
+                row_blend = self.layout.row(align = True)
+                row_blend.prop(sxtools, 'activeLayerVisibility')
+                row_blend.prop(sxtools, 'activeLayerBlendMode', text = 'Blend')
+                row_alpha = self.layout.row(align = True)
+                row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
 
-                layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type = 'DEFAULT')
+                row_palette = self.layout.row(align = True)
+                row_palette.prop(scene, 'layerpalette1', text = '')
+                row_palette.prop(scene, 'layerpalette2', text = '')
+                row_palette.prop(scene, 'layerpalette3', text = '')
+                row_palette.prop(scene, 'layerpalette4', text = '')
+                row_palette.prop(scene, 'layerpalette5', text = '')
+                row_palette.prop(scene, 'layerpalette6', text = '')
+                row_palette.prop(scene, 'layerpalette7', text = '')
+                row_palette.prop(scene, 'layerpalette8', text = '')
 
-                if sxtools.selectedlayer != 0:
+                if (sxtools.selectedlayer > 7) or (scene.shadingmode != 'FULL'):
+                    row_blend.enabled = False
+                    row_alpha.enabled = False
+
+                layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', sxtools, 'selectedlayer', type = 'DEFAULT')
+                #layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type = 'DEFAULT')
+
+                if sxtools.selectedlayer < 7:
                     row_misc1 = self.layout.row(align = True)
                     row_misc1.operator('sxtools.mergeup')
                     row_misc1.operator('sxtools.copylayer', text = 'Copy')
@@ -1997,158 +2189,158 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_misc2.operator('sxtools.pastelayer', text = 'Paste')
                     row_misc2.operator('sxtools.selmask', text = 'Select Mask')
 
-                    # Color Fill ---------------------------------------------------
-                    box_fill = layout.box()
-                    row_fill = box_fill.row()
-                    row_fill.prop(scene, "expandfill",
-                        icon="TRIA_DOWN" if scene.expandfill else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
-                    row_fill.label(text = 'Apply Color')
+                # Color Fill ---------------------------------------------------
+                box_fill = layout.box()
+                row_fill = box_fill.row()
+                row_fill.prop(scene, "expandfill",
+                    icon="TRIA_DOWN" if scene.expandfill else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
+                row_fill.label(text = 'Apply Color')
 
-                    if scene.expandfill:
-                        row_fpalette = box_fill.row(align = True)
-                        row_fpalette.prop(scene, 'fillpalette1', text = '')
-                        row_fpalette.prop(scene, 'fillpalette2', text = '')
-                        row_fpalette.prop(scene, 'fillpalette3', text = '')
-                        row_fpalette.prop(scene, 'fillpalette4', text = '')
-                        row_fpalette.prop(scene, 'fillpalette5', text = '')
-                        row_fpalette.prop(scene, 'fillpalette6', text = '')
-                        row_fpalette.prop(scene, 'fillpalette7', text = '')
-                        row_fpalette.prop(scene, 'fillpalette8', text = '')
-                        row_color = box_fill.row(align = True)
-                        row_color.prop(scene, 'fillcolor')
-                        row_noise = box_fill.row(align = True)
-                        row_noise.prop(scene, 'fillnoise', slider = True)
-                        col_color = box_fill.column(align = True)
-                        col_color.prop(scene, 'fillmono', text = 'Monochromatic')
-                        if mode == 'OBJECT':
-                            col_color.prop(scene, 'fillalpha')
-                        col_color.operator('sxtools.applycolor', text = 'Apply')
+                if scene.expandfill:
+                    row_fpalette = box_fill.row(align = True)
+                    row_fpalette.prop(scene, 'fillpalette1', text = '')
+                    row_fpalette.prop(scene, 'fillpalette2', text = '')
+                    row_fpalette.prop(scene, 'fillpalette3', text = '')
+                    row_fpalette.prop(scene, 'fillpalette4', text = '')
+                    row_fpalette.prop(scene, 'fillpalette5', text = '')
+                    row_fpalette.prop(scene, 'fillpalette6', text = '')
+                    row_fpalette.prop(scene, 'fillpalette7', text = '')
+                    row_fpalette.prop(scene, 'fillpalette8', text = '')
+                    row_color = box_fill.row(align = True)
+                    row_color.prop(scene, 'fillcolor')
+                    row_noise = box_fill.row(align = True)
+                    row_noise.prop(scene, 'fillnoise', slider = True)
+                    col_color = box_fill.column(align = True)
+                    col_color.prop(scene, 'fillmono', text = 'Monochromatic')
+                    if mode == 'OBJECT':
+                        col_color.prop(scene, 'fillalpha')
+                    col_color.operator('sxtools.applycolor', text = 'Apply')
 
-                    # Gradient Tool ---------------------------------------------------
-                    box = layout.box()
-                    row4 = box.row()
-                    row4.prop(scene, "expandramp",
-                        icon="TRIA_DOWN" if scene.expandramp else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
+                # Gradient Tool ---------------------------------------------------
+                box = layout.box()
+                row4 = box.row()
+                row4.prop(scene, "expandramp",
+                    icon="TRIA_DOWN" if scene.expandramp else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
 
-                    row4.label(text='Gradient Tool')
-                    if scene.expandramp:
-                        layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
-                        col_ramp = self.layout.column(align = True)
-                        col_ramp.prop(scene, 'rampmode', text = 'Mode')
-                        col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
-                        if mode == 'OBJECT':
-                            col_ramp.prop(scene, 'rampalpha')
-                        if scene.rampmode == 'OCC':
-                            col_ramp.prop(scene, 'occlusionrays', slider = True, text = 'Ray Count')
-                            col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
+                row4.label(text='Gradient Tool')
+                if scene.expandramp:
+                    layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
+                    col_ramp = self.layout.column(align = True)
+                    col_ramp.prop(scene, 'rampmode', text = 'Mode')
+                    col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
+                    if mode == 'OBJECT':
+                        col_ramp.prop(scene, 'rampalpha')
+                    if scene.rampmode == 'OCC':
+                        col_ramp.prop(scene, 'occlusionrays', slider = True, text = 'Ray Count')
+                        col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
 
-                        col_ramp.operator('sxtools.applyramp', text = 'Apply')
+                    col_ramp.operator('sxtools.applyramp', text = 'Apply')
 
-                    # Master Palette ---------------------------------------------------
-                    box_palette = layout.box()
-                    row_palette = box_palette.row()
-                    row_palette.prop(scene, "expandpalette",
-                        icon="TRIA_DOWN" if scene.expandpalette else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
-                    row_palette.label(text = 'Master Palettes')
+                # Master Palette ---------------------------------------------------
+                box_palette = layout.box()
+                row_palette = box_palette.row()
+                row_palette.prop(scene, "expandpalette",
+                    icon="TRIA_DOWN" if scene.expandpalette else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
+                row_palette.label(text = 'Master Palettes')
 
-                    palettes = context.scene.sxpalettes
+                palettes = context.scene.sxpalettes
 
-                    if scene.expandpalette:
-                        category = ''
-                        for name in palettes.keys():
-                            palette = palettes[name]
-                            if palette.category != category:
-                                category = palette.category
-                                row_category = box_palette.row(align = True)
-                                row_category.label(text = 'CATEGORY: ' + category)
-                                row_category.separator()
-                            row_mpalette = box_palette.row(align = True)
-                            row_mpalette.label(text = name)
-                            for i in range(5):
-                                row_mpalette.prop(palette, 'color'+str(i), text = '')
-                            mp_button = row_mpalette.operator('sxtools.applypalette', text = 'Apply')
-                            mp_button.label = palette.name[:]
+                if scene.expandpalette:
+                    category = ''
+                    for name in palettes.keys():
+                        palette = palettes[name]
+                        if palette.category != category:
+                            category = palette.category
+                            row_category = box_palette.row(align = True)
+                            row_category.label(text = 'CATEGORY: ' + category)
+                            row_category.separator()
+                        row_mpalette = box_palette.row(align = True)
+                        row_mpalette.label(text = name)
+                        for i in range(5):
+                            row_mpalette.prop(palette, 'color'+str(i), text = '')
+                        mp_button = row_mpalette.operator('sxtools.applypalette', text = 'Apply')
+                        mp_button.label = palette.name[:]
 
-                        row_mnoise = box_palette.row(align = True)
-                        row_mnoise.prop(scene, 'palettenoise', slider = True)
-                        col_mcolor = box_palette.column(align = True)
-                        col_mcolor.prop(scene, 'palettemono', text = 'Monochromatic')
+                    row_mnoise = box_palette.row(align = True)
+                    row_mnoise.prop(scene, 'palettenoise', slider = True)
+                    col_mcolor = box_palette.column(align = True)
+                    col_mcolor.prop(scene, 'palettemono', text = 'Monochromatic')
 
-                    # PBR Materials ---------------------------------------------------
-                    box_materials = layout.box()
-                    row_materials = box_materials.row()
-                    row_materials.prop(scene, "expandmaterials",
-                        icon="TRIA_DOWN" if scene.expandmaterials else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
-                    row_materials.label(text = 'PBR Materials')
+                # PBR Materials ---------------------------------------------------
+                box_materials = layout.box()
+                row_materials = box_materials.row()
+                row_materials.prop(scene, "expandmaterials",
+                    icon="TRIA_DOWN" if scene.expandmaterials else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
+                row_materials.label(text = 'PBR Materials')
 
-                    materials = context.scene.sxmaterials
+                materials = context.scene.sxmaterials
 
-                    if scene.expandmaterials:
-                        category = ''
-                        for name in materials.keys():
-                            material = materials[name]
-                            if material.category != category:
-                                category = material.category
-                                row_category = box_materials.row(align = True)
-                                row_category.label(text = 'CATEGORY: ' + category)
-                                row_category.separator()
-                            row_mat = box_materials.row(align = True)
-                            row_mat.label(text = name)
-                            for i in range(3):
-                                row_mat.prop(material, 'color'+str(i), text = '')
-                            mat_button = row_mat.operator('sxtools.applymaterial', text = 'Apply')
-                            mat_button.label = material.name[:]
+                if scene.expandmaterials:
+                    category = ''
+                    for name in materials.keys():
+                        material = materials[name]
+                        if material.category != category:
+                            category = material.category
+                            row_category = box_materials.row(align = True)
+                            row_category.label(text = 'CATEGORY: ' + category)
+                            row_category.separator()
+                        row_mat = box_materials.row(align = True)
+                        row_mat.label(text = name)
+                        for i in range(3):
+                            row_mat.prop(material, 'color'+str(i), text = '')
+                        mat_button = row_mat.operator('sxtools.applymaterial', text = 'Apply')
+                        mat_button.label = material.name[:]
 
-                        row_pbrnoise = box_materials.row(align = True)
-                        row_pbrnoise.prop(scene, 'materialnoise', slider = True)
-                        col_matcolor = box_materials.column(align = True)
-                        col_matcolor.prop(scene, 'materialmono', text = 'Monochromatic')
-                        if mode == 'OBJECT':
-                            col_matcolor.prop(scene, 'materialalpha')
+                    row_pbrnoise = box_materials.row(align = True)
+                    row_pbrnoise.prop(scene, 'materialnoise', slider = True)
+                    col_matcolor = box_materials.column(align = True)
+                    col_matcolor.prop(scene, 'materialmono', text = 'Monochromatic')
+                    if mode == 'OBJECT':
+                        col_matcolor.prop(scene, 'materialalpha')
 
-                    # Crease Sets ---------------------------------------------------
-                    box_crease = layout.box()
-                    row_crease = box_crease.row()
-                    row_crease.prop(scene, 'expandcrease',
-                        icon="TRIA_DOWN" if scene.expandcrease else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
+                # Crease Sets ---------------------------------------------------
+                box_crease = layout.box()
+                row_crease = box_crease.row()
+                row_crease.prop(scene, 'expandcrease',
+                    icon="TRIA_DOWN" if scene.expandcrease else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
 
-                    row_crease.label(text='Crease Edges')
-                    if scene.expandcrease:
-                        row_sets = box_crease.row(align = True)
-                        row_sets.operator('sxtools.crease1', text = '25%')
-                        row_sets.operator('sxtools.crease2', text = '50%')
-                        row_sets.operator('sxtools.crease3', text = '75%')
-                        row_sets.operator('sxtools.crease4', text = '100%')
-                        col_sets = box_crease.column(align = True)
-                        col_sets.prop(scene, 'hardcrease', text = 'Sharp on 100%')
-                        col_sets.operator('sxtools.crease0', text = 'Uncrease')
+                row_crease.label(text='Crease Edges')
+                if scene.expandcrease:
+                    row_sets = box_crease.row(align = True)
+                    row_sets.operator('sxtools.crease1', text = '25%')
+                    row_sets.operator('sxtools.crease2', text = '50%')
+                    row_sets.operator('sxtools.crease3', text = '75%')
+                    row_sets.operator('sxtools.crease4', text = '100%')
+                    col_sets = box_crease.column(align = True)
+                    col_sets.prop(scene, 'hardcrease', text = 'Sharp on 100%')
+                    col_sets.operator('sxtools.crease0', text = 'Uncrease')
 
-                    # Channel Copy ---------------------------------------------------
-                    box_chcp = layout.box()
-                    row_chcpbox = box_chcp.row()
-                    row_chcpbox.prop(scene, "expandchcopy",
-                        icon="TRIA_DOWN" if scene.expandchcopy else "TRIA_RIGHT",
-                        icon_only=True, emboss=False)
+                # Channel Copy ---------------------------------------------------
+                box_chcp = layout.box()
+                row_chcpbox = box_chcp.row()
+                row_chcpbox.prop(scene, "expandchcopy",
+                    icon="TRIA_DOWN" if scene.expandchcopy else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
 
-                    row_chcpbox.label(text='Channel Copy')
-                    if scene.expandchcopy:
-                        col_l2m = box_chcp.column(align = True)
-                        col_l2m.prop(scene, 'sourcemap', text = 'From')
-                        col_l2m.prop(scene, 'materialmap', text = 'To')
-                        col_l2m.operator('sxtools.layertomaterial', text = 'Apply')
-                        #row_chcp = box_chcp.row(align = True)
-                        #row_chcp.prop(scene, 'sourcemap', text = 'From')
-                        #row_chcp.prop(scene, 'sourcechannel', text = 'Data')
-                        #row2_chcp = box_chcp.row(align = True)
-                        #row2_chcp.prop(scene, 'targetmap', text = 'To')
-                        #row2_chcp.prop(scene, 'targetchannel', text = 'Data')
-                        #col_chcp = box_chcp.column(align = True)
-                        #col_chcp.operator('sxtools.copychannel', text = 'Apply')
+                row_chcpbox.label(text='Channel Copy')
+                if scene.expandchcopy:
+                    col_l2m = box_chcp.column(align = True)
+                    col_l2m.prop(scene, 'sourcemap', text = 'From')
+                    col_l2m.prop(scene, 'materialmap', text = 'To')
+                    col_l2m.operator('sxtools.layertomaterial', text = 'Apply')
+                    #row_chcp = box_chcp.row(align = True)
+                    #row_chcp.prop(scene, 'sourcemap', text = 'From')
+                    #row_chcp.prop(scene, 'sourcechannel', text = 'Data')
+                    #row2_chcp = box_chcp.row(align = True)
+                    #row2_chcp.prop(scene, 'targetmap', text = 'To')
+                    #row2_chcp.prop(scene, 'targetchannel', text = 'Data')
+                    #col_chcp = box_chcp.column(align = True)
+                    #col_chcp.operator('sxtools.copychannel', text = 'Apply')
 
         else:
             layout = self.layout               
@@ -2167,6 +2359,8 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
+        setup.setupListItems()
+        setup.setupLayers()
         setup.setupGeometry(objs)
         return {"FINISHED"}
 
@@ -2191,7 +2385,7 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         color = context.scene.sxtools.fillcolor
         overwrite = context.scene.sxtools.fillalpha
         if objs[0].mode == 'EDIT':
@@ -2213,7 +2407,7 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         rampmode = context.scene.sxtools.rampmode
         mergebbx = context.scene.sxtools.rampbbox
         overwrite = context.scene.sxtools.rampalpha
@@ -2234,7 +2428,7 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         mergemode = 'UP'
         tools.mergeLayersManager(objs, layer, mergemode)
         refreshActives(self, context)
@@ -2250,7 +2444,7 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         mergemode = 'DOWN'
         tools.mergeLayersManager(objs, layer, mergemode)
         refreshActives(self, context)
@@ -2266,7 +2460,7 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         sxglobals.copyLayer = layer
         return {"FINISHED"}
 
@@ -2280,15 +2474,15 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        sourcelayer = sxglobals.copyLayer
-        targetlayer = sxglobals.refLayerArray[idx]
+        sourceLayer = sxglobals.copyLayer
+        targetLayer = utils.findLayerFromIndex(objs[0], idx + 1)
 
         if event.shift:
             mode = True
         else:
             mode = False
 
-        layers.pasteLayer(objs, sourcelayer, targetlayer, mode)
+        layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
         refreshActives(self, context)
         return {"FINISHED"}
 
@@ -2305,7 +2499,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             layer = None
         else:
             idx = objs[0].sxtools.selectedlayer
-            layer = sxglobals.refLayerArray[idx]
+            layer = utils.findLayerFromIndex(objs[0], idx + 1)
             #print('clearlayer: ', layer)
             # TODO: May return UVMAP?!
 
@@ -2328,7 +2522,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
             inverse = False
 
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
 
         tools.selectMask(objs, layer, inverse)
         return {"FINISHED"}
@@ -2450,7 +2644,7 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         objs = selectionValidator(self, context)
         material = self.label
         idx = objs[0].sxtools.selectedlayer
-        layer = sxglobals.refLayerArray[idx]
+        layer = utils.findLayerFromIndex(objs[0], idx + 1)
         overwrite = context.scene.sxtools.materialalpha
         if objs[0].mode == 'EDIT':
             overwrite = True
@@ -2497,6 +2691,7 @@ class SXTOOLS_OT_copychannel(bpy.types.Operator):
 # ------------------------------------------------------------------------
 sxglobals = SXTOOLS_sxglobals()
 files = SXTOOLS_files()
+utils = SXTOOLS_utils()
 layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
 tools = SXTOOLS_tools()
@@ -2504,8 +2699,10 @@ tools = SXTOOLS_tools()
 classes = (
     SXTOOLS_objectprops,
     SXTOOLS_sceneprops,
-    SXTOOLS_masterpalettes,
-    SXTOOLS_materials,
+    SXTOOLS_masterpalette,
+    SXTOOLS_material,
+    SXTOOLS_layer,
+    SXTOOLS_listitem,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
@@ -2535,10 +2732,12 @@ def register():
     for cls in classes:
         register_class(cls)
 
-    bpy.types.Object.sxtools = bpy.props.PointerProperty(type=SXTOOLS_objectprops)
-    bpy.types.Scene.sxtools = bpy.props.PointerProperty(type=SXTOOLS_sceneprops)
-    bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type=SXTOOLS_masterpalettes)
-    bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_materials)
+    bpy.types.Object.sxtools = bpy.props.PointerProperty(type = SXTOOLS_objectprops)
+    bpy.types.Object.sxlayers = bpy.props.CollectionProperty(type = SXTOOLS_layer)
+    bpy.types.Scene.sxtools = bpy.props.PointerProperty(type = SXTOOLS_sceneprops)
+    bpy.types.Scene.sxlistitems = bpy.props.CollectionProperty(type = SXTOOLS_listitem)
+    bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type = SXTOOLS_masterpalette)
+    bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type = SXTOOLS_material)
 
 def unregister():
     from bpy.utils import unregister_class
@@ -2546,6 +2745,7 @@ def unregister():
         unregister_class(cls)
 
     del bpy.types.Object.sxtools
+    del bpy.types.Object.sxlayers
     del bpy.types.Scene.sxtools
     del bpy.types.Scene.sxpalettes
     del bpy.types.Scene.sxmaterials
