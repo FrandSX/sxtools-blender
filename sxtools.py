@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 8),
+    "version": (1, 9, 9),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -531,7 +531,6 @@ class SXTOOLS_layers(object):
             elif targetLayer.uvChannel0 == 'V':
                 fillChannel = 1
 
-
         for obj in objs:
             if targetLayer is None:
                 print('SX Tools: Clearing all layers')
@@ -590,7 +589,6 @@ class SXTOOLS_layers(object):
         shadingmode = bpy.context.scene.sxtools.shadingmode
         listIdx = bpy.context.scene.sxtools.listIndex
         idx = bpy.context.scene.sxlistitems[listIdx].index
-        #idx = objs[0].sxtools.selectedlayer
         layer = utils.findLayerFromIndex(objs[0], idx)
 
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
@@ -846,14 +844,9 @@ class SXTOOLS_layers(object):
             sortColors.append((0, [0.0, 0.0, 0.0, 1.0]))
             colLen += 1
 
-        bpy.context.scene.sxtools.layerpalette1 = sortColors[0][1]
-        bpy.context.scene.sxtools.layerpalette2 = sortColors[1][1]
-        bpy.context.scene.sxtools.layerpalette3 = sortColors[2][1]
-        bpy.context.scene.sxtools.layerpalette4 = sortColors[3][1]
-        bpy.context.scene.sxtools.layerpalette5 = sortColors[4][1]
-        bpy.context.scene.sxtools.layerpalette6 = sortColors[5][1]
-        bpy.context.scene.sxtools.layerpalette7 = sortColors[6][1]
-        bpy.context.scene.sxtools.layerpalette8 = sortColors[7][1]
+        scn = bpy.context.scene.sxtools
+        for i in range(8):
+            setattr(scn, 'layerpalette' + str(i + 1), sortColors[i][1])
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -869,46 +862,23 @@ class SXTOOLS_tools(object):
         return None
 
     def calculateBoundingBox(self, vertDict):
-        xmin = None
-        xmax = None
-        ymin = None
-        ymax = None
-        zmin = None
-        zmax = None
-
-        for i, (vert, fvPos) in enumerate(vertDict.items()):
+        bbx = [[None, None], [None, None], [None, None]]
+        for i, fvPos in enumerate(vertDict.values()):
             fvPos = (fvPos[0][0], fvPos[0][1], fvPos[0][2])
             # first vert
             if i == 0:
-                if not xmin:
-                    xmin = fvPos[0]
-                if not xmax:
-                    xmax = fvPos[0]
-                if not ymin:
-                    ymin = fvPos[1]
-                if not ymax:
-                    ymax = fvPos[1]
-                if not zmin:
-                    zmin = fvPos[2]
-                if not zmax:
-                    zmax = fvPos[2]
+                bbx[0][0] = bbx[0][1] = fvPos[0]
+                bbx[1][0] = bbx[1][1] = fvPos[1]
+                bbx[2][0] = bbx[2][1] = fvPos[2]
             else:
-                if fvPos[0] < xmin:
-                    xmin = fvPos[0]
-                elif fvPos[0] > xmax:
-                    xmax = fvPos[0]
+                for j in range(3):
+                    if fvPos[j] < bbx[j][0]:
+                        bbx[j][0] = fvPos[j]
+                    elif fvPos[j] > bbx[j][1]:
+                        bbx[j][1] = fvPos[j]
 
-                if fvPos[1] < ymin:
-                    ymin = fvPos[1]
-                elif fvPos[1] > ymax:
-                    ymax = fvPos[1]
-
-                if fvPos[2] < zmin:
-                    zmin = fvPos[2]
-                elif fvPos[2] > zmax:
-                    zmax = fvPos[2]
-
-        return ((xmin,xmax), (ymin,ymax), (zmin,zmax))
+        now = time.time()
+        return bbx
 
     # Analyze if multi-object selection is in object or component mode,
     # return appropriate vertices
@@ -1058,14 +1028,8 @@ class SXTOOLS_tools(object):
 
         fillColor = color[:]
         if (fillColor not in palCols) and (fillColor[3] > 0.0):
-            scn.fillpalette1 = colorArray[0][:]
-            scn.fillpalette2 = colorArray[1][:]
-            scn.fillpalette3 = colorArray[2][:]
-            scn.fillpalette4 = colorArray[3][:]
-            scn.fillpalette5 = colorArray[4][:]
-            scn.fillpalette6 = colorArray[5][:]
-            scn.fillpalette7 = colorArray[6][:]
-            scn.fillpalette8 = colorArray[7][:]
+            for i in range(8):
+                setattr(scn, 'fillpalette' + str(i + 1), colorArray[i])
 
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
         objDicts = self.selectionHandler(objs)
