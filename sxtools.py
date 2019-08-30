@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 7),
+    "version": (1, 9, 8),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -59,6 +59,7 @@ class SXTOOLS_sxglobals(object):
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
         self.copyLayer = None
+        self.activeObject = None
 
     def __del__(self):
         print('SX Tools: Exiting sxglobals')
@@ -316,27 +317,28 @@ class SXTOOLS_setup(object):
 
     # Generates layer instances by using the reference values
     # from layerInitArray. 
-    def setupLayers(self):
-        for values in sxglobals.layerInitArray:
-            item = bpy.context.object.sxlayers.add()
-            item.name = values[0]
-            item.showInLayerList = values[1]
-            item.index = values[2]
-            item.layerType = values[3]
-            item.defaultColor = values[4]
-            item.defaultValue = values[5]
-            item.visibility = values[6]
-            item.alpha = values[7]
-            item.blendMode = values[8]
-            item.vertexColorLayer = values[9]
-            item.uvLayer0 = values[10]
-            item.uvChannel0 = values[11]
-            item.uvLayer1 = values[12]
-            item.uvChannel1 = values[13]
-            item.uvLayer2 = values[14]
-            item.uvChannel2 = values[15]
-            item.uvLayer3 = values[16]
-            item.uvChannel3 = values[17]
+    def setupLayers(self, objs):
+        for obj in objs:
+            for values in sxglobals.layerInitArray:
+                item = obj.sxlayers.add()
+                item.name = values[0]
+                item.showInLayerList = values[1]
+                item.index = values[2]
+                item.layerType = values[3]
+                item.defaultColor = values[4]
+                item.defaultValue = values[5]
+                item.visibility = values[6]
+                item.alpha = values[7]
+                item.blendMode = values[8]
+                item.vertexColorLayer = values[9]
+                item.uvLayer0 = values[10]
+                item.uvChannel0 = values[11]
+                item.uvLayer1 = values[12]
+                item.uvChannel1 = values[13]
+                item.uvLayer2 = values[14]
+                item.uvChannel2 = values[15]
+                item.uvLayer3 = values[16]
+                item.uvChannel3 = values[17]
 
     def setupGeometry(self, objs):
         if 'SXMaterial' not in bpy.data.materials.keys():
@@ -364,7 +366,8 @@ class SXTOOLS_setup(object):
             for uvSet in sxUVs:
                 if not uvSet[0] in mesh.uv_layers.keys():
                     uvmap = mesh.uv_layers.new(name = uvSet[0])
-                    layers.clearUVs([obj, ], uvSet)
+
+            layers.clearUVs([obj, ])
 
             #for i in range(5):
             #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
@@ -2498,7 +2501,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         setup.setupListItems()
-        setup.setupLayers()
+        setup.setupLayers(objs)
         setup.setupGeometry(objs)
         return {"FINISHED"}
 
@@ -2951,7 +2954,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Setup Objects fails with multiple objects selected -> weird behavior
 # - Luminance remap fails with UV layers
 # - AO behaves oddly in origin
 # - Crease tool select edges stops working after object/edit mode change
@@ -2968,3 +2970,18 @@ if __name__ == "__main__":
 #   - C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
 #   - And toggle modifiers in viewport:
 #   - bpy.context.object.modifiers["Subdivision"].show_viewport = False
+
+'''
+Selection change:
+
+    @classmethod
+    def poll(cls, context):
+        print(sxglobals.activeObject, context.active_object, (context.active_object != sxglobals.activeObject))
+        return context.active_object != sxglobals.activeObject
+
+    def execute(self, context):
+        sxglobals.activeObject = context.active_object
+        draw(self, context)
+        return {'FINISHED'}
+
+'''
