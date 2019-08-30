@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 4),
+    "version": (1, 9, 7),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -49,9 +49,9 @@ class SXTOOLS_sxglobals(object):
             ('emission', True, 15, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U'),
             ('metallic', True, 12, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U'),
             ('smoothness', True, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U'),
-            ('gradient1', True, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U'),
-            ('gradient2', True, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U'),
-            ('overlay', True, 10, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'),
+            ('gradient1', False, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U'),
+            ('gradient2', False, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U'),
+            ('overlay', False, 10, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'),
             ('texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U'),
             ('masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U')]
  
@@ -166,6 +166,12 @@ class SXTOOLS_files(object):
 class SXTOOLS_utils(object):
     def __init__(self):
         return None
+
+    def findListIndex(self, obj, layer):
+        index = obj.sxlayers[layer.name].index
+        for i, item in enumerate(bpy.context.scene.sxlistitems):
+            if item.index == index:
+                return i
 
     def findColorLayers(self, obj):
         sxLayerArray = []
@@ -514,6 +520,14 @@ class SXTOOLS_layers(object):
 
     def clearLayers(self, objs, targetLayer = None):
         sxLayers = utils.findColorLayers(objs[0])
+        sxUVs = utils.findDefaultValues(objs[0], 'Dict')
+        if targetLayer is not None:
+            fillmode = targetLayer.layerType
+            if targetLayer.uvChannel0 == 'U':
+                fillChannel = 0
+            elif targetLayer.uvChannel0 == 'V':
+                fillChannel = 1
+
 
         for obj in objs:
             if targetLayer is None:
@@ -525,18 +539,28 @@ class SXTOOLS_layers(object):
                     setattr(obj.sxlayers[sxLayer.name], 'visibility', True)
                     setattr(obj.sxlayers[sxLayer.name], 'blendMode', 'ALPHA')
             else:
-                color = targetLayer.defaultColor
-                tools.applyColor([obj, ], targetLayer, color, True, 0.0)
-                setattr(obj.sxlayers[targetLayer.name], 'alpha', 1.0)
-                setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
-                setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
+                if fillmode == 'COLOR':
+                    color = targetLayer.defaultColor
+                    tools.applyColor([obj, ], targetLayer, color, True, 0.0)
+                    setattr(obj.sxlayers[targetLayer.name], 'alpha', 1.0)
+                    setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
+                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
+                elif fillmode == 'UV':
+                    self.clearUVs(objs, targetLayer)
 
         if targetLayer is None:
             self.clearUVs(objs, None)
 
-    def clearUVs(self, objs, uvSet = None):
+    def clearUVs(self, objs, targetLayer = None):
         objDicts = tools.selectionHandler(objs)
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
+        if targetLayer is not None:
+            uvName = targetLayer.uvLayer0
+            uvValue = targetLayer.defaultValue
+            if targetLayer.uvChannel0 == 'U':
+                fillChannel = 0
+            elif targetLayer.uvChannel0 == 'V':
+                fillChannel = 1
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -546,20 +570,25 @@ class SXTOOLS_layers(object):
             vertLoopDict = objDicts[obj][0]
 
             mesh = obj.data
-            for i, key in enumerate(mesh.uv_layers.keys()):
-                uvName = mesh.uv_layers[i].name
+            if targetLayer is None:
+                for i, key in enumerate(mesh.uv_layers.keys()):
+                    uvName = mesh.uv_layers[i].name
+                    for vert_idx, loop_indices in vertLoopDict.items():
+                        for loop_idx in loop_indices:
+                            mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
+            else:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
-                        mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
+                        mesh.uv_layers[uvName].data[loop_idx].uv[fillChannel] = uvValue
 
     def compositeLayers(self, objs):
         #then = time.time()
         compLayers = utils.findCompLayers(objs[0])
         shadingmode = bpy.context.scene.sxtools.shadingmode
-        idx = objs[0].sxtools.selectedlayer
-        for sxLayer in objs[0].sxlayers:
-            if sxLayer.index == (idx + 1):
-                layer = sxLayer
+        listIdx = bpy.context.scene.sxtools.listIndex
+        idx = bpy.context.scene.sxlistitems[listIdx].index
+        #idx = objs[0].sxtools.selectedlayer
+        layer = utils.findLayerFromIndex(objs[0], idx)
 
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
 
@@ -716,6 +745,7 @@ class SXTOOLS_layers(object):
 
         bpy.ops.object.mode_set(mode = mode)
 
+    # TODO: Handle UV merging
     def mergeLayers(self, objs, sourceLayer, targetLayer):
         if sourceLayer.index < targetLayer.index:
             baseLayer = sourceLayer
@@ -735,8 +765,10 @@ class SXTOOLS_layers(object):
             setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
             setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
+        # TODO: this works with color layers only
         objs[0].data.vertex_colors.active_index = targetLayer.index
-        objs[0].sxtools.selectedlayer = targetLayer.index - 1
+        #objs[0].sxtools.selectedlayer = targetLayer.index - 1
+        bpy.context.scene.sxtools.listIndex = utils.findListIndex(objs[0], targetLayer)
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
         mode = objs[0].mode
@@ -1174,22 +1206,37 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
         objDicts = self.selectionHandler(objs)
+        selMode = layer.layerType
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            if selMode == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif selMode == 'UV':
+                uvValues = obj.data.uv_layers[layer.uvLayer0].data
+                if layer.uvChannel0 == 'U':
+                    selChannel = 0
+                elif layer.uvChannel0 == 'V':
+                    selChannel = 1
             vertLoopDict = defaultdict(list)
-
             vertLoopDict = objDicts[obj][0]
 
             selList = []
             for vert_idx, loop_indices in vertLoopDict.items():
                 for loop_idx in loop_indices:
                     if inverse:
-                        if vertexColors[loop_idx].color[3] == 0.0:
-                            obj.data.vertices[vert_idx].select = True
+                        if selMode == 'COLOR':
+                            if vertexColors[loop_idx].color[3] == 0.0:
+                                obj.data.vertices[vert_idx].select = True
+                        elif selMode == 'UV':
+                            if uvValues[loop_idx].uv[selChannel] == 0.0:
+                                obj.data.vertices[vert_idx].select = True                                
                     else:
-                        if vertexColors[loop_idx].color[3] > 0.0:
-                            obj.data.vertices[vert_idx].select = True
+                        if selMode == 'COLOR':
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                obj.data.vertices[vert_idx].select = True
+                        elif selMode == 'UV':
+                            if uvValues[loop_idx].uv[selChannel] > 0.0:
+                                obj.data.vertices[vert_idx].select = True   
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -1515,14 +1562,16 @@ def updateLayers(self, context):
         shadingMode(self, context)
 
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
+        #print(idx, layer)
         alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
         blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            obj.data.vertex_colors.active_index = idx + 1
+            obj.data.vertex_colors.active_index = idx
             if obj.sxlayers[layer.name].layerType == 'COLOR':
                 setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
                 setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
@@ -1541,8 +1590,11 @@ def refreshActives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        #idx = objs[0].sxtools.selectedlayer
+        layer = utils.findLayerFromIndex(objs[0], idx)
+        #print(idx, layer)
 
         for obj in objs:
             obj.sxtools.selectedlayer = idx
@@ -1569,7 +1621,9 @@ def updateColorSwatches(self, context):
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
-    layer = utils.findLayerFromIndex(objs[0], objs[0].sxtools.selectedlayer)
+    listIdx = context.scene.sxtools.listIndex
+    idx = context.scene.sxlistitems[listIdx].index
+    layer = utils.findLayerFromIndex(objs[0], idx)
     sxmaterial = bpy.data.materials['SXMaterial']
     
     if mode == 'FULL':
@@ -1667,8 +1721,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name = 'Selected Layer',
         min = 0,
         max = 20,
-        default = 0,
-        update = refreshActives)
+        default = 0)
 
     activeLayerAlpha: bpy.props.FloatProperty(
         name = "Opacity",
@@ -1693,6 +1746,13 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
+    listIndex: bpy.props.IntProperty(
+        name = 'List Index',
+        min = 0,
+        max = 20,
+        default = 0,
+        update = refreshActives)
+
     shadingmode: bpy.props.EnumProperty(
         name = "Shading Mode",
         items = [
@@ -2221,8 +2281,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             sxlayers = obj.sxlayers
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
-            sel_idx = sxtools.selectedlayer
-            layer = utils.findLayerFromIndex(obj, sel_idx + 1)
             
             if mesh.vertex_colors.active is None:
                 col = self.layout.column(align = True)
@@ -2231,10 +2289,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 else:
                     col.operator('sxtools.scenesetup', text = 'Set Up Objects')
             else:
-                #if sxtools.selectedlayer < 7:
+                listIdx = context.scene.sxtools.listIndex
+                sel_idx = context.scene.sxlistitems[listIdx].index
+                layer = utils.findLayerFromIndex(obj, sel_idx)
+
                 row_shading = self.layout.row(align = True)
                 row_shading.prop(scene, 'shadingmode', expand = True)
-                #if (scene.shadingmode == 'FULL'):
+
                 row_blend = self.layout.row(align = True)
                 row_blend.prop(sxtools, 'activeLayerVisibility')
                 row_blend.prop(sxtools, 'activeLayerBlendMode', text = 'Blend')
@@ -2255,7 +2316,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_blend.enabled = False
                     row_alpha.enabled = False
 
-                layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', sxtools, 'selectedlayer', type = 'DEFAULT')
+                layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', scene, 'listIndex', type = 'DEFAULT')
                 #layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type = 'DEFAULT')
 
                 # Layer Copy Paste Merge ---------------------------------------
@@ -2277,7 +2338,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if layer.layerType == 'COLOR':
                     row_fill.label(text = 'Apply Color')
                 else:
-                    row_fill.label(text = 'Apply Grayscale Value')
+                    row_fill.label(text = 'Apply Color (Grayscale)')
 
                 if scene.expandfill:
                     row_fpalette = box_fill.row(align = True)
@@ -2309,7 +2370,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if layer.layerType == 'COLOR':
                     row4.label(text = 'Gradient Tool')
                 else:
-                    row4.label(text = 'Grayscale Gradient Tool')
+                    row4.label(text = 'Gradient Tool (Grayscale')
                 if scene.expandramp:
                     layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
                     col_ramp = self.layout.column(align = True)
@@ -2461,8 +2522,9 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         color = context.scene.sxtools.fillcolor
         overwrite = context.scene.sxtools.fillalpha
         if objs[0].mode == 'EDIT':
@@ -2483,8 +2545,9 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         rampmode = context.scene.sxtools.rampmode
         mergebbx = context.scene.sxtools.rampbbox
         overwrite = context.scene.sxtools.rampalpha
@@ -2505,13 +2568,14 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         objs = context.view_layer.objects.selected
-        idx = objs[0].sxtools.selectedlayer
-        return idx != 0
+        listIdx = context.scene.sxtools.listIndex
+        return listIdx != 0
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         mergemode = 'UP'
         tools.mergeLayersManager(objs, layer, mergemode)
         refreshActives(self, context)
@@ -2527,14 +2591,15 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         obj = context.view_layer.objects.selected[0]
-        layers = utils.findListLayers(obj)
-        idx = obj.sxtools.selectedlayer + 1
-        return idx != len(layers)
+        layers = context.scene.sxlistitems.keys()
+        listIdx = context.scene.sxtools.listIndex
+        return listIdx != (len(layers) - 1)
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         mergemode = 'DOWN'
         tools.mergeLayersManager(objs, layer, mergemode)
         refreshActives(self, context)
@@ -2549,8 +2614,9 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         sxglobals.copyLayer = layer
         return {"FINISHED"}
 
@@ -2563,9 +2629,10 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
         sourceLayer = sxglobals.copyLayer
-        targetLayer = utils.findLayerFromIndex(objs[0], idx + 1)
+        targetLayer = utils.findLayerFromIndex(objs[0], idx)
 
         if event.shift:
             mode = True
@@ -2588,8 +2655,9 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
         if event.shift:
             layer = None
         else:
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.findLayerFromIndex(objs[0], idx + 1)
+            listIdx = context.scene.sxtools.listIndex
+            idx = context.scene.sxlistitems[listIdx].index
+            layer = utils.findLayerFromIndex(objs[0], idx)
             #print('clearlayer: ', layer)
             # TODO: May return UVMAP?!
 
@@ -2611,8 +2679,9 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         else:
             inverse = False
 
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
 
         tools.selectMask(objs, layer, inverse)
         return {"FINISHED"}
@@ -2733,8 +2802,9 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         material = self.label
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx + 1)
+        listIdx = context.scene.sxtools.listIndex
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
         overwrite = context.scene.sxtools.materialalpha
         if objs[0].mode == 'EDIT':
             overwrite = True
@@ -2881,6 +2951,7 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Setup Objects fails with multiple objects selected -> weird behavior
 # - Luminance remap fails with UV layers
 # - AO behaves oddly in origin
 # - Crease tool select edges stops working after object/edit mode change
