@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 14),
+    "version": (1, 9, 15),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -2284,13 +2284,18 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
                 row_fill = box_fill.row()
-                row_fill.prop(scene, "expandfill",
+                split_fill = row_fill.split(factor = 0.33)
+                split1_fill = split_fill.row()
+                split1_fill.prop(scene, "expandfill",
                     icon="TRIA_DOWN" if scene.expandfill else "TRIA_RIGHT",
                     icon_only=True, emboss=False)
                 if layer.layerType == 'COLOR':
-                    row_fill.label(text = 'Apply Color')
+                    split1_fill.label(text = 'Color Fill')
                 else:
-                    row_fill.label(text = 'Apply Color (Grayscale)')
+                    split1_fill.label(text = 'Color Fill (Grayscale)')
+                split2_fill = split_fill.row()
+                split2_fill.prop(scene, 'fillcolor', text = '')
+                split2_fill.operator('sxtools.applycolor', text = 'Apply')
 
                 if scene.expandfill:
                     row_fpalette = box_fill.row(align = True)
@@ -2302,39 +2307,38 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_fpalette.prop(scene, 'fillpalette6', text = '')
                     row_fpalette.prop(scene, 'fillpalette7', text = '')
                     row_fpalette.prop(scene, 'fillpalette8', text = '')
-                    row_color = box_fill.row(align = True)
-                    row_color.prop(scene, 'fillcolor')
-                    row_noise = box_fill.row(align = True)
-                    row_noise.prop(scene, 'fillnoise', slider = True)
                     col_color = box_fill.column(align = True)
+                    col_color.prop(scene, 'fillnoise', slider = True)
                     col_color.prop(scene, 'fillmono', text = 'Monochromatic')
                     if mode == 'OBJECT':
                         col_color.prop(scene, 'fillalpha')
-                    col_color.operator('sxtools.applycolor', text = 'Apply')
 
                 # Gradient Tool ---------------------------------------------------
-                box = layout.box()
-                row4 = box.row()
-                row4.prop(scene, "expandramp",
+                box_gradient = layout.box()
+                row_gradient = box_gradient.row()
+                split_gradient = row_gradient.split(factor = 0.33)
+                split1_gradient = split_gradient.row()
+                split1_gradient.prop(scene, "expandramp",
                     icon="TRIA_DOWN" if scene.expandramp else "TRIA_RIGHT",
                     icon_only=True, emboss=False)
 
                 if layer.layerType == 'COLOR':
-                    row4.label(text = 'Gradient Tool')
+                    split1_gradient.label(text = 'Gradient')
                 else:
-                    row4.label(text = 'Gradient Tool (Grayscale')
+                    split1_gradient.label(text = 'Gradient (Grayscale')
+                split2_gradient = split_gradient.row()
+                split2_gradient.prop(scene, 'rampmode', text = '')
+                split2_gradient.operator('sxtools.applyramp', text = 'Apply')
+
                 if scene.expandramp:
                     layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
                     col_ramp = self.layout.column(align = True)
-                    col_ramp.prop(scene, 'rampmode', text = 'Mode')
                     col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
                     if mode == 'OBJECT':
                         col_ramp.prop(scene, 'rampalpha')
                     if scene.rampmode == 'OCC':
                         col_ramp.prop(scene, 'occlusionrays', slider = True, text = 'Ray Count')
                         col_ramp.prop(scene, 'occlusionblend', slider = True, text = 'Local/Global Mix')
-
-                    col_ramp.operator('sxtools.applyramp', text = 'Apply')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
