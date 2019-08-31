@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 9),
+    "version": (1, 9, 11),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -701,7 +701,7 @@ class SXTOOLS_layers(object):
     # CopyChannel does not perform translation of layernames to object data sets.
     # Expected input is [obj, ...], vertexcolorsetname, R/G/B/A, uvlayername, U/V, mode
     # With mode 1, copyChannel reads sourcecolor and outputs luminance
-    def copyChannel(self, objs, source, sourcechannel, target, targetchannel, fillmode):
+    def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillmode):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
@@ -714,14 +714,14 @@ class SXTOOLS_layers(object):
             if fillmode == 0:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
-                        value = vertexColors[source].data[idx].color[channels[sourcechannel]]
-                        vertexUVs[target].data[idx].uv[channels[targetchannel]] = value
+                        value = vertexColors[source].data[idx].color[channels[sourceChannel]]
+                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
             elif fillmode == 1:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
                         color = vertexColors[source].data[idx].color
                         value = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-                        vertexUVs[target].data[idx].uv[channels[targetchannel]] = value
+                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -738,11 +738,11 @@ class SXTOOLS_layers(object):
                 for i, layer in enumerate(layers):
                     i += 1
                     if i == 1:
-                        vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
+                        vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
                     else:
-                        vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourcechannel]][3]
+                        vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourceChannel]][3]
                         if vertexAlpha >= sxglobals.alphaTolerance:
-                            vertexUVs[uvmap].data[idx].uv[channels[targetchannel]] = i
+                            vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -918,7 +918,7 @@ class SXTOOLS_tools(object):
                                 mesh.vertices[vert_idx].normal)
                             vertWorldPosDict[vert_idx] = (
                                 mat @ mesh.vertices[vert_idx].co,
-                                mat @ mesh.vertices[vert_idx].normal)
+                                (mat @ mesh.vertices[vert_idx].normal - mat @ Vector()).normalized())
             else:
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
@@ -929,7 +929,7 @@ class SXTOOLS_tools(object):
                                 mesh.vertices[vert_idx].normal)
                             vertWorldPosDict[vert_idx] = (
                                 mat @ mesh.vertices[vert_idx].co,
-                                mat @ mesh.vertices[vert_idx].normal)
+                                (mat @ mesh.vertices[vert_idx].normal - mat @ Vector()).normalized())
 
             objDicts[obj] = (vertLoopDict, vertPosDict, vertWorldPosDict)
 
@@ -1258,7 +1258,7 @@ class SXTOOLS_tools(object):
     # translate to copyChannel batches
     # set copyChannel to luminance mode if RGB layer
     def layerToUV(self, objs, sourceLayer, targetLayer):
-        sourcechannels = ['R', 'G', 'B', 'A']
+        sourceChannels = ['R', 'G', 'B', 'A']
         if sourceLayer.layerType == 'COLOR':
             fillmode = 1
         else:
@@ -1268,7 +1268,7 @@ class SXTOOLS_tools(object):
             sourceVertexColors = obj.sxlayers[sourceLayer.name].vertexColorLayer
             targetArray = utils.findExportChannels(obj, targetLayer)
             for i, target in enumerate(targetArray):
-                layers.copyChannel([obj, ], sourceVertexColors, sourcechannels[i], target[0], target[1], fillmode)
+                layers.copyChannel([obj, ], sourceVertexColors, sourceChannels[i], target[0], target[1], fillmode)
 
     def processMesh(self, objs):
         # placeholder for batch export preprocessor
@@ -1978,23 +1978,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('GRD2','Gradient 2',''),
             ('OVR','Overlay','')],
         default = 'OCC')
-
-    sourcechannel: bpy.props.EnumProperty(
-        name = "Source Channel",
-        items = [
-            ('R','R',''),
-            ('G','G',''),
-            ('B','B',''),
-            ('B','B',''),
-            ('A','A','')],
-        default = 'R')
-
-    targetchannel: bpy.props.EnumProperty(
-        name = "Target Channel",
-        items = [
-            ('U','U',''),
-            ('V','V','')],
-        default = 'U')
 
     hardcrease: bpy.props.BoolProperty(
         name = "Hard Crease",
@@ -2918,8 +2901,9 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Add multiplier to emission for previs purposes
+# - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
-# - AO behaves oddly in origin
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
