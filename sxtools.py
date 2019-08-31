@@ -1171,13 +1171,13 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode)
 
     def selectMask(self, objs, layer, inverse):
-        objDicts = self.selectionHandler(objs)
         mode = objs[0].mode
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
+        objDicts = self.selectionHandler(objs)
         selMode = layer.layerType
 
         for obj in objs:
