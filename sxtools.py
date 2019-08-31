@@ -1972,44 +1972,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name = "Monochrome",
         default = False)
 
-    sourcemap: bpy.props.EnumProperty(
-        name = "Source Map",
-        items = [
-            ('LAYER1','Layer1',''),
-            ('LAYER2','Layer2',''),
-            ('LAYER3','Layer3',''),
-            ('LAYER4','Layer4',''),
-            ('LAYER5','Layer5',''),
-            ('LAYER6','Layer6',''),
-            ('LAYER7','Layer7','')],
-        default = 'LAYER1')
-
-    targetmap: bpy.props.EnumProperty(
-        name = "Target Map",
-        items = [
-            ('UVMAP0','UVMap',''),
-            ('UVMAP1','UVMap 1',''),
-            ('UVMAP2','UVMap 2',''),
-            ('UVMAP3','UVMap 3',''),
-            ('UVMAP4','UVMap 4',''),
-            ('UVMAP5','UVMap 5',''),
-            ('UVMAP6','UVMap 6',''),
-            ('UVMAP7','UVMap 7','')],
-        default = 'UVMAP0')
-
-    materialmap: bpy.props.EnumProperty(
-        name = "Channel Map",
-        items = [
-            ('OCC','Occlusion',''),
-            ('TRNS','Transmission',''),
-            ('EMISS','Emission',''),
-            ('MET','Metallic',''),
-            ('SMTH','Smoothness',''),
-            ('GRD1','Gradient 1',''),
-            ('GRD2','Gradient 2',''),
-            ('OVR','Overlay','')],
-        default = 'OCC')
-
     hardcrease: bpy.props.BoolProperty(
         name = "Hard Crease",
         default = True)
@@ -2451,20 +2413,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_sets.prop(scene, 'hardcrease', text = 'Sharp on 100%')
                     col_sets.operator('sxtools.crease0', text = 'Uncrease')
 
-                # Channel Copy ---------------------------------------------------
-                box_chcp = layout.box()
-                row_chcpbox = box_chcp.row()
-                row_chcpbox.prop(scene, "expandchcopy",
-                    icon="TRIA_DOWN" if scene.expandchcopy else "TRIA_RIGHT",
-                    icon_only=True, emboss=False)
-
-                row_chcpbox.label(text='Channel Copy')
-                if scene.expandchcopy:
-                    col_l2m = box_chcp.column(align = True)
-                    col_l2m.prop(scene, 'sourcemap', text = 'From')
-                    col_l2m.prop(scene, 'materialmap', text = 'To')
-                    col_l2m.operator('sxtools.layertouv', text = 'Apply')
-
         else:
             layout = self.layout               
             col = self.layout.column(align = True)
@@ -2800,45 +2748,6 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class SXTOOLS_OT_layertouv(bpy.types.Operator):
-    bl_idname = "sxtools.layertouv"
-    bl_label = "Layer to Material"
-    bl_options = {"UNDO"}
-    bl_description = 'Copy layer to material UV channels'
-
-    def invoke(self, context, event):
-        refDict = {
-            'LAYER1': 'layer1',
-            'LAYER2': 'layer2',
-            'LAYER3': 'layer3',
-            'LAYER4': 'layer4',
-            'LAYER5': 'layer5',
-            'LAYER6': 'layer6',
-            'LAYER7': 'layer7',
-            'UVMAP0': 'uvSet0',
-            'UVMAP1': 'uvSet1',
-            'UVMAP2': 'uvSet2',
-            'UVMAP3': 'uvSet3',
-            'UVMAP4': 'uvSet4',
-            'UVMAP5': 'uvSet5',
-            'UVMAP6': 'uvSet6',
-            'UVMAP7': 'uvSet7',
-            'OCC': 'occlusion',
-            'TRNS': 'transmission',
-            'EMISS': 'emission',
-            'MET': 'metallic',
-            'SMTH': 'smoothness',
-            'GRD1': 'gradient1',
-            'GRD2': 'gradient2',
-            'OVR': 'overlay' }
-
-        objs = selectionValidator(self, context)
-        sourcemap = context.scene.sxtools.sourcemap
-        materialmap = context.scene.sxtools.materialmap
-        tools.layerToUV(objs, objs[0].sxlayers[refDict[sourcemap]], objs[0].sxlayers[refDict[materialmap]])
-        return {"FINISHED"}
-
-
 # ------------------------------------------------------------------------
 #    Registration and initialization
 # ------------------------------------------------------------------------
@@ -2867,7 +2776,6 @@ classes = (
     SXTOOLS_OT_crease4,
     SXTOOLS_OT_applypalette,
     SXTOOLS_OT_applymaterial,
-    SXTOOLS_OT_layertouv,
     SXTOOLS_OT_copylayer,
     SXTOOLS_OT_selmask,
     SXTOOLS_OT_clearlayers,
