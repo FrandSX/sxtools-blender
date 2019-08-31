@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 12),
+    "version": (1, 9, 14),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -526,38 +526,42 @@ class SXTOOLS_layers(object):
     def clearLayers(self, objs, targetLayer = None):
         sxLayers = utils.findColorLayers(objs[0])
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
-        if targetLayer is not None:
-            fillmode = targetLayer.layerType
-            if targetLayer.uvChannel0 == 'U':
-                fillChannel = 0
-            elif targetLayer.uvChannel0 == 'V':
-                fillChannel = 1
 
-        for obj in objs:
-            if targetLayer is None:
-                print('SX Tools: Clearing all layers')
+        if targetLayer is None:
+            print('SX Tools: Clearing all layers')
+            for obj in objs:
                 for sxLayer in sxLayers:
                     color = sxLayer.defaultColor
                     tools.applyColor([obj, ], sxLayer, color, True, 0.0)
                     setattr(obj.sxlayers[sxLayer.name], 'alpha', 1.0)
                     setattr(obj.sxlayers[sxLayer.name], 'visibility', True)
                     setattr(obj.sxlayers[sxLayer.name], 'blendMode', 'ALPHA')
-            else:
-                if fillmode == 'COLOR':
+
+            self.clearUVs(objs, None)
+
+        else:
+            fillmode = targetLayer.layerType
+            if targetLayer.uvChannel0 == 'U':
+                fillChannel = 0
+            elif targetLayer.uvChannel0 == 'V':
+                fillChannel = 1
+
+            if fillmode == 'COLOR':
+                for obj in objs:
                     color = targetLayer.defaultColor
                     tools.applyColor([obj, ], targetLayer, color, True, 0.0)
                     setattr(obj.sxlayers[targetLayer.name], 'alpha', 1.0)
                     setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
                     setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
-                elif fillmode == 'UV':
-                    self.clearUVs(objs, targetLayer)
-
-        if targetLayer is None:
-            self.clearUVs(objs, None)
+            elif fillmode == 'UV':
+                self.clearUVs(objs, targetLayer)
 
     def clearUVs(self, objs, targetLayer = None):
         objDicts = tools.selectionHandler(objs)
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+
         if targetLayer is not None:
             uvName = targetLayer.uvLayer0
             uvValue = targetLayer.defaultValue
@@ -565,9 +569,6 @@ class SXTOOLS_layers(object):
                 fillChannel = 0
             elif targetLayer.uvChannel0 == 'V':
                 fillChannel = 1
-
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for obj in objs:
             vertLoopDict = defaultdict(list)
@@ -584,6 +585,8 @@ class SXTOOLS_layers(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         mesh.uv_layers[uvName].data[loop_idx].uv[fillChannel] = uvValue
+
+        bpy.ops.object.mode_set(mode = mode)
 
     def compositeLayers(self, objs):
         #then = time.time()
@@ -1168,13 +1171,13 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode)
 
     def selectMask(self, objs, layer, inverse):
+        objDicts = self.selectionHandler(objs)
         mode = objs[0].mode
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode = 'OBJECT', toggle=False)
 
-        objDicts = self.selectionHandler(objs)
         selMode = layer.layerType
 
         for obj in objs:
@@ -1534,7 +1537,6 @@ def updateLayers(self, context):
         listIdx = context.scene.sxtools.listIndex
         idx = context.scene.sxlistitems[listIdx].index
         layer = utils.findLayerFromIndex(objs[0], idx)
-        #print(idx, layer)
         alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
         blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
@@ -1561,9 +1563,7 @@ def refreshActives(self, context):
         objs = selectionValidator(self, context)
         listIdx = context.scene.sxtools.listIndex
         idx = context.scene.sxlistitems[listIdx].index
-        #idx = objs[0].sxtools.selectedlayer
         layer = utils.findLayerFromIndex(objs[0], idx)
-        #print(idx, layer)
 
         for obj in objs:
             obj.sxtools.selectedlayer = idx
@@ -2610,7 +2610,6 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             listIdx = context.scene.sxtools.listIndex
             idx = context.scene.sxlistitems[listIdx].index
             layer = utils.findLayerFromIndex(objs[0], idx)
-            #print('clearlayer: ', layer)
             # TODO: May return UVMAP?!
 
         layers.clearLayers(objs, layer)
@@ -2903,7 +2902,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Multi-object UV selection clear not behaving
 # - Add multiplier to emission for previs purposes
 # - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
