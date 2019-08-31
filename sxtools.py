@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 11),
+    "version": (1, 9, 12),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -366,8 +366,10 @@ class SXTOOLS_setup(object):
             for uvSet in sxUVs:
                 if not uvSet[0] in mesh.uv_layers.keys():
                     uvmap = mesh.uv_layers.new(name = uvSet[0])
-
-            layers.clearUVs([obj, ])
+                    for sxLayer in obj.sxlayers:
+                        if sxLayer.layerType == 'UV':
+                            if sxLayer.uvLayer0 == uvSet[0]:
+                                layers.clearUVs([obj, ], sxLayer)
 
             #for i in range(5):
             #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
@@ -2901,6 +2903,7 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Multi-object UV selection clear not behaving
 # - Add multiplier to emission for previs purposes
 # - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
