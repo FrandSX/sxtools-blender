@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 16),
+    "version": (2, 0, 0),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -738,6 +738,18 @@ class SXTOOLS_layers(object):
                         else:
                             alpha = 0.0
                         vertexColors[target].data[idx].color = [value, value, value, alpha]
+            # R/G/B to UV
+            elif fillmode == 3:
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = vertexColors[source].data[idx].color[channels[sourceChannel]]
+                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+            # RGBA to RGBA
+            elif fillmode == 4:
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = vertexColors[source].data[idx].color[:]
+                        vertexColors[target].data[idx].color = value
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -795,48 +807,22 @@ class SXTOOLS_layers(object):
 
         if sourceMode == 'COLOR' and targetMode == 'COLOR':
             for obj in objs:
-                sourceVertexColors = obj.data.vertex_colors[sourceLayer.vertexColorLayer].data
-                targetVertexColors = obj.data.vertex_colors[targetLayer.vertexColorLayer].data
-                tempVertexColors = obj.data.vertex_colors[obj.sxlayers['composite'].vertexColorLayer].data
-
                 sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
                 targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
 
                 if swap == True:
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            value = targetVertexColors[idx].color[:]
-                            tempVertexColors[idx].color = value
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            value = sourceVertexColors[idx].color[:]
-                            targetVertexColors[idx].color = value
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            value = tempVertexColors[idx].color[:]
-                            sourceVertexColors[idx].color = value
                     setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
                     setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
                 else:
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            value = sourceVertexColors[idx].color[:]
-                            targetVertexColors[idx].color = value
                     setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
 
-        elif sourceMode == 'COLOR' and targetMode == 'UV':
-            tools.layerToUV(objs, sourceLayer, targetLayer)
-
-        elif sourceMode == 'UV' and targetMode == 'UV':
-            sourceChannel = sourceLayer.uvChannel0
-            targetChannel = targetLayer.uvChannel0
-            self.copyChannel(objs, sourceLayer.uvLayer0, sourceChannel, targetLayer.uvLayer0, targetChannel, fillmode = 0)
-
-        elif sourceMode == 'UV' and targetMode == 'COLOR':
-            sourceChannel = sourceLayer.uvChannel0
-            targetChannel = targetLayer.uvChannel0
-            self.copyChannel(objs, sourceLayer.uvLayer0, sourceChannel, targetLayer.vertexColorLayer, targetChannel, fillmode = 2)
-
+        if swap:
+            tempLayer = objs[0].sxlayers['composite']
+            tools.layerCopyManager(objs, sourceLayer, tempLayer)
+            tools.layerCopyManager(objs, targetLayer, sourceLayer)
+            tools.layerCopyManager(objs, tempLayer, targetLayer)
+        else:
+            tools.layerCopyManager(objs, sourceLayer, targetLayer)
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -1288,21 +1274,29 @@ class SXTOOLS_tools(object):
             bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode = mode)
 
-    # take sourcelayername and targetuvlayername,
-    # translate to copyChannel batches
-    # set copyChannel to luminance mode if RGB layer
-    def layerToUV(self, objs, sourceLayer, targetLayer):
+    # takes any layers in layerview, translates to copyChannel batches
+    def layerCopyManager(self, objs, sourceLayer, targetLayer):
         sourceChannels = ['R', 'G', 'B', 'A']
-        if sourceLayer.layerType == 'COLOR':
-            fillmode = 1
-        else:
-            fillmode = 0
+        sourceType = sourceLayer.layerType
+        targetType = targetLayer.layerType
 
-        for obj in objs:
-            sourceVertexColors = obj.sxlayers[sourceLayer.name].vertexColorLayer
-            targetArray = utils.findExportChannels(obj, targetLayer)
-            for i, target in enumerate(targetArray):
-                layers.copyChannel([obj, ], sourceVertexColors, sourceChannels[i], target[0], target[1], fillmode)
+        if sourceType == 'COLOR' and targetType == 'COLOR':
+            sourceVertexColors = objs[0].sxlayers[sourceLayer.name].vertexColorLayer
+            layers.copyChannel(objs, sourceVertexColors, None, targetLayer.vertexColorLayer, None, 4)
+        elif sourceType == 'COLOR' and targetType == 'UV':
+            sourceVertexColors = objs[0].sxlayers[sourceLayer.name].vertexColorLayer
+            targetChannel = targetLayer.uvChannel0
+            layers.copyChannel(objs, sourceVertexColors, None, targetLayer.uvLayer0, targetChannel, 1)
+        elif sourceType == 'UV' and targetType == 'UV':
+            sourceUVs = sourceLayer.uvLayer0
+            targetUVs = targetLayer.uvLayer0
+            sourceChannel = sourceLayer.uvChannel0
+            targetChannel = targetLayer.uvChannel0
+            layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
+        elif sourceType == 'UV' and targetType == 'COLOR':
+            sourceUVs = sourceLayer.uvLayer0
+            sourceChannel = sourceLayer.uvChannel0
+            layers.copyChannel(objs, sourceUVs, sourceChannel, targetLayer.vertexColorLayer, None, 2)
 
     def processMesh(self, objs):
         # placeholder for batch export preprocessor
@@ -1537,19 +1531,16 @@ class SXTOOLS_tools(object):
 
             self.applyColor(objs, layer, color, False, noise, mono)
 
-    def applyMaterial(self, objs, layer, material, overwrite, noise, mono):
-        sourceLayer = str(layer).upper()
+    def applyMaterial(self, objs, targetLayer, material, overwrite, noise, mono):
         palette = [
             bpy.context.scene.sxmaterials[material].color0,
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
         # Set material properties to layer, copy to UV
-        self.applyColor(objs, layer, palette[2], overwrite, noise, mono)
-        self.layerToUV(objs, sourceLayer, 'SMTH')
-        self.applyColor(objs, layer, palette[1], overwrite, noise, mono)
-        self.layerToUV(objs, sourceLayer, 'MET')
-        self.applyColor(objs, layer, palette[0], overwrite, noise, mono)
+        self.applyColor(objs, objs[0].sxlayers['smoothness'], palette[2], overwrite, noise, mono)
+        self.applyColor(objs, objs[0].sxlayers['metallic'], palette[1], overwrite, noise, mono)
+        self.applyColor(objs, targetLayer, palette[0], overwrite, noise, mono)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
