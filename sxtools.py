@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (1, 9, 15),
+    "version": (1, 9, 16),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -705,7 +705,6 @@ class SXTOOLS_layers(object):
     # Takes vertex color set names, uv map names, and channel IDs as input.
     # CopyChannel does not perform translation of layernames to object data sets.
     # Expected input is [obj, ...], vertexcolorsetname, R/G/B/A, uvlayername, U/V, mode
-    # With mode 1, copyChannel reads sourcecolor and outputs luminance
     def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillmode):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
@@ -716,17 +715,29 @@ class SXTOOLS_layers(object):
             vertexColors = obj.data.vertex_colors
             vertexUVs = obj.data.uv_layers
 
+            # UV to UV
             if fillmode == 0:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
-                        value = vertexColors[source].data[idx].color[channels[sourceChannel]]
+                        value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+            # RGB luminance to UV
             elif fillmode == 1:
                 for poly in obj.data.polygons:
                     for idx in poly.loop_indices:
                         color = vertexColors[source].data[idx].color
                         value = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+            # UV to RGB
+            elif fillmode == 2:
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
+                        if value > 0.0:
+                            alpha = 1.0
+                        else:
+                            alpha = 0.0
+                        vertexColors[target].data[idx].color = [value, value, value, alpha]
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -779,35 +790,53 @@ class SXTOOLS_layers(object):
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
-        for obj in objs:
-            sourceVertexColors = obj.data.vertex_colors[sourceLayer.vertexColorLayer].data
-            targetVertexColors = obj.data.vertex_colors[targetLayer.vertexColorLayer].data
-            tempVertexColors = obj.data.vertex_colors[obj.sxlayers['composite'].vertexColorLayer].data
+        sourceMode = sourceLayer.layerType
+        targetMode = targetLayer.layerType
 
-            sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
-            targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
+        if sourceMode == 'COLOR' and targetMode == 'COLOR':
+            for obj in objs:
+                sourceVertexColors = obj.data.vertex_colors[sourceLayer.vertexColorLayer].data
+                targetVertexColors = obj.data.vertex_colors[targetLayer.vertexColorLayer].data
+                tempVertexColors = obj.data.vertex_colors[obj.sxlayers['composite'].vertexColorLayer].data
 
-            if swap == True:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
-                        value = targetVertexColors[idx].color[:]
-                        tempVertexColors[idx].color = value
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
-                        value = sourceVertexColors[idx].color[:]
-                        targetVertexColors[idx].color = value
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
-                        value = tempVertexColors[idx].color[:]
-                        sourceVertexColors[idx].color = value
-                setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
-                setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
-            else:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
-                        value = sourceVertexColors[idx].color[:]
-                        targetVertexColors[idx].color = value
-                setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
+                sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
+                targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
+
+                if swap == True:
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = targetVertexColors[idx].color[:]
+                            tempVertexColors[idx].color = value
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = sourceVertexColors[idx].color[:]
+                            targetVertexColors[idx].color = value
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = tempVertexColors[idx].color[:]
+                            sourceVertexColors[idx].color = value
+                    setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
+                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
+                else:
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = sourceVertexColors[idx].color[:]
+                            targetVertexColors[idx].color = value
+                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
+
+        elif sourceMode == 'COLOR' and targetMode == 'UV':
+            tools.layerToUV(objs, sourceLayer, targetLayer)
+
+        elif sourceMode == 'UV' and targetMode == 'UV':
+            sourceChannel = sourceLayer.uvChannel0
+            targetChannel = targetLayer.uvChannel0
+            self.copyChannel(objs, sourceLayer.uvLayer0, sourceChannel, targetLayer.uvLayer0, targetChannel, fillmode = 0)
+
+        elif sourceMode == 'UV' and targetMode == 'COLOR':
+            sourceChannel = sourceLayer.uvChannel0
+            targetChannel = targetLayer.uvChannel0
+            self.copyChannel(objs, sourceLayer.uvLayer0, sourceChannel, targetLayer.vertexColorLayer, targetChannel, fillmode = 2)
+
 
         bpy.ops.object.mode_set(mode = mode)
 
