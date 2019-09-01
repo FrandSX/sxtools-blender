@@ -1049,7 +1049,7 @@ class SXTOOLS_tools(object):
             for i in range(8):
                 setattr(scn, 'fillpalette' + str(i + 1), colorArray[i])
 
-    def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0):
+    def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx = True, noise = 0.0, mono = False):
         objDicts = self.selectionHandler(objs)
         fillMode = layer.layerType
         if layer.uvChannel0 == 'U':
@@ -1305,18 +1305,8 @@ class SXTOOLS_tools(object):
         # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
         pass
 
+    # TODO: Fix to be based on listIndex, not index!
     def mergeLayersManager(self, objs, sourceLayer, direction):
-        forbidden = ['composite', 'occlusion', 'metallic', 'roughness', 'transmission', 'emission']
-        if (sourceLayer == 'layer1') and (direction == 'UP'):
-            print('SX Tools Error: Cannot merge layer1')
-            return
-        elif (sourceLayer == 'layer7') and (direction == 'DOWN'):
-            print('SX Tools Error: Cannot merge layer7')
-            return
-        elif sourceLayer in forbidden:
-            print('SX Tools Error: Cannot merge selected channel')
-            return
-
         layerIndex = sourceLayer.index
 
         if direction == 'UP':
@@ -2736,7 +2726,7 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
         mono = context.scene.sxtools.palettemono
 
         tools.applyPalette(objs, palette, noise, mono)
-        #refreshActives(self, context)
+
         refreshAndComposite(self, context)
         return {"FINISHED"}
 
@@ -2762,7 +2752,7 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         mono = context.scene.sxtools.materialmono
 
         tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
-        #refreshActives(self, context)
+
         refreshAndComposite(self, context)
         return {"FINISHED"}
 
