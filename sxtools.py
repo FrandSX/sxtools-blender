@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 0, 1),
+    "version": (2, 0, 4),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -774,7 +774,6 @@ class SXTOOLS_layers(object):
 
         bpy.ops.object.mode_set(mode = mode)
 
-    # TODO: Handle UV merging
     def mergeLayers(self, objs, sourceLayer, targetLayer):
         if sourceLayer.index < targetLayer.index:
             baseLayer = sourceLayer
@@ -794,8 +793,7 @@ class SXTOOLS_layers(object):
             setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
             setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
-        # TODO: this works with color layers only
-        objs[0].data.vertex_colors.active_index = targetLayer.index
+        #objs[0].data.vertex_colors.active_index = targetLayer.index
         #objs[0].sxtools.selectedlayer = targetLayer.index - 1
         bpy.context.scene.sxtools.listIndex = utils.findListIndex(objs[0], targetLayer)
 
@@ -1562,7 +1560,7 @@ def updateLayers(self, context):
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            obj.data.vertex_colors.active_index = idx
+            #obj.data.vertex_colors.active_index = idx
             if obj.sxlayers[layer.name].layerType == 'COLOR':
                 setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
                 setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
@@ -1580,6 +1578,7 @@ def updateLayers(self, context):
 def refreshActives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
+        mode = context.scene.sxtools.shadingmode
         objs = selectionValidator(self, context)
         listIdx = context.scene.sxtools.listIndex
         idx = context.scene.sxlistitems[listIdx].index
@@ -1588,7 +1587,7 @@ def refreshActives(self, context):
         for obj in objs:
             obj.sxtools.selectedlayer = idx
             if obj.sxlayers[layer.name].layerType == 'COLOR':
-                obj.data.vertex_colors.active_index = idx + 1
+                #obj.data.vertex_colors.active_index = idx + 1
 
                 alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
                 blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
@@ -1598,10 +1597,13 @@ def refreshActives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-            layers.compositeLayers(objs)
-
         sxglobals.refreshInProgress = False
         layers.updateLayerPalette(objs[0], layer)
+
+def refreshAndComposite(self, context):
+    refreshActives(self, context)
+    objs = selectionValidator(self, context)
+    layers.compositeLayers(objs)
 
 # Clicking a palette color would ideally set it in fillcolor, TBD
 def updateColorSwatches(self, context):
@@ -2457,7 +2459,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         mono = context.scene.sxtools.fillmono
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
         tools.updateRecentColors(color)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2479,7 +2482,8 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
             overwrite = True
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2507,7 +2511,8 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
         layer = utils.findLayerFromIndex(objs[0], idx)
         mergemode = 'UP'
         tools.mergeLayersManager(objs, layer, mergemode)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2544,7 +2549,8 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
         layer = utils.findLayerFromIndex(objs[0], idx)
         mergemode = 'DOWN'
         tools.mergeLayersManager(objs, layer, mergemode)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2582,7 +2588,8 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
             mode = False
 
         layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2603,7 +2610,8 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             # TODO: May return UVMAP?!
 
         layers.clearLayers(objs, layer)
-        refreshActives(self, context)
+
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2728,7 +2736,8 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
         mono = context.scene.sxtools.palettemono
 
         tools.applyPalette(objs, palette, noise, mono)
-        refreshActives(self, context)
+        #refreshActives(self, context)
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2753,7 +2762,8 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         mono = context.scene.sxtools.materialmono
 
         tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
-        refreshActives(self, context)
+        #refreshActives(self, context)
+        refreshAndComposite(self, context)
         return {"FINISHED"}
 
 
@@ -2852,6 +2862,7 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
+# - Selection change should read obj.actives
 # - Add multiplier to emission for previs purposes
 # - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
