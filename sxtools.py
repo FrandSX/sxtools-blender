@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 0, 0),
+    "version": (2, 0, 1),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -2491,9 +2491,14 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        enabled = False
         objs = context.view_layer.objects.selected
         listIdx = context.scene.sxtools.listIndex
-        return listIdx != 0
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(objs[0], idx)
+        if (layer.layerType == 'COLOR') and (listIdx != 0):
+            enabled = True
+        return enabled
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
@@ -2514,10 +2519,23 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
+        enabled = False
         obj = context.view_layer.objects.selected[0]
         layers = context.scene.sxlistitems.keys()
         listIdx = context.scene.sxtools.listIndex
-        return listIdx != (len(layers) - 1)
+        idx = context.scene.sxlistitems[listIdx].index
+        layer = utils.findLayerFromIndex(obj, idx)
+
+        if listIdx != (len(layers) - 1):            
+            nextIdx = context.scene.sxlistitems[listIdx+1].index
+            nextLayer = utils.findLayerFromIndex(obj, nextIdx)
+
+            if nextLayer.layerType != 'COLOR':
+                return False
+
+        if (listIdx != (len(layers) - 1)) and (layer.layerType == 'COLOR'):
+            enabled = True
+        return enabled
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
