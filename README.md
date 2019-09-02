@@ -27,8 +27,10 @@ UV-channels are presented to the user as grayscale vertex-color layers, and thes
 
 ## Quick Start
 - After installation, open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
+- Pick the folder that contains palettes.json and materials.json
+- Click on 'Load Palettes and Materials'
 - Create a mesh object, select it, and press the "Set Up Object" button in SX Tools panel
-- The tool will automatically generate the necessary vertex color layers and the material (Layer names Composite and Layer1-Layer7)
+- The tool will automatically generate the needed layers and the necessary material
 
 ## The Interface
 ### Shading Modes
