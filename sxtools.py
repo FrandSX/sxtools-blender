@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 0, 15),
+    "version": (2, 1, 0),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -405,9 +405,9 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
-        sxmaterial.node_tree.nodes['Principled BSDF'].location = (300, 200)
+        sxmaterial.node_tree.nodes['Principled BSDF'].location = (600, 200)
 
-        sxmaterial.node_tree.nodes['Material Output'].location = (600, 200)
+        sxmaterial.node_tree.nodes['Material Output'].location = (900, 200)
 
         # Gradient tool color ramp
         sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
@@ -454,6 +454,11 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes["Mix.001"].inputs[0].default_value = 1
         sxmaterial.node_tree.nodes["Mix.001"].blend_type = 'MULTIPLY'
         sxmaterial.node_tree.nodes['Mix.001'].location = (0, -400)
+
+        sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
+        sxmaterial.node_tree.nodes['Math'].operation = 'MULTIPLY'
+        sxmaterial.node_tree.nodes["Math"].inputs[0].default_value = 10
+        sxmaterial.node_tree.nodes['Math'].location = (300, -400)
 
 
         # Node connections
@@ -515,8 +520,13 @@ class SXTOOLS_setup(object):
         input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
         sxmaterial.node_tree.links.new(input, output)
 
-        # Mix to emission
+        # Mix to emission multiplier
         output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Math'].inputs[1]
+        sxmaterial.node_tree.links.new(input, output)
+
+        # Value to emission
+        output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -1616,6 +1626,7 @@ def shadingMode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial']
     
     if mode == 'FULL':
+        context.scene.eevee.use_bloom = True
         areas = bpy.context.workspace.screens[0].areas
         shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
         for area in areas:
@@ -1655,7 +1666,7 @@ def shadingMode(self, context):
         sxmaterial.node_tree.links.new(input, output)
 
         # Reconnect emission
-        output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+        output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -1665,6 +1676,7 @@ def shadingMode(self, context):
         sxmaterial.node_tree.links.new(input, output)
 
     else:
+        context.scene.eevee.use_bloom = False
         areas = bpy.context.workspace.screens[0].areas
         shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
         for area in areas:
@@ -1679,7 +1691,7 @@ def shadingMode(self, context):
         sxmaterial.node_tree.links.remove(attrLink)
 
         # Check if already debug
-        if len(sxmaterial.node_tree.nodes['Mix.001'].outputs[0].links) > 0:
+        if len(sxmaterial.node_tree.nodes['Math'].outputs[0].links) > 0:
             attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
             attrLink = sxmaterial.node_tree.nodes['Separate XYZ.001'].outputs[0].links[0]
