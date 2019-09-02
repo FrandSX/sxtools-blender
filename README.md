@@ -5,6 +5,9 @@
 ### Overview
 SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs. It supports driving a full PBR (physically based rendering) game material with vertex color -based data.
 
+## Highlights
+UV-channels are presented to the user as grayscale vertex-color layers, and these UV-channels are exported to game engine as PBR material channels. The user can therefore apply per-vertex occlusion/metallic/smoothness/transmission/emission directly on the model, and see the effects in realtime.
+
 ### Features
 - Multi-layer vertex color editing
 - Layer blend modes (alpha, additive, multiply)
@@ -58,17 +61,20 @@ Displays the active layer
 * Click to select layers
 
 ### Merge Up / Merge Down buttons
-Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode.
+Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode. Merging is not permitted with material channels.
+
+### Copy / Paste buttons
+Allows any layer to be copied and pasted. Grayscale layers (material channels) are expanded to RGB values upon pasting, and if a color layer is pasted on a material channel, the luminance of the color is used for grayscale. Shift-clicking on paste swaps the source and the target layers.
 
 ### Select Layer Mask
-Click to select all vertices with alpha > 0. Shift-click to invert selection.
+Click to select all vertices with alpha > 0. Shift-click to invert selection. With material channels, picks any vertex that is not black.
 
 ### Clear Layer
 Sets a layer to its default value (0, 0, 0, 0 for most layers). If components are selected, only clears the selected components.
 Shift-clicking will clear ALL layers.
 
 ### Apply Color
-Fills selected objects or components (faces, edges, verts supported). When applying noise, low values (<0.05) seem to provide tolerable results.
+Fills selected objects or components (faces, edges, verts supported).
 
 ### Gradient Tool
 Fills selected objects or components with the selected gradient. The global bbox option stretches the gradient over multiple objects. 
@@ -84,13 +90,10 @@ Modes:
 Clicking Apply will replace colors in layers 1-5 with the colors of the palette while retaining alpha channels.
 
 ### PBR Materials
-Clicking Apply on a material will fill the current layer with the material color, and fill the Metallic and Smoothness/Roughness UV channels with the respective values. Currently respects the active layer Alpha channel, so fill with color before applying material!
+Clicking Apply on a material will fill the current layer with the material color, and fill the Metallic and Smoothness/Roughness UV channels with the respective values.
 
 ### Crease Edges
 Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier.
-
-### Channel Copy
-Works around Blender's current limitation of only 8 vertex color layers by allowing artists to copy vertex color layers to UV channels, which are then used as material properties. The same UV channels are also exported to Unity, and supported in the example material. Note that the material properties Gradient 1, Gradient 2 and Overlay are not in use in the current release of the tool.
 
 
 ## Exporting to Unity
