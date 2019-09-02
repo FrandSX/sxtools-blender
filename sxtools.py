@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 0, 4),
+    "version": (2, 0, 6),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -753,24 +753,27 @@ class SXTOOLS_layers(object):
 
         bpy.ops.object.mode_set(mode = mode)
 
-    # TODO: Fix this one
+    # Generate 1-bit layer masks for color layers
+    # so the faces can be re-colored in a game engine
     def generateMasks(self, objs):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
-        layers = utils.findCompLayers(objs[0])
+        channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
 
-        # Generate 1-bit layer masks for layers 1-7
-        # so the faces can be re-colored in a game engine
-        for poly in obj.data.polygons:
-            for idx in poly.loop_indices:
-                for i, layer in enumerate(layers):
-                    i += 1
-                    if i == 1:
-                        vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
-                    else:
-                        vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourceChannel]][3]
-                        if vertexAlpha >= sxglobals.alphaTolerance:
+        for obj in objs:
+            layers = utils.findCompLayers(obj)
+            uvmap = obj.sxlayers['masks'].uvLayer0
+            targetChannel = obj.sxlayers['masks'].uvChannel0
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    for i, layer in enumerate(layers):
+                        i += 1
+                        if i == 1:
                             vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
+                        else:
+                            vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourceChannel]][3]
+                            if vertexAlpha >= sxglobals.alphaTolerance:
+                                vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -793,8 +796,6 @@ class SXTOOLS_layers(object):
             setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
             setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
-        #objs[0].data.vertex_colors.active_index = targetLayer.index
-        #objs[0].sxtools.selectedlayer = targetLayer.index - 1
         bpy.context.scene.sxtools.listIndex = utils.findListIndex(objs[0], targetLayer)
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
@@ -1525,7 +1526,6 @@ class SXTOOLS_tools(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        # Set material properties to layer, copy to UV
         self.applyColor(objs, objs[0].sxlayers['smoothness'], palette[2], overwrite, noise, mono)
         self.applyColor(objs, objs[0].sxlayers['metallic'], palette[1], overwrite, noise, mono)
         self.applyColor(objs, targetLayer, palette[0], overwrite, noise, mono)
@@ -1550,7 +1550,6 @@ def updateLayers(self, context):
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            #obj.data.vertex_colors.active_index = idx
             if obj.sxlayers[layer.name].layerType == 'COLOR':
                 setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
                 setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
@@ -1577,8 +1576,6 @@ def refreshActives(self, context):
         for obj in objs:
             obj.sxtools.selectedlayer = idx
             if obj.sxlayers[layer.name].layerType == 'COLOR':
-                #obj.data.vertex_colors.active_index = idx + 1
-
                 alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
                 blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
                 visVal = getattr(obj.sxlayers[layer.name], 'visibility')
