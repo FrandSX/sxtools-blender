@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 0, 6),
+    "version": (2, 0, 15),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -25,6 +25,7 @@ from mathutils import Vector
 class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
+        self.composite = False
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
@@ -59,7 +60,7 @@ class SXTOOLS_sxglobals(object):
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
         self.copyLayer = None
-        self.activeObject = None
+        self.activeSelection = None
 
     def __del__(self):
         print('SX Tools: Exiting sxglobals')
@@ -346,6 +347,7 @@ class SXTOOLS_setup(object):
 
         sxLayers = utils.findColorLayers(objs[0])
         sxUVs = utils.findDefaultValues(objs[0], 'Array')
+        changed = False
 
         for obj in objs:
             mesh = obj.data
@@ -358,6 +360,8 @@ class SXTOOLS_setup(object):
                 if not sxLayer.vertexColorLayer in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name = sxLayer.vertexColorLayer)
                     layers.clearLayers([obj, ], sxLayer)
+                    changed = True
+
 
             for uvSet in mesh.uv_layers.keys():
                 if not 'UVSet' in uvSet:
@@ -370,12 +374,16 @@ class SXTOOLS_setup(object):
                         if sxLayer.layerType == 'UV':
                             if sxLayer.uvLayer0 == uvSet[0]:
                                 layers.clearUVs([obj, ], sxLayer)
+                    changed = True
 
             #for i in range(5):
             #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
             #        obj.vertex_groups.new(name = 'CreaseSet'+str(i))
 
             obj.active_material = bpy.data.materials['SXMaterial']
+
+        if changed:
+            bpy.context.scene.sxtools.shadingmode = 'FULL'
 
     def createSXMaterial(self):
         for values in sxglobals.layerInitArray:
@@ -589,38 +597,41 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode = mode)
 
     def compositeLayers(self, objs):
-        #then = time.time()
-        compLayers = utils.findCompLayers(objs[0])
-        shadingmode = bpy.context.scene.sxtools.shadingmode
-        listIdx = bpy.context.scene.sxtools.listIndex
-        idx = bpy.context.scene.sxlistitems[listIdx].index
-        layer = utils.findLayerFromIndex(objs[0], idx)
+        if sxglobals.composite:
+            #then = time.time()
+            compLayers = utils.findCompLayers(objs[0])
+            shadingmode = bpy.context.scene.sxtools.shadingmode
+            listIdx = bpy.context.scene.sxtools.listIndex
+            idx = bpy.context.scene.sxlistitems[listIdx].index
+            layer = utils.findLayerFromIndex(objs[0], idx)
 
-        channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
+            channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
 
-        if shadingmode == 'FULL':
-            self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
-        else:
-            if layer.layerType == 'COLOR':
-                self.blendDebug(objs, layer, shadingmode)
-            elif layer.name == 'overlay':
-                pass
+            if shadingmode == 'FULL':
+                self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
-                mode = objs[0].mode
-                bpy.ops.object.mode_set(mode = 'OBJECT')
-                for obj in objs:
-                    vertexColors = obj.data.vertex_colors
-                    vertexUVs = obj.data.uv_layers
+                if layer.layerType == 'COLOR':
+                    self.blendDebug(objs, layer, shadingmode)
+                elif layer.name == 'overlay':
+                    pass
+                else:
+                    mode = objs[0].mode
+                    bpy.ops.object.mode_set(mode = 'OBJECT')
+                    for obj in objs:
+                        vertexColors = obj.data.vertex_colors
+                        vertexUVs = obj.data.uv_layers
 
-                    for poly in obj.data.polygons:
-                        for loop_idx in poly.loop_indices:
-                            value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
-                            vertexColors[obj.sxlayers['composite'].vertexColorLayer].data[loop_idx].color = [value, value, value, 1.0]
+                        for poly in obj.data.polygons:
+                            for loop_idx in poly.loop_indices:
+                                value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
+                                vertexColors[obj.sxlayers['composite'].vertexColorLayer].data[loop_idx].color = [value, value, value, 1.0]
 
-                bpy.ops.object.mode_set(mode = mode)
+                    bpy.ops.object.mode_set(mode = mode)
 
-        #now = time.time()
-        #print("Compositing duration: ", now-then, " seconds")
+            sxglobals.composite = False
+            #now = time.time()
+            #print("Compositing duration: ", now-then, " seconds")
+
 
     def blendDebug(self, objs, layer, shadingmode):
         mode = objs[0].mode
@@ -1562,6 +1573,7 @@ def updateLayers(self, context):
                 sxglobals.refreshInProgress = False
 
         setup.setupGeometry(objs)
+        sxglobals.composite = True
         layers.compositeLayers(objs)
 
 def refreshActives(self, context):
@@ -1574,7 +1586,7 @@ def refreshActives(self, context):
         layer = utils.findLayerFromIndex(objs[0], idx)
 
         for obj in objs:
-            obj.sxtools.selectedlayer = idx
+            setattr(obj.sxtools, 'selectedlayer', idx)
             if obj.sxlayers[layer.name].layerType == 'COLOR':
                 alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
                 blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
@@ -1584,13 +1596,12 @@ def refreshActives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
+        if mode != 'FULL':
+            sxglobals.composite = True
+        layers.compositeLayers(objs)
+
         sxglobals.refreshInProgress = False
         layers.updateLayerPalette(objs[0], layer)
-
-def refreshAndComposite(self, context):
-    refreshActives(self, context)
-    objs = selectionValidator(self, context)
-    layers.compositeLayers(objs)
 
 # Clicking a palette color would ideally set it in fillcolor, TBD
 def updateColorSwatches(self, context):
@@ -2401,11 +2412,45 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             col.separator()
             col.label(text = 'Select a mesh to continue')
 
+class SXTOOLS_OT_selector(bpy.types.Operator):
+    bl_idname = 'sxtools.selector'
+    bl_label = 'Selection Refresher'
+
+    orgSel: None
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def modal(self, context, event):
+        objs = selectionValidator(self, context)
+        if (len(objs) > 0) and (context.active_object in objs):
+            curSel = objs[0]
+        else:
+            curSel = None
+
+        if (curSel is not self.orgSel) and (curSel is not None):
+            for i, item in enumerate(context.scene.sxlistitems):
+                if item.index == objs[0].sxtools.selectedlayer:
+                    setattr(context.scene.sxtools, 'listIndex', i)
+            self.orgSel = curSel
+            #return {'FINISHED'}
+            return {'PASS_THROUGH'}
+        else:
+            return {'PASS_THROUGH'}
+
+        return {'RUNNING_MODAL'}
+
+    def invoke(self, context, event):
+        self.orgSel = None
+        context.window_manager.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
-    bl_idname = "sxtools.scenesetup"
-    bl_label = "Set Up Object"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.scenesetup'
+    bl_label = 'Set Up Object'
+    bl_options = {'UNDO'}
     bl_description = 'Creates necessary materials and vertex color layers'
 
     def invoke(self, context, event):
@@ -2413,7 +2458,10 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
         setup.setupListItems()
         setup.setupLayers(objs)
         setup.setupGeometry(objs)
-        return {"FINISHED"}
+
+        refreshActives(self, context)
+        bpy.ops.sxtools.selector('INVOKE_DEFAULT')
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
@@ -2447,7 +2495,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
         tools.updateRecentColors(color)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2470,7 +2519,8 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2499,7 +2549,8 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
         mergemode = 'UP'
         tools.mergeLayersManager(objs, layer, mergemode)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2537,7 +2588,8 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
         mergemode = 'DOWN'
         tools.mergeLayersManager(objs, layer, mergemode)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2576,7 +2628,8 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 
         layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2598,7 +2651,8 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 
         layers.clearLayers(objs, layer)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2724,7 +2778,8 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
 
         tools.applyPalette(objs, palette, noise, mono)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2750,7 +2805,8 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
 
         tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
 
-        refreshAndComposite(self, context)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {"FINISHED"}
 
 
@@ -2771,6 +2827,7 @@ classes = (
     SXTOOLS_material,
     SXTOOLS_layer,
     SXTOOLS_listitem,
+    SXTOOLS_OT_selector,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
@@ -2824,8 +2881,8 @@ if __name__ == "__main__":
         unregister()
     except:
         pass
-    init()
     register()
+    init()
 
 #MISSING FEATURES FROM SXTOOLS-MAYA:
 # - Parallel layer sets (needs more vertex color layers)
@@ -2849,7 +2906,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Selection change should read obj.actives
 # - Add multiplier to emission for previs purposes
 # - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
@@ -2867,18 +2923,3 @@ if __name__ == "__main__":
 #   - C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
 #   - And toggle modifiers in viewport:
 #   - bpy.context.object.modifiers["Subdivision"].show_viewport = False
-
-'''
-Selection change:
-
-    @classmethod
-    def poll(cls, context):
-        print(sxglobals.activeObject, context.active_object, (context.active_object != sxglobals.activeObject))
-        return context.active_object != sxglobals.activeObject
-
-    def execute(self, context):
-        sxglobals.activeObject = context.active_object
-        draw(self, context)
-        return {'FINISHED'}
-
-'''
