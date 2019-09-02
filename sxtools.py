@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 1, 0),
+    "version": (2, 1, 1),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -2686,6 +2686,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         layer = utils.findLayerFromIndex(objs[0], idx)
 
         tools.selectMask(objs, layer, inverse)
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
         return {"FINISHED"}
 
 
@@ -2918,8 +2919,6 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Add multiplier to emission for previs purposes
-# - Select Mask should go to vertex selection mode
 # - Luminance remap fails with UV layers
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
