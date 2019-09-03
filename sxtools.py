@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 3, 1),
+    "version": (2, 4, 3),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -17,6 +17,7 @@ import bmesh
 import json
 from collections import defaultdict
 from mathutils import Vector
+from bpy.types import AddonPreferences
 
 
 # ------------------------------------------------------------------------
@@ -424,8 +425,8 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes['Invert'].location = (0, -200)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-        sxmaterial.node_tree.nodes["Mix"].inputs[0].default_value = 1
-        sxmaterial.node_tree.nodes["Mix"].blend_type = 'MULTIPLY'
+        sxmaterial.node_tree.nodes['Mix'].inputs[0].default_value = 1
+        sxmaterial.node_tree.nodes['Mix'].blend_type = 'MULTIPLY'
         sxmaterial.node_tree.nodes['Mix'].location = (0, 200)
 
         # Emission and transmission source
@@ -437,13 +438,13 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes['Separate XYZ.002'].location = (-300, -400)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-        sxmaterial.node_tree.nodes["Mix.001"].inputs[0].default_value = 1
-        sxmaterial.node_tree.nodes["Mix.001"].blend_type = 'MULTIPLY'
+        sxmaterial.node_tree.nodes['Mix.001'].inputs[0].default_value = 1
+        sxmaterial.node_tree.nodes['Mix.001'].blend_type = 'MULTIPLY'
         sxmaterial.node_tree.nodes['Mix.001'].location = (0, -400)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
         sxmaterial.node_tree.nodes['Math'].operation = 'MULTIPLY'
-        sxmaterial.node_tree.nodes["Math"].inputs[0].default_value = 10
+        sxmaterial.node_tree.nodes['Math'].inputs[0].default_value = 10
         sxmaterial.node_tree.nodes['Math'].location = (300, -400)
 
 
@@ -625,7 +626,7 @@ class SXTOOLS_layers(object):
 
             sxglobals.composite = False
             #now = time.time()
-            #print("Compositing duration: ", now-then, " seconds")
+            #print('Compositing duration: ', now-then, ' seconds')
 
 
     def blendDebug(self, objs, layer, shadingmode):
@@ -1748,14 +1749,14 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         update = refreshActives)
 
     activeLayerAlpha: bpy.props.FloatProperty(
-        name = "Opacity",
+        name = 'Opacity',
         min = 0.0,
         max = 1.0,
         default = 1.0,
         update = updateLayers)
 
     activeLayerBlendMode: bpy.props.EnumProperty(
-        name = "Blend Mode",
+        name = 'Blend Mode',
         items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
@@ -1764,7 +1765,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         update = updateLayers)
 
     activeLayerVisibility: bpy.props.BoolProperty(
-        name = "Visibility",
+        name = 'Visibility',
         default = True,
         update = updateLayers)
 
@@ -1781,7 +1782,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     shadingmode: bpy.props.EnumProperty(
-        name = "Shading Mode",
+        name = 'Shading Mode',
         items = [
             ('FULL','Full',''),
             ('DEBUG','Debug',''),
@@ -1791,7 +1792,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette1: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 1',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1799,7 +1800,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette2: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 2',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1807,7 +1808,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette3: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 3',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1815,7 +1816,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette4: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 4',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1823,7 +1824,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette5: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 5',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1831,14 +1832,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette6: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 6',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
         default = (0.0, 0.0, 0.0, 1.0))
     layerpalette7: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 7',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1846,7 +1847,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     layerpalette8: bpy.props.FloatVectorProperty(
         name = 'Layer Palette 8',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1854,7 +1855,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette1: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 1',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1862,7 +1863,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette2: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 2',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1870,7 +1871,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette3: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 3',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1878,7 +1879,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette4: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 4',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1886,7 +1887,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette5: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 5',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1894,7 +1895,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette6: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 6',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1902,7 +1903,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette7: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 7',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -1910,36 +1911,36 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillpalette8: bpy.props.FloatVectorProperty(
         name = 'Fill Palette 8',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
         default = (0.0, 0.0, 0.0, 1.0))
 
     fillcolor: bpy.props.FloatVectorProperty(
-        name = "Fill Color",
-        subtype = "COLOR",
+        name = 'Fill Color',
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
         default = (1.0, 1.0, 1.0, 1.0))
 
     fillalpha: bpy.props.BoolProperty(
-        name = "Overwrite Alpha",
+        name = 'Overwrite Alpha',
         default = True)
 
     fillnoise: bpy.props.FloatProperty(
-        name = "Noise",
+        name = 'Noise',
         min = 0.0,
         max = 1.0,
         default = 0.0)
 
     fillmono: bpy.props.BoolProperty(
-        name = "Monochrome",
+        name = 'Monochrome',
         default = False)
 
     rampmode: bpy.props.EnumProperty(
-        name = "Ramp Mode",
+        name = 'Ramp Mode',
         items = [
             ('X','X-Axis',''),
             ('Y','Y-Axis',''),
@@ -2423,7 +2424,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 box_crease = layout.box()
                 row_crease = box_crease.row()
                 row_crease.prop(scene, 'expandcrease',
-                    icon="TRIA_DOWN" if scene.expandcrease else "TRIA_RIGHT",
+                    icon='TRIA_DOWN' if scene.expandcrease else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
                 row_crease.label(text='Crease Edges')
@@ -2441,7 +2442,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 box_subdiv = layout.box()
                 row_subdiv = box_subdiv.row()
                 row_subdiv.prop(scene, 'expandsubdiv',
-                    icon="TRIA_DOWN" if scene.expandsubdiv else "TRIA_RIGHT",
+                    icon='TRIA_DOWN' if scene.expandsubdiv else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
                 row_subdiv.label(text='Subdivision')
@@ -2458,6 +2459,46 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             col.operator('sxtools.loadlibraries', text = 'Load Palettes and Materials')
             col.separator()
             col.label(text = 'Select a mesh to continue')
+
+
+class SXTOOLS_MT_piemenu(bpy.types.Menu):
+    bl_idname = 'SXTOOLS_MT_piemenu'
+    bl_label = 'SX Tools'
+
+    def draw(self, context):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            obj = objs[0]
+
+            layout = self.layout
+            mesh = obj.data
+            mode = obj.mode
+            sxtools = obj.sxtools
+            sxlayers = obj.sxlayers
+            scene = context.scene.sxtools
+            palettes = context.scene.sxpalettes
+
+            pie = layout.menu_pie()
+            fill_row = pie.row()
+            fill_row.prop(scene, 'fillcolor', text = '')
+            fill_row.operator('sxtools.applycolor', text = 'Apply Color')
+
+            grd_col = pie.column()
+            grd_col.prop(scene, 'rampmode', text = '')
+            grd_col.operator('sxtools.applyramp', text = 'Apply Gradient')
+
+            layer_col = pie.column()
+            layer_col.prop(sxtools, 'activeLayerBlendMode', text = '')
+            layer_col.prop(sxtools, 'activeLayerVisibility', text = 'Visibility')
+            layer_col.prop(sxtools, 'activeLayerAlpha', slider=True, text = 'Layer Opacity')
+
+            pie.prop(scene, 'shadingmode', text = '')
+
+            pie.operator('sxtools.copylayer', text = 'Copy Layer')
+            pie.operator('sxtools.pastelayer', text = 'Paste Layer')
+            pie.operator('sxtools.clear', text = 'Clear Layer')
+
+            pie.operator('sxtools.selmask', text = 'Select Mask')
 
 
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
@@ -2526,20 +2567,20 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 
 
 class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
-    bl_idname = "sxtools.loadlibraries"
-    bl_label = "Load Libraries"
+    bl_idname = 'sxtools.loadlibraries'
+    bl_label = 'Load Libraries'
     bl_description = 'Load Palettes and Materials'
 
     def invoke(self, context, event):
         files.loadFile('palettes')
         files.loadFile('materials')
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_applycolor(bpy.types.Operator):
-    bl_idname = "sxtools.applycolor"
-    bl_label = "Apply Color"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.applycolor'
+    bl_label = 'Apply Color'
+    bl_options = {'UNDO'}
     bl_description = 'Applies fill color to selection'
 
     def invoke(self, context, event):
@@ -2557,14 +2598,14 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_applyramp(bpy.types.Operator):
-    bl_idname = "sxtools.applyramp"
-    bl_label = "Apply Gradient"
-    bl_options = {"UNDO"}
-    bl_description = 'Applies gradient to selection bounding volume across selected axis'
+    bl_idname = 'sxtools.applyramp'
+    bl_label = 'Apply Gradient'
+    bl_options = {'UNDO'}
+    bl_description = 'Applies gradient to selection bounding volume'
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
@@ -2580,13 +2621,13 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_mergeup(bpy.types.Operator):
-    bl_idname = "sxtools.mergeup"
-    bl_label = "Merge Up"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.mergeup'
+    bl_label = 'Merge Up'
+    bl_options = {'UNDO'}
     bl_description = 'Merge the selected layer with the one above'
 
     @classmethod
@@ -2608,13 +2649,13 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_mergedown(bpy.types.Operator):
-    bl_idname = "sxtools.mergedown"
-    bl_label = "Merge Down"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.mergedown'
+    bl_label = 'Merge Down'
+    bl_options = {'UNDO'}
     bl_description = 'Merge the selected layer with the one below'
 
     @classmethod
@@ -2645,13 +2686,13 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_copylayer(bpy.types.Operator):
-    bl_idname = "sxtools.copylayer"
-    bl_label = "Copy Layer"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.copylayer'
+    bl_label = 'Copy Layer'
+    bl_options = {'UNDO'}
     bl_description = 'Copy selected layer'
 
     def invoke(self, context, event):
@@ -2659,7 +2700,7 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
         idx = objs[0].sxtools.selectedlayer
         layer = utils.findLayerFromIndex(objs[0], idx)
         sxglobals.copyLayer = layer
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_pastelayer(bpy.types.Operator):
@@ -2784,9 +2825,9 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
 
 
 class SXTOOLS_OT_crease3(bpy.types.Operator):
-    bl_idname = "sxtools.crease3"
-    bl_label = "Crease3"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.crease3'
+    bl_label = 'Crease3'
+    bl_options = {'UNDO'}
     bl_description = 'Add selection to set3, shift-click to select creased edges'
 
     def invoke(self, context, event):
@@ -2797,13 +2838,13 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
             tools.selectCrease(objs, group)
         else:
             tools.assignCrease(objs, group, hard)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_crease4(bpy.types.Operator):
-    bl_idname = "sxtools.crease4"
-    bl_label = "Crease4"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.crease4'
+    bl_label = 'Crease4'
+    bl_options = {'UNDO'}
     bl_description = 'Add selection to set4, shift-click to select creased edges'
 
     def invoke(self, context, event):
@@ -2814,13 +2855,13 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
             tools.selectCrease(objs, group)
         else:
             tools.assignCrease(objs, group, hard)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_applypalette(bpy.types.Operator):
     bl_idname = 'sxtools.applypalette'
     bl_label = 'Apply Palette'
-    bl_options = {"UNDO"}
+    bl_options = {'UNDO'}
     bl_description = 'Applies selected palette to selection'
 
     label: bpy.props.StringProperty()
@@ -2835,13 +2876,13 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_applymaterial(bpy.types.Operator):
     bl_idname = 'sxtools.applymaterial'
     bl_label = 'Apply PBR Material'
-    bl_options = {"UNDO"}
+    bl_options = {'UNDO'}
     bl_description = 'Applies selected material to selection'
 
     label: bpy.props.StringProperty()
@@ -2893,6 +2934,7 @@ classes = (
     SXTOOLS_material,
     SXTOOLS_layer,
     SXTOOLS_UL_layerlist,
+    SXTOOLS_MT_piemenu,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
@@ -2913,6 +2955,8 @@ classes = (
     SXTOOLS_OT_modifiers,
     SXTOOLS_PT_panel)
 
+addon_keymaps = []
+
 def register():
     from bpy.utils import register_class
     for cls in classes:
@@ -2923,6 +2967,12 @@ def register():
     bpy.types.Scene.sxtools = bpy.props.PointerProperty(type = SXTOOLS_sceneprops)
     bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type = SXTOOLS_masterpalette)
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type = SXTOOLS_material)
+
+    sxKeyConfig = bpy.context.window_manager.keyconfigs.addon
+    sxKeyMap = sxKeyConfig.keymaps.new(name = 'SX Keymap', space_type = 'VIEW_3D')
+    sxKeyMapItemMenu = sxKeyMap.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift = True)
+    sxKeyMapItemMenu.properties.name = SXTOOLS_MT_piemenu.bl_idname
+    addon_keymaps.append((sxKeyMap, sxKeyMapItemMenu))
 
 def unregister():
     from bpy.utils import unregister_class
@@ -2943,6 +2993,7 @@ if __name__ == "__main__":
     except:
         pass
     register()
+    bpy.ops.wm.call_menu_pie(name = 'SXTOOLS_MT_piemenu')
 
 #MISSING FEATURES FROM SXTOOLS-MAYA:
 # - Parallel layer sets (needs more vertex color layers)
