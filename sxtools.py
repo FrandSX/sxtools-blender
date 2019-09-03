@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 1, 3),
+    "version": (2, 1, 6),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -61,7 +61,7 @@ class SXTOOLS_sxglobals(object):
         self.alphaTolerance = 1.0
         self.copyLayer = None
         self.activeSelection = None
-        self.listItems = {}
+        self.listItems = []
         self.listIndices = {}
 
     def __del__(self):
@@ -173,9 +173,7 @@ class SXTOOLS_utils(object):
 
     def findListIndex(self, obj, layer):
         index = obj.sxlayers[layer.name].index
-        for i, item in enumerate(bpy.context.scene.sxlistitems):
-            if item.index == index:
-                return i
+        return sxglobals.listIndices[index]
 
     def findColorLayers(self, obj):
         sxLayerArray = []
@@ -252,10 +250,11 @@ class SXTOOLS_utils(object):
 
     def findListLayers(self, obj):
         listLayers = []
-        for sxLayer in obj.sxlayers:
-            if sxLayer.showInLayerList == True:
-                listLayers.append(sxLayer)
-        listLayers.sort(key=lambda x: x.index)
+        for index in sxglobals.listItems:
+            for sxLayer in obj.sxLayers:
+                if index == sxLayer.index:
+                    listLayers.append(sxLayer)
+
         return listLayers
 
     def findExportChannels(self, obj, layer):
@@ -803,7 +802,7 @@ class SXTOOLS_layers(object):
             setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
             setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
 
-            obj.sxtools.selectedlayer = utils.findListIndex(objs[0], targetLayer)
+            obj.sxtools.selectedlayer = targetLayer.index
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
         mode = objs[0].mode
@@ -1313,14 +1312,13 @@ class SXTOOLS_tools(object):
         # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
         pass
 
-    # TODO: Fix to be based on listIndex, not index!
     def mergeLayersManager(self, objs, sourceLayer, direction):
-        layerIndex = sourceLayer.index
+        listIndex = utils.findListIndex(objs[0], sourceLayer)
 
         if direction == 'UP':
-            targetLayer = utils.findLayerFromIndex(objs[0], layerIndex - 1)
+            targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex - 1])
         else:
-            targetLayer = utils.findLayerFromIndex(objs[0], layerIndex + 1)
+            targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex + 1])
 
         layers.mergeLayers(objs, sourceLayer, targetLayer)    
 
@@ -2422,6 +2420,9 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         flt_flags = []
         flt_neworder = []
         sxLayerArray = []
+        sxglobals.listItems.clear()
+        sxglobals.listIndices.clear()
+
         for sxLayer in objs[0].sxlayers:
             sxLayerArray.append(sxLayer)
             flt_neworder.append(sxLayer.index)
@@ -2431,10 +2432,11 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         for idx, layer in enumerate(sxLayerArray):
             if not layer.showInLayerList:
                 flt_flags[idx] |= ~self.bitflag_filter_item
+            else:
+                sxglobals.listItems.append(layer.index)
 
-        for i, layerIndex in enumerate(flt_neworder):
-            sxglobals.listItems[i] = layerIndex
-            sxglobals.listIndices[layerIndex] = i
+        for i, idx in enumerate(sxglobals.listItems):
+            sxglobals.listIndices[idx] = i
 
         return flt_flags, flt_neworder
 
@@ -2555,7 +2557,7 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
         layer = utils.findLayerFromIndex(obj, idx)
 
         if listIdx != (len(sxglobals.listIndices) - 1):            
-            nextIdx = sxglobals.listItems[listIdx+1]
+            nextIdx = sxglobals.listItems[listIdx + 1]
             nextLayer = utils.findLayerFromIndex(obj, nextIdx)
 
             if nextLayer.layerType != 'COLOR':
