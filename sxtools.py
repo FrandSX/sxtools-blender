@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 1, 6),
+    "version": (2, 2, 2),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -1535,6 +1535,33 @@ class SXTOOLS_tools(object):
         self.applyColor(objs, objs[0].sxlayers['metallic'], palette[1], overwrite, noise, mono)
         self.applyColor(objs, targetLayer, palette[0], overwrite, noise, mono)
 
+    def addModifiers(self, objs):
+        vis = objs[0].sxtools.modifiervisibility
+        subdivLevel = objs[0].sxtools.subdivisionlevel
+        for obj in objs:
+            obj.sxtools.modifiervisibility = vis
+            obj.sxtools.subdivisionlevel = subdivLevel
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        for obj in objs:
+            if 'sxSubdivision' not in obj.modifiers.keys():
+                obj.modifiers.new(type = 'SUBSURF', name = 'sxSubdivision')
+                obj.modifiers['sxSubdivision'].quality = 6
+                obj.modifiers['sxSubdivision'].show_on_cage = True
+            else:
+                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+
+            if 'sxEdgeSplit' not in obj.modifiers.keys():
+                obj.modifiers.new(type = 'EDGE_SPLIT', name = 'sxEdgeSplit')
+                obj.modifiers['sxEdgeSplit'].use_edge_angle = False
+                obj.modifiers['sxEdgeSplit'].show_on_cage = True
+            else:
+                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
+
+        mode = objs[0].mode
+
     def __del__(self):
         print('SX Tools: Exiting tools')
 
@@ -1703,7 +1730,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name = 'Selected Layer',
         min = 0,
         max = 20,
-        default = 0,
+        default = 1,
         update = refreshActives)
 
     activeLayerAlpha: bpy.props.FloatProperty(
@@ -1726,6 +1753,16 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name = "Visibility",
         default = True,
         update = updateLayers)
+
+    subdivisionlevel: bpy.props.IntProperty(
+        name = 'Subdivision Level',
+        min = 0,
+        max = 6,
+        default = 1)
+
+    modifiervisibility: bpy.props.BoolProperty(
+        name = 'Modifier Visibility',
+        default = True)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -1964,6 +2001,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     expandcrease: bpy.props.BoolProperty(
         name = "Expand Crease",
+        default = False)
+
+    expandsubdiv: bpy.props.BoolProperty(
+        name = "Expand Subdiv",
         default = False)
 
     expandpalette: bpy.props.BoolProperty(
@@ -2382,6 +2423,20 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_sets.prop(scene, 'hardcrease', text = 'Sharp on 100%')
                     col_sets.operator('sxtools.crease0', text = 'Uncrease')
 
+                # Subdivision and Edge Split ------------------------------------
+                box_subdiv = layout.box()
+                row_subdiv = box_subdiv.row()
+                row_subdiv.prop(scene, 'expandsubdiv',
+                    icon="TRIA_DOWN" if scene.expandsubdiv else "TRIA_RIGHT",
+                    icon_only=True, emboss=False)
+
+                row_subdiv.label(text='Subdivision')
+                if scene.expandsubdiv:
+                    col_sds = box_subdiv.column(align = True)
+                    col_sds.prop(sxtools, 'subdivisionlevel', text = 'Subdivision Level')
+                    col_sds.prop(sxtools, 'modifiervisibility', text = 'Show Modifiers')
+                    col_sds.operator('sxtools.modifiers', text = 'Apply Modifiers')
+
         else:
             layout = self.layout               
             col = self.layout.column(align = True)
@@ -2603,18 +2658,22 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
         sourceLayer = sxglobals.copyLayer
-        targetLayer = utils.findLayerFromIndex(objs[0], idx)
+        targetLayer = utils.findLayerFromIndex(objs[0], idx)    
 
         if event.shift:
             mode = True
         else:
             mode = False
 
-        layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
+        if sourceLayer == None:
+            print('SX Tools: Nothing to paste!')
+            return {"FINISHED"}
+        else:
+            layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
-        return {"FINISHED"}
+            sxglobals.composite = True
+            refreshActives(self, context)
+            return {"FINISHED"}
 
 
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
@@ -2630,7 +2689,6 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
         else:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.findLayerFromIndex(objs[0], idx)
-            # TODO: May return UVMAP?!
 
         layers.clearLayers(objs, layer)
 
@@ -2789,7 +2847,19 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_modifiers(bpy.types.Operator):
+    bl_idname = 'sxtools.modifiers'
+    bl_label = 'Add Modifiers'
+    bl_options = {'UNDO'}
+    bl_description = 'Adds Subdivision and Edge Split modifiers to selection'
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        tools.addModifiers(objs)
+        return {'FINISHED'}
 
 
 # ------------------------------------------------------------------------
@@ -2826,6 +2896,7 @@ classes = (
     SXTOOLS_OT_mergeup,
     SXTOOLS_OT_mergedown,
     SXTOOLS_OT_pastelayer,
+    SXTOOLS_OT_modifiers,
     SXTOOLS_PT_panel)
 
 def register():
@@ -2881,23 +2952,13 @@ if __name__ == "__main__":
 #   - Layer renaming
 #   - _paletted suffix
 #TODO:
-# - Re-indexing not working correctly in layer list filter
 # - Select mask gives incorrect results with one-face-wide selections
 # - Luminance remap fails with UV layers
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
-# - Create custom layerview:
-#   - Custom hide/show icons to layer view items
 # - Assign fill color from brush color if in vertex paint mode
 #   - color[0] = bpy.data.brushes["Draw"].color[0]
-# - Automate modifier creation / Add visibility toggle button
-#   - C.active_object.modifiers.new(type = 'EDGE_SPLIT', name = 'SX EdgeSplit')
-#   - bpy.context.object.modifiers["EdgeSplit"].use_edge_angle = False
-#   - C.active_object.modifiers.new(type = 'SUBSURF', name = 'SX Subdivision')
-#   - And toggle modifiers in viewport:
-#   - bpy.context.object.modifiers["Subdivision"].show_viewport = False
-
 '''
 class SXTOOLS_OT_selector(bpy.types.Operator):
     bl_idname = 'sxtools.selector'
