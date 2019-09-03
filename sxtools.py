@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 4, 3),
+    "version": (2, 4, 5),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -2968,11 +2968,12 @@ def register():
     bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type = SXTOOLS_masterpalette)
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type = SXTOOLS_material)
 
-    sxKeyConfig = bpy.context.window_manager.keyconfigs.addon
-    sxKeyMap = sxKeyConfig.keymaps.new(name = 'SX Keymap', space_type = 'VIEW_3D')
-    sxKeyMapItemMenu = sxKeyMap.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift = True)
-    sxKeyMapItemMenu.properties.name = SXTOOLS_MT_piemenu.bl_idname
-    addon_keymaps.append((sxKeyMap, sxKeyMapItemMenu))
+    wm = bpy.context.window_manager
+    if wm.keyconfigs.addon:
+        km = wm.keyconfigs.addon.keymaps.new(name = '3D View', space_type = 'VIEW_3D')
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift = True)
+        kmi.properties.name = SXTOOLS_MT_piemenu.bl_idname
+        addon_keymaps.append((km, kmi))
 
 def unregister():
     from bpy.utils import unregister_class
@@ -2987,13 +2988,23 @@ def unregister():
     #del tools
     #del sxglobals
 
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+    if kc:
+        for km, kmi in addon_keymaps:
+            km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
+
 if __name__ == "__main__":
     try:
         unregister()
     except:
         pass
     register()
+
     bpy.ops.wm.call_menu_pie(name = 'SXTOOLS_MT_piemenu')
+
+
 
 #MISSING FEATURES FROM SXTOOLS-MAYA:
 # - Parallel layer sets (needs more vertex color layers)
