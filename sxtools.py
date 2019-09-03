@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 2, 4),
+    "version": (2, 3, 1),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -1238,19 +1238,16 @@ class SXTOOLS_tools(object):
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
             'CreaseSet4': 1.0 }
         weight = creaseDict[group]
-        bpy.ops.object.mode_set(mode = 'EDIT')
+        bpy.ops.object.mode_set(mode = 'OBJECT')
 
         for obj in objs:
-            bm = bmesh.from_edit_mesh(obj.data)
-
-            if 'SubSurfCrease' in bm.edges.layers.crease.keys():
-                creaseLayer = bm.edges.layers.crease['SubSurfCrease']
-
-                creaseEdges = [edge for edge in bm.edges if edge[creaseLayer] == weight]
-                for edge in creaseEdges:
+            mesh = obj.data
+            for edge in obj.data.edges:
+                if math.isclose(edge.crease, weight, abs_tol=0.1):
                     edge.select = True
 
-            #bmesh.update_edit_mesh(obj.data)
+        bpy.ops.object.mode_set(mode = 'EDIT')
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
 
     def assignCrease(self, objs, group, hard):
         mode = objs[0].mode
@@ -1263,6 +1260,7 @@ class SXTOOLS_tools(object):
 
         for obj in objs:
             bm = bmesh.from_edit_mesh(obj.data)
+            mesh = obj.data
 
             if 'SubSurfCrease' in bm.edges.layers.crease.keys():
                 creaseLayer = bm.edges.layers.crease['SubSurfCrease']
@@ -1271,10 +1269,13 @@ class SXTOOLS_tools(object):
             selectedEdges = [edge for edge in bm.edges if edge.select]
             for edge in selectedEdges:
                 edge[creaseLayer] = weight
+                mesh.edges[edge.index].crease = weight
                 if weight == 1.0 and hard:
                     edge.smooth = False
+                    mesh.edges[edge.index].use_edge_sharp = True
                 else:
                     edge.smooth = True
+                    mesh.edges[edge.index].use_edge_sharp = False
 
             bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode = mode)
@@ -1613,9 +1614,12 @@ def refreshActives(self, context):
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
         layer = utils.findLayerFromIndex(objs[0], idx)
+        vcols = layer.vertexColorLayer
 
         for obj in objs:
             setattr(obj.sxtools, 'selectedlayer', idx)
+            if vcols != '':
+                obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
             if obj.sxlayers[layer.name].layerType == 'COLOR':
                 alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
                 blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
@@ -2963,43 +2967,6 @@ if __name__ == "__main__":
 #   - _paletted suffix
 #TODO:
 # - Select mask gives incorrect results with one-face-wide selections
-# - Crease tool select edges stops working after object/edit mode change
-#   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
 # - Assign fill color from brush color if in vertex paint mode
 #   - color[0] = bpy.data.brushes["Draw"].color[0]
-'''
-class SXTOOLS_OT_selector(bpy.types.Operator):
-    bl_idname = 'sxtools.selector'
-    bl_label = 'Selection Refresher'
-
-    orgSel: None
-
-    @classmethod
-    def poll(cls, context):
-        return context.active_object is not None
-
-    def modal(self, context, event):
-        objs = selectionValidator(self, context)
-        if (len(objs) > 0) and (context.active_object in objs):
-            curSel = objs[0]
-        else:
-            curSel = None
-
-        if (curSel is not self.orgSel) and (curSel is not None):
-            for i, item in enumerate(context.scene.sxlistitems):
-                if item.index == objs[0].sxtools.selectedlayer:
-                    setattr(context.scene.sxtools, 'listIndex', i)
-            self.orgSel = curSel
-            #return {'FINISHED'}
-            return {'PASS_THROUGH'}
-        else:
-            return {'PASS_THROUGH'}
-
-        return {'RUNNING_MODAL'}
-
-    def invoke(self, context, event):
-        self.orgSel = None
-        context.window_manager.modal_handler_add(self)
-        return {'RUNNING_MODAL'}
-'''
