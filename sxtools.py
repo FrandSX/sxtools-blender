@@ -1,7 +1,7 @@
 bl_info = {
     "name": "SX Tools",
     "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 2, 2),
+    "version": (2, 2, 4),
     "blender": (2, 80, 0),
     "location": "View3D",
     "description": "Multi-layer vertex paint tool",
@@ -1420,18 +1420,25 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode = mode)
         return objOcclusions
 
-    # TODO: Broken for UV layers
     def calculateLuminance(self, objs, layer):
         objDicts = {}
         objDicts = self.selectionHandler(objs)
-
+        layerType = layer.layerType
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
 
         objLuminances = {}
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            if layerType == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif layerType == 'UV':
+                uvValues = obj.data.uv_layers[layer.uvLayer0].data
+                if layer.uvChannel0 == 'U':
+                    selChannel = 0
+                elif layer.uvChannel0 == 'V':
+                    selChannel = 1
+
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
             vtxLuminances = {}
@@ -1439,13 +1446,16 @@ class SXTOOLS_tools(object):
             for vert_idx, loop_indices in vertLoopDict.items():
                 loopLuminances = []
                 for loop_idx in loop_indices:
-                    fvColor = vertexColors[loop_idx].color
-                    luminance = ((fvColor[0] +
-                                  fvColor[0] +
-                                  fvColor[2] +
-                                  fvColor[1] +
-                                  fvColor[1] +
-                                  fvColor[1]) / float(6.0))
+                    if layerType == 'COLOR':
+                        fvColor = vertexColors[loop_idx].color
+                        luminance = ((fvColor[0] +
+                                      fvColor[0] +
+                                      fvColor[2] +
+                                      fvColor[1] +
+                                      fvColor[1] +
+                                      fvColor[1]) / float(6.0))
+                    elif layerType == 'UV':
+                        luminance = uvValues[loop_idx].uv[selChannel]
                     loopLuminances.append(luminance)
                 vertLoopDict[vert_idx] = (loop_indices, loopLuminances)
             objLuminances[obj] = vertLoopDict
@@ -2953,7 +2963,6 @@ if __name__ == "__main__":
 #   - _paletted suffix
 #TODO:
 # - Select mask gives incorrect results with one-face-wide selections
-# - Luminance remap fails with UV layers
 # - Crease tool select edges stops working after object/edit mode change
 #   - Store crease weigths in vertex groups?
 # - UI Palette layout for color swatches
