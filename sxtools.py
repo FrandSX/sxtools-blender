@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 4, 7),
+    'version': (2, 4, 14),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -333,7 +333,7 @@ class SXTOOLS_setup(object):
             self.createSXMaterial()
 
         sxLayers = utils.findColorLayers(objs[0])
-        sxUVs = utils.findDefaultValues(objs[0], 'Array')
+        sxUVs = utils.findDefaultValues(objs[0], 'Dict')
         changed = False
 
         for obj in objs:
@@ -349,19 +349,23 @@ class SXTOOLS_setup(object):
                     layers.clearLayers([obj, ], sxLayer)
                     changed = True
 
-
             for uvSet in mesh.uv_layers.keys():
                 if not 'UVSet' in uvSet:
                     mesh.uv_layers.remove(mesh.uv_layers[uvSet])
 
-            for uvSet in sxUVs:
-                if not uvSet[0] in mesh.uv_layers.keys():
-                    uvmap = mesh.uv_layers.new(name = uvSet[0])
+            clearSets = []
+            for uvSet in sxUVs.keys():
+                if not uvSet in mesh.uv_layers.keys():
+                    uvmap = mesh.uv_layers.new(name = uvSet)
+                    clearSets.append(uvSet)
+                    changed = True
+
+            if len(clearSets) > 0:
+                for uvSet in clearSets:
                     for sxLayer in obj.sxlayers:
                         if sxLayer.layerType == 'UV':
-                            if sxLayer.uvLayer0 == uvSet[0]:
+                            if (sxLayer.uvLayer0 == uvSet) or (sxLayer.uvLayer1 == uvSet) or (sxLayer.uvLayer2 == uvSet) or (sxLayer.uvLayer3 == uvSet):
                                 layers.clearUVs([obj, ], sxLayer)
-                    changed = True
 
             #for i in range(5):
             #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
@@ -566,14 +570,22 @@ class SXTOOLS_layers(object):
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode = 'OBJECT')
+        channels = {'U': 0, 'V': 1}
 
         if targetLayer is not None:
-            uvName = targetLayer.uvLayer0
+            uvNames = [
+                targetLayer.uvLayer0,
+                targetLayer.uvLayer1,
+                targetLayer.uvLayer2,
+                targetLayer.uvLayer3]
+
+            fillChannels = [
+                channels[targetLayer.uvChannel0],
+                channels[targetLayer.uvChannel1],
+                channels[targetLayer.uvChannel2],
+                channels[targetLayer.uvChannel3]]
+
             uvValue = targetLayer.defaultValue
-            if targetLayer.uvChannel0 == 'U':
-                fillChannel = 0
-            elif targetLayer.uvChannel0 == 'V':
-                fillChannel = 1
 
         for obj in objs:
             vertLoopDict = defaultdict(list)
@@ -589,7 +601,9 @@ class SXTOOLS_layers(object):
             else:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
-                        mesh.uv_layers[uvName].data[loop_idx].uv[fillChannel] = uvValue
+                        for i, uvName in enumerate(uvNames):
+                            if uvName != '':
+                                mesh.uv_layers[uvName].data[loop_idx].uv[fillChannels[i]] = uvValue
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -767,7 +781,12 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode = 'OBJECT')
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
 
+        staticCols = objs[0].sxtools.staticvertexcolors
         for obj in objs:
+            obj.sxtools.staticvertexcolors = staticCols
+
+        for obj in objs:
+            obj['staticVertexColors'] = obj.sxtools.staticvertexcolors
             vertexColors = obj.data.vertex_colors
             uvValues = obj.data.uv_layers
             layers = utils.findCompLayers(obj)
@@ -1780,6 +1799,9 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name = 'Modifier Visibility',
         default = True)
 
+    staticvertexcolors: bpy.props.BoolProperty(
+        name = 'Static Vertex Colors Export Flag',
+        default = True)
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     shadingmode: bpy.props.EnumProperty(
@@ -2449,6 +2471,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_subdiv.label(text='Miscellaneous')
                 if scene.expandsubdiv:
                     col_masks = box_subdiv.column(align = True)
+                    col_masks.prop(sxtools, 'staticvertexcolors', text = 'No Palettes') 
                     col_masks.operator('sxtools.generatemasks', text = 'Generate Masks')
                     col_sds = box_subdiv.column(align = True)
                     col_sds.prop(sxtools, 'subdivisionlevel', text = 'Subdivision Level')
@@ -3019,8 +3042,6 @@ if __name__ == '__main__':
     register()
 
     bpy.ops.wm.call_menu_pie(name = 'SXTOOLS_MT_piemenu')
-
-
 
 #MISSING FEATURES FROM SXTOOLS-MAYA:
 # - Parallel layer sets (needs more vertex color layers)
