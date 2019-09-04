@@ -1,11 +1,11 @@
 bl_info = {
-    "name": "SX Tools",
-    "author": "Jani Kahrama / Secret Exit Ltd.",
-    "version": (2, 4, 5),
-    "blender": (2, 80, 0),
-    "location": "View3D",
-    "description": "Multi-layer vertex paint tool",
-    "category": "Development",
+    'name': 'SX Tools',
+    'author': 'Jani Kahrama / Secret Exit Ltd.',
+    'version': (2, 4, 7),
+    'blender': (2, 80, 0),
+    'location': 'View3D',
+    'description': 'Multi-layer vertex paint tool',
+    'category': 'Development',
 }
 
 import bpy
@@ -768,6 +768,8 @@ class SXTOOLS_layers(object):
         channels = { 'R': 0, 'G': 1, 'B': 2, 'A': 3 , 'U': 0, 'V': 1}
 
         for obj in objs:
+            vertexColors = obj.data.vertex_colors
+            uvValues = obj.data.uv_layers
             layers = utils.findCompLayers(obj)
             uvmap = obj.sxlayers['masks'].uvLayer0
             targetChannel = obj.sxlayers['masks'].uvChannel0
@@ -776,11 +778,11 @@ class SXTOOLS_layers(object):
                     for i, layer in enumerate(layers):
                         i += 1
                         if i == 1:
-                            vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
+                            uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
                         else:
-                            vertexAlpha = vertexColors[layer.name].data[idx].color[channels[sourceChannel]][3]
+                            vertexAlpha = vertexColors[layer.vertexColorLayer].data[idx].color[3]
                             if vertexAlpha >= sxglobals.alphaTolerance:
-                                vertexUVs[uvmap].data[idx].uv[channels[targetChannel]] = i
+                                uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
 
         bpy.ops.object.mode_set(mode = mode)
 
@@ -1309,7 +1311,6 @@ class SXTOOLS_tools(object):
         # placeholder for batch export preprocessor
         # 0: UV0 for basic automatically laid out UVs
         # 1: palettemasks to U1
-        #layers.copyChannel(objs, 'LAYER1', 'R', 'UVMAP1', 'U')
         # static flag to object
         # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
         pass
@@ -1952,86 +1953,86 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default = 'X')
 
     rampbbox: bpy.props.BoolProperty(
-        name = "Global Bbox",
+        name = 'Global Bbox',
         default = True)
 
     rampalpha: bpy.props.BoolProperty(
-        name = "Overwrite Alpha",
+        name = 'Overwrite Alpha',
         default = True)
 
     mergemode: bpy.props.EnumProperty(
-        name = "Merge Mode",
+        name = 'Merge Mode',
         items = [
             ('UP','Up',''),
             ('DOWN','Down','')],
         default = 'UP')
 
     occlusionblend: bpy.props.FloatProperty(
-        name = "Occlusion Blend",
+        name = 'Occlusion Blend',
         min = 0.0,
         max = 1.0,
         default = 0.5)
 
     occlusionrays: bpy.props.IntProperty(
-        name = "Ray Count",
+        name = 'Ray Count',
         min = 1,
         max = 2000,
         default = 256)
 
     palettenoise: bpy.props.FloatProperty(
-        name = "Noise",
+        name = 'Noise',
         min = 0.0,
         max = 1.0,
         default = 0.0)
 
     palettemono: bpy.props.BoolProperty(
-        name = "Monochrome",
+        name = 'Monochrome',
         default = False)
 
     materialalpha: bpy.props.BoolProperty(
-        name = "Overwrite Alpha",
+        name = 'Overwrite Alpha',
         default = True)
 
     materialnoise: bpy.props.FloatProperty(
-        name = "Noise",
+        name = 'Noise',
         min = 0.0,
         max = 1.0,
         default = 0.0)
 
     materialmono: bpy.props.BoolProperty(
-        name = "Monochrome",
+        name = 'Monochrome',
         default = False)
 
     hardcrease: bpy.props.BoolProperty(
-        name = "Hard Crease",
+        name = 'Hard Crease',
         default = True)
 
     expandfill: bpy.props.BoolProperty(
-        name = "Expand Fill",
+        name = 'Expand Fill',
         default = False)
 
     expandramp: bpy.props.BoolProperty(
-        name = "Expand Ramp",
+        name = 'Expand Ramp',
         default = False)
 
     expandcrease: bpy.props.BoolProperty(
-        name = "Expand Crease",
+        name = 'Expand Crease',
         default = False)
 
     expandsubdiv: bpy.props.BoolProperty(
-        name = "Expand Subdiv",
+        name = 'Expand Subdiv',
         default = False)
 
     expandpalette: bpy.props.BoolProperty(
-        name = "Expand Palette",
+        name = 'Expand Palette',
         default = False)
 
     expandmaterials: bpy.props.BoolProperty(
-        name = "Expand Materials",
+        name = 'Expand Materials',
         default = False)
 
     expandchcopy: bpy.props.BoolProperty(
-        name = "Expand Channelcopy",
+        name = 'Expand Channelcopy',
         default = False)
 
     libraryfolder: bpy.props.StringProperty(
@@ -2050,7 +2051,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color0: bpy.props.FloatVectorProperty(
         name = 'Palette Color 0',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2058,7 +2059,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color1: bpy.props.FloatVectorProperty(
         name = 'Palette Color 1',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2066,7 +2067,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color2: bpy.props.FloatVectorProperty(
         name = 'Palette Color 2',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2074,7 +2075,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color3: bpy.props.FloatVectorProperty(
         name = 'Palette Color 3',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2082,7 +2083,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color4: bpy.props.FloatVectorProperty(
         name = 'Palette Color 4',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2097,7 +2098,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color0: bpy.props.FloatVectorProperty(
         name = 'Material Color',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2105,7 +2106,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color1: bpy.props.FloatVectorProperty(
         name = 'Material Metallic',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2113,7 +2114,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color2: bpy.props.FloatVectorProperty(
         name = 'Material Smoothness',
-        subtype = "COLOR",
+        subtype = 'COLOR',
         size = 4,
         min = 0.0,
         max = 1.0,
@@ -2161,7 +2162,7 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
         default = 1.0)
 
     blendMode: bpy.props.EnumProperty(
-        name = "Layer Blend Mode",
+        name = 'Layer Blend Mode',
         items = [
             ('ALPHA','Alpha',''),
             ('ADD','Additive',''),
@@ -2223,7 +2224,7 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
 
 
     showInLayerList: bpy.props.BoolProperty(
-        name = "Show in Layer List",
+        name = 'Show in Layer List',
         default = True)
 
 
@@ -2232,10 +2233,10 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
 # ------------------------------------------------------------------------
 class SXTOOLS_PT_panel(bpy.types.Panel):
 
-    bl_idname = "SXTOOLS_PT_panel"
-    bl_label = "SX Tools"    
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
+    bl_idname = 'SXTOOLS_PT_panel'
+    bl_label = 'SX Tools'    
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
 
     def draw(self, context):
         objs = selectionValidator(self, context)
@@ -2302,8 +2303,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_fill = box_fill.row()
                 split_fill = row_fill.split(factor = 0.33)
                 split1_fill = split_fill.row()
-                split1_fill.prop(scene, "expandfill",
-                    icon="TRIA_DOWN" if scene.expandfill else "TRIA_RIGHT",
+                split1_fill.prop(scene, 'expandfill',
+                    icon='TRIA_DOWN' if scene.expandfill else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 if layer.layerType == 'COLOR':
                     split1_fill.label(text = 'Color Fill')
@@ -2334,8 +2335,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_gradient = box_gradient.row()
                 split_gradient = row_gradient.split(factor = 0.33)
                 split1_gradient = split_gradient.row()
-                split1_gradient.prop(scene, "expandramp",
-                    icon="TRIA_DOWN" if scene.expandramp else "TRIA_RIGHT",
+                split1_gradient.prop(scene, 'expandramp',
+                    icon='TRIA_DOWN' if scene.expandramp else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
                 if layer.layerType == 'COLOR':
@@ -2347,7 +2348,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 split2_gradient.operator('sxtools.applyramp', text = 'Apply')
 
                 if scene.expandramp:
-                    layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], "color_ramp", expand=True)
+                    layout.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand = True)
                     col_ramp = self.layout.column(align = True)
                     col_ramp.prop(scene, 'rampbbox', text = 'Use Global Bbox')
                     if mode == 'OBJECT':
@@ -2359,8 +2360,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
                 row_palette = box_palette.row()
-                row_palette.prop(scene, "expandpalette",
-                    icon="TRIA_DOWN" if scene.expandpalette else "TRIA_RIGHT",
+                row_palette.prop(scene, 'expandpalette',
+                    icon='TRIA_DOWN' if scene.expandpalette else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_palette.label(text = 'Master Palettes')
 
@@ -2390,9 +2391,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # PBR Materials ---------------------------------------------------
                 box_materials = layout.box()
                 row_materials = box_materials.row()
-                row_materials.prop(scene, "expandmaterials",
-                    icon="TRIA_DOWN" if scene.expandmaterials else "TRIA_RIGHT",
-                    icon_only=True, emboss=False)
+                row_materials.prop(scene, 'expandmaterials',
+                    icon = 'TRIA_DOWN' if scene.expandmaterials else 'TRIA_RIGHT',
+                    icon_only = True, emboss = False)
                 row_materials.label(text = 'PBR Materials')
 
                 materials = context.scene.sxmaterials
@@ -2445,8 +2446,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     icon='TRIA_DOWN' if scene.expandsubdiv else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
-                row_subdiv.label(text='Subdivision')
+                row_subdiv.label(text='Miscellaneous')
                 if scene.expandsubdiv:
+                    col_masks = box_subdiv.column(align = True)
+                    col_masks.operator('sxtools.generatemasks', text = 'Generate Masks')
                     col_sds = box_subdiv.column(align = True)
                     col_sds.prop(sxtools, 'subdivisionlevel', text = 'Subdivision Level')
                     col_sds.prop(sxtools, 'modifiervisibility', text = 'Show Modifiers')
@@ -2704,9 +2707,9 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
 
 
 class SXTOOLS_OT_pastelayer(bpy.types.Operator):
-    bl_idname = "sxtools.pastelayer"
-    bl_label = "Paste Layer"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.pastelayer'
+    bl_label = 'Paste Layer'
+    bl_options = {'UNDO'}
     bl_description = 'Shift-click to swap with copied layer'
 
     def invoke(self, context, event):
@@ -2722,19 +2725,19 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 
         if sourceLayer == None:
             print('SX Tools: Nothing to paste!')
-            return {"FINISHED"}
+            return {'FINISHED'}
         else:
             layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
 
             sxglobals.composite = True
             refreshActives(self, context)
-            return {"FINISHED"}
+            return {'FINISHED'}
 
 
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
-    bl_idname = "sxtools.clear"
-    bl_label = "Clear Layer"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.clear'
+    bl_label = 'Clear Layer'
+    bl_options = {'UNDO'}
     bl_description = 'Shift-click to clear all layers on object or components'
 
     def invoke(self, context, event):
@@ -2749,13 +2752,13 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 
         sxglobals.composite = True
         refreshActives(self, context)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_selmask(bpy.types.Operator):
-    bl_idname = "sxtools.selmask"
-    bl_label = "Select Layer Mask"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.selmask'
+    bl_label = 'Select Layer Mask'
+    bl_options = {'UNDO'}
     bl_description = 'Shift-click to invert selection'
 
     def invoke(self, context, event):
@@ -2770,13 +2773,13 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 
         tools.selectMask(objs, layer, inverse)
         bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_crease0(bpy.types.Operator):
-    bl_idname = "sxtools.crease0"
-    bl_label = "Crease0"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.crease0'
+    bl_label = 'Crease0'
+    bl_options = {'UNDO'}
     bl_description = 'Uncrease selection'
 
     def invoke(self, context, event):
@@ -2787,13 +2790,13 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
             tools.selectCrease(objs, group)
         else:
             tools.assignCrease(objs, group, hard)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_crease1(bpy.types.Operator):
-    bl_idname = "sxtools.crease1"
-    bl_label = "Crease1"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.crease1'
+    bl_label = 'Crease1'
+    bl_options = {'UNDO'}
     bl_description = 'Add selection to set1, shift-click to select creased edges'
 
     def invoke(self, context, event):
@@ -2804,13 +2807,13 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
             tools.selectCrease(objs, group)
         else:
             tools.assignCrease(objs, group, hard)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_crease2(bpy.types.Operator):
-    bl_idname = "sxtools.crease2"
-    bl_label = "Crease2"
-    bl_options = {"UNDO"}
+    bl_idname = 'sxtools.crease2'
+    bl_label = 'Crease2'
+    bl_options = {'UNDO'}
     bl_description = 'Add selection to set2, shift-click to select creased edges'
 
     def invoke(self, context, event):
@@ -2821,7 +2824,7 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
             tools.selectCrease(objs, group)
         else:
             tools.assignCrease(objs, group, hard)
-        return {"FINISHED"}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_crease3(bpy.types.Operator):
@@ -2917,6 +2920,18 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_generatemasks(bpy.types.Operator):
+    bl_idname = 'sxtools.generatemasks'
+    bl_label = 'Create Palette Masks'
+    bl_options = {'UNDO'}
+    bl_description = 'Creates masks for applying palettes in a game engine'
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        layers.generateMasks(objs)
+        return {'FINISHED'}
+
+
 # ------------------------------------------------------------------------
 #    Registration and initialization
 # ------------------------------------------------------------------------
@@ -2953,6 +2968,7 @@ classes = (
     SXTOOLS_OT_mergedown,
     SXTOOLS_OT_pastelayer,
     SXTOOLS_OT_modifiers,
+    SXTOOLS_OT_generatemasks,
     SXTOOLS_PT_panel)
 
 addon_keymaps = []
@@ -2995,7 +3011,7 @@ def unregister():
             km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         unregister()
     except:
@@ -3031,4 +3047,4 @@ if __name__ == "__main__":
 # - Select mask gives incorrect results with one-face-wide selections
 # - UI Palette layout for color swatches
 # - Assign fill color from brush color if in vertex paint mode
-#   - color[0] = bpy.data.brushes["Draw"].color[0]
+#   - color[0] = bpy.data.brushes['Draw'].color[0]
