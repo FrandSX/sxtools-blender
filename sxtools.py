@@ -2399,11 +2399,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_category.label(text = 'CATEGORY: ' + category)
                             row_category.separator()
                         row_mpalette = box_palette.row(align = True)
-                        row_mpalette.label(text = name)
+                        split_mpalette = row_mpalette.split(factor = 0.33)
+                        split_mpalette.label(text = name)
+                        split2_mpalette = split_mpalette.split()
+                        row2_mpalette = split2_mpalette.row(align = True)
                         for i in range(5):
-                            row_mpalette.prop(palette, 'color'+str(i), text = '')
-                        mp_button = row_mpalette.operator('sxtools.applypalette', text = 'Apply')
-                        mp_button.label = palette.name[:]
+                            row2_mpalette.prop(palette, 'color'+str(i), text = '')
+                        mp_button = split2_mpalette.operator('sxtools.applypalette', text = 'Apply')
 
                     row_mnoise = box_palette.row(align = True)
                     row_mnoise.prop(scene, 'palettenoise', slider = True)
@@ -2430,11 +2432,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_category.label(text = 'CATEGORY: ' + category)
                             row_category.separator()
                         row_mat = box_materials.row(align = True)
-                        row_mat.label(text = name)
+                        split_mat = row_mat.split(factor = 0.33)
+                        split_mat.label(text = name)
+                        split2_mat = split_mat.split()
+                        row2_mat = split2_mat.row(align = True)
                         for i in range(3):
-                            row_mat.prop(material, 'color'+str(i), text = '')
-                        mat_button = row_mat.operator('sxtools.applymaterial', text = 'Apply')
-                        mat_button.label = material.name[:]
+                            row2_mat.prop(material, 'color'+str(i), text = '')
+                        mat_button = split2_mat.operator('sxtools.applymaterial', text = 'Apply')
 
                     row_pbrnoise = box_materials.row(align = True)
                     row_pbrnoise.prop(scene, 'materialnoise', slider = True)
