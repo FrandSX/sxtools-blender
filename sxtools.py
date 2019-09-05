@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 7, 4),
+    'version': (2, 8, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1273,9 +1273,11 @@ class SXTOOLS_tools(object):
         elif rampmode == 'CN':
             objValues = self.calculateCurvature(objs, True)
         elif rampmode == 'OCC':
-            objValues = self.bakeOcclusion(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend)
+            objValues = self.calculateOcclusion(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend, bpy.context.scene.sxtools.occlusiondistance)
         elif rampmode == 'LUM':
             objValues = self.calculateLuminance(objs, layer)
+        elif rampmode == 'THK':
+            objValues = self.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.thicknessdistance)
 
         if mergebbx:
             bbx_x = []
@@ -1292,7 +1294,7 @@ class SXTOOLS_tools(object):
             zmin, zmax = min(bbx_z), max(bbx_z)
 
         for obj in objs:
-            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM':
+            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM' or rampmode == 'THK':
                 valueDict = objValues[obj]
             if fillMode == 'COLOR':
                 vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
@@ -1311,7 +1313,7 @@ class SXTOOLS_tools(object):
             vertLoopDict = objDicts[obj][0]
             vertPosDict = objDicts[obj][1]
             
-            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM'):
+            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM') and (rampmode != 'THK'):
                 bbx = self.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
@@ -1341,7 +1343,7 @@ class SXTOOLS_tools(object):
                         if zdiv == 0:
                             zdiv = 1.0
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
-                    elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC':
+                    elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'THK':
                         ratioRaw = valueDict[vert_idx]
                     elif rampmode == 'LUM':
                         ratioRaw = valueDict[vert_idx][1]
@@ -1577,7 +1579,7 @@ class SXTOOLS_tools(object):
 
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
-    def bakeOcclusion(self, objs, rayCount=250, blend=0.0, bias=0.000001):
+    def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
         objDicts = {}
         objDicts = self.selectionHandler(objs)
 
@@ -1628,7 +1630,7 @@ class SXTOOLS_tools(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        hit, loc, normal, index = obj.ray_cast(vertPos, sample)
+                        hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
 
                         if hit:
                             occValue -= contribution
@@ -1647,7 +1649,7 @@ class SXTOOLS_tools(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample)
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
 
                         if scnHit:
                             scnOccValue -= contribution
@@ -1663,6 +1665,70 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode=mode)
         return objOcclusions
+
+    def calculateThickness(self, objs, rayCount, dist, bias=0.000001):
+        objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
+        mode = objs[0].mode
+        scene = bpy.context.scene
+        contribution = 1.0/float(rayCount)
+        hemiSphere = [None] * rayCount
+        bias = 1e-5
+
+        objThicknesses = {}
+
+        for idx in range(rayCount):
+            hemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+            vertDict = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                thicknessValue = 0.0
+                vertLoc = Vector(vertPosDict[vert_idx][0])
+                vertNormal = Vector(vertPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+
+                biasVec = tuple([bias*x for x in invNormal])
+                rotQuat = forward.rotation_difference(invNormal)
+                vertPos = vertLoc
+
+                # offset ray origin with normal bias
+                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                for sample in hemiSphere:
+                    sample = Vector(sample)
+                    sample.rotate(rotQuat)
+
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
+
+                    if hit:
+                        thicknessValue += contribution
+
+                for loop_idx in loop_indices:
+                    vertDict[vert_idx] = thicknessValue
+            objThicknesses[obj] = vertDict
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = True
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objThicknesses
 
     def calculateLuminance(self, objs, layer):
         objDicts = {}
@@ -2249,7 +2315,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('LUM', 'Luminance', ''),
             ('C', 'Curvature', ''),
             ('CN', 'Normalized Curvature', ''),
-            ('OCC', 'Ambient Occlusion', '')],
+            ('OCC', 'Ambient Occlusion', ''),
+            ('THK', 'Thickness', '')],
         default='X')
 
     rampbbox: bpy.props.BoolProperty(
@@ -2278,6 +2345,18 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=1,
         max=2000,
         default=256)
+
+    occlusiondistance: bpy.props.FloatProperty(
+        name='Ray Distance',
+        min=0.0,
+        max=100.0,
+        default=10.0)
+
+    thicknessdistance: bpy.props.FloatProperty(
+        name='Ray Distance',
+        min=0.0,
+        max=10.0,
+        default=0.5)
 
     palettenoise: bpy.props.FloatProperty(
         name='Noise',
@@ -2662,9 +2741,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_ramp.prop(scene, 'rampbbox', text='Use Global Bbox')
                     if mode == 'OBJECT':
                         col_ramp.prop(scene, 'rampalpha')
-                    if scene.rampmode == 'OCC':
+                    if scene.rampmode == 'OCC' or scene.rampmode == 'THK':
                         col_ramp.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
-                        col_ramp.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
+                        if scene.rampmode == 'OCC':
+                            col_ramp.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
+                            col_ramp.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
+                        else:
+                            col_ramp.prop(scene, 'thicknessdistance', slider=True, text='Ray Distance')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
