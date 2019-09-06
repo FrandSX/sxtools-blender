@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 6),
+    'version': (2, 9, 10),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -179,8 +179,9 @@ class SXTOOLS_utils(object):
 
     def findColorLayers(self, obj):
         sxLayerArray = []
+        sxLayerArray.append(obj.sxlayers['composite'])
         for sxLayer in obj.sxlayers:
-            if sxLayer.layerType == 'COLOR':
+            if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled):
                 sxLayerArray.append(sxLayer)
         sxLayerArray.sort(key=lambda x: x.index)
 
@@ -366,18 +367,11 @@ class SXTOOLS_setup(object):
             # Build arrays of needed vertex color and UV sets,
             # VertexColor0 needed for compositing if even one
             # color layer is enabled
-            vColArray = []
             uvArray = []
-            colorLayers = utils.findColorLayers(objs[0])
-            for layer in colorLayers:
-                if layer.enabled:
-                    vColArray.append('VertexColor0')
-                    break
+            colorArray = utils.findColorLayers(objs[0])
 
             for layer in obj.sxlayers:
                 if layer.enabled:
-                    if layer.vertexColorLayer != '':
-                        vColArray.append(layer.vertexColorLayer)
                     if layer.uvLayer0 != '':
                         uvArray.append(layer.uvLayer0)
                     if layer.uvLayer1 != '':
@@ -392,9 +386,9 @@ class SXTOOLS_setup(object):
             # and delete if legacy data is found
             for vertexColor in mesh.vertex_colors.keys():
                 if not 'VertexColor' in vertexColor:
-                    mesh.vertex_colors.remove(vertexColor)
+                    mesh.vertex_colors.remove(mesh.vertex_colors[vertexColor])
 
-            for sxLayer in colorLayers:
+            for sxLayer in colorArray:
                 if not sxLayer.vertexColorLayer in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name=sxLayer.vertexColorLayer)
                     layers.clearLayers([obj, ], sxLayer)
@@ -633,6 +627,19 @@ class SXTOOLS_setup(object):
                 obj.data.uv_layers.remove(obj.data.uv_layers[uvLayer])
 
         bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
+
+        sxglobals.copyLayer = None
+        sxglobals.activeSelection = None
+        sxglobals.listItems = []
+        sxglobals.listIndices = {}
+        sxglobals.prevMode = None
+        sxglobals.refreshInProgress = False
+        sxglobals.composite = False
+        sxglobals.paletteDict = {}
+        sxglobals.masterPaletteArray = []
+        sxglobals.materialArray = []
+        for value in sxglobals.layerInitArray:
+            value[1] = False
 
     def __del__(self):
         print('SX Tools: Exiting setup')
