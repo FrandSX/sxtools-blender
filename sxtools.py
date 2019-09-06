@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 8, 5),
+    'version': (2, 9, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -331,8 +331,11 @@ class SXTOOLS_setup(object):
         for obj in objs:
             initArray = sorted(sxglobals.layerInitArray, key=lambda tup: tup[2])
             for values in initArray:
-                item = obj.sxlayers.add()
-                item.name = values[0]
+                if values[0] in obj.sxlayers.keys():
+                    item = obj.sxlayers[values[0]]
+                else:
+                    item = obj.sxlayers.add()
+                    item.name = values[0]
                 item.enabled = values[1]
                 item.index = values[2]
                 item.layerType = values[3]
@@ -605,6 +608,26 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
+    def resetScene(self):
+        objs = bpy.context.scene.objects
+        for obj in objs:
+            removeColList = []
+            removeUVList = []
+            if obj.type == 'MESH':
+                for vertexColor in obj.data.vertex_colors:
+                    if 'VertexColor' in vertexColor.name:
+                        removeColList.append(vertexColor.name)
+                for uvLayer in obj.data.uv_layers:
+                    if 'UVSet' in uvLayer.name:
+                        removeUVList.append(uvLayer.name)
+
+            for vertexColor in removeColList:
+                obj.data.vertex_colors.remove(obj.data.vertex_colors[vertexColor])
+            for uvLayer in removeUVList:
+                obj.data.uv_layers.remove(obj.data.uv_layers[uvLayer])
+
+        bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
+
     def __del__(self):
         print('SX Tools: Exiting setup')
 
@@ -674,9 +697,10 @@ class SXTOOLS_layers(object):
             if targetLayer is None:
                 for i, key in enumerate(mesh.uv_layers.keys()):
                     uvName = mesh.uv_layers[i].name
-                    for vert_idx, loop_indices in vertLoopDict.items():
-                        for loop_idx in loop_indices:
-                            mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
+                    if 'UVSet' in uvName:
+                        for vert_idx, loop_indices in vertLoopDict.items():
+                            for loop_idx in loop_indices:
+                                mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
             else:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
@@ -2637,7 +2661,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
             
-            if mesh.vertex_colors.active is None:
+            if 'VertexColor0' not in mesh.vertex_colors.keys():
                 col = self.layout.column(align=True)
                 col.prop(scene, 'numlayers', text='Vertex Color Layers')
                 col.prop(scene, 'numalphas', text='Alpha Overlays (UV)')
@@ -2861,6 +2885,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
         else:
             layout = self.layout
             col = self.layout.column(align=True)
+            if context.scene.sxtools:
+                col.operator('sxtools.resetscene', text='Reset scene')
             col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='Set Library Data Folder')
             col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
             col.separator()
@@ -3338,6 +3364,16 @@ class SXTOOLS_OT_generatemasks(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_resetscene(bpy.types.Operator):
+    bl_idname = 'sxtools.resetscene'
+    bl_label = 'Reset Scene'
+    bl_options = {'UNDO'}
+    bl_description = 'Clears all SX Tools data from objects'
+
+    def invoke(self, context, event):
+        setup.resetScene()
+        return {'FINISHED'}
+
 # ------------------------------------------------------------------------
 #    Registration and initialization
 # ------------------------------------------------------------------------
@@ -3375,6 +3411,7 @@ classes = (
     SXTOOLS_OT_pastelayer,
     SXTOOLS_OT_modifiers,
     SXTOOLS_OT_generatemasks,
+    SXTOOLS_OT_resetscene,
     SXTOOLS_PT_panel)
 
 addon_keymaps = []
@@ -3409,6 +3446,8 @@ def unregister():
     del bpy.types.Scene.sxmaterials
     # del tools
     # del sxglobals
+
+    print('unregging')
 
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
