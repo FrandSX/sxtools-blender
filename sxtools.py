@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 8, 3),
+    'version': (2, 8, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -582,6 +582,8 @@ class SXTOOLS_setup(object):
             # X to transmission
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+            sxmaterial.node_tree.links.new(input, output)
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
             sxmaterial.node_tree.links.new(input, output)
 
         if emission:
@@ -2005,6 +2007,8 @@ def shadingMode(self, context):
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+            sxmaterial.node_tree.links.new(input, output)
 
         if emission:
             # Reconnect emission
@@ -2044,6 +2048,8 @@ def shadingMode(self, context):
                 attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
             if transmission:
+                attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                sxmaterial.node_tree.links.remove(attrLink)
                 attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
 
@@ -2850,7 +2856,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_sds = box_subdiv.column(align=True)
                     col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                     col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                    col_sds.operator('sxtools.modifiers', text='Apply Modifiers')
+                    col_sds.operator('sxtools.modifiers', text='Update Modifiers')
 
         else:
             layout = self.layout
