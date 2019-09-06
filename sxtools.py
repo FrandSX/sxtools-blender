@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 4),
+    'version': (2, 9, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -620,6 +620,12 @@ class SXTOOLS_setup(object):
                 for uvLayer in obj.data.uv_layers:
                     if 'UVSet' in uvLayer.name:
                         removeUVList.append(uvLayer.name)
+
+            sxlayers = len(obj.sxlayers.keys())
+            for i in range(sxlayers):
+                obj.sxlayers.remove(0)
+
+            obj.sxtools.selectedlayer = 1
 
             for vertexColor in removeColList:
                 obj.data.vertex_colors.remove(obj.data.vertex_colors[vertexColor])
@@ -2678,6 +2684,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             else:
                 sel_idx = objs[0].sxtools.selectedlayer
                 layer = utils.findLayerFromIndex(obj, sel_idx)
+                if layer is None:
+                    sel_idx = 1
+                    layer = utils.findLayerFromIndex(obj, sel_idx)
+                    print('SX Tools: Error, invalid layer selected!')
 
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
@@ -3446,8 +3456,6 @@ def unregister():
     del bpy.types.Scene.sxmaterials
     # del tools
     # del sxglobals
-
-    print('unregging')
 
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
