@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 2),
+    'version': (2, 9, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -2885,7 +2885,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
         else:
             layout = self.layout
             col = self.layout.column(align=True)
-            if context.scene.sxtools:
+            if 'SXMaterial' in bpy.data.materials.keys():
                 col.operator('sxtools.resetscene', text='Reset scene')
             col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='Set Library Data Folder')
             col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
