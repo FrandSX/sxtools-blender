@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 14),
+    'version': (2, 9, 16),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -27,16 +27,20 @@ class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
         self.composite = False
+        self.copyLayer = None
+        self.listItems = []
+        self.listIndices = {}
+        self.prevMode = None
+
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
 
-        # name, enabled, index, layerType (COLOR/UV),
+        # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
         # visibility, alpha, blendMode, vertexColorLayer,
         # uvLayer0, uvChannel0, uvLayer1, uvChannel1,
-        # uvLayer2, uvChannel2, uvLayer3, uvChannel3,
-        # hidden_in_layerView
+        # uvLayer2, uvChannel2, uvLayer3, uvChannel3
         self.layerInitArray = [
             ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U'],
             ['layer1', False, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U'],
@@ -60,11 +64,6 @@ class SXTOOLS_sxglobals(object):
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
-        self.copyLayer = None
-        self.activeSelection = None
-        self.listItems = []
-        self.listIndices = {}
-        self.prevMode = None
 
     def __del__(self):
         print('SX Tools: Exiting sxglobals')
@@ -464,6 +463,23 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
         sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 200)
 
+        # Palette colors
+        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+        pCol.name = 'PaletteColor0'
+        sxmaterial.node_tree.nodes['PaletteColor0'].location = (-900, 0)
+        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+        pCol.name = 'PaletteColor1'
+        sxmaterial.node_tree.nodes['PaletteColor1'].location = (-900, -200)
+        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+        pCol.name = 'PaletteColor2'
+        sxmaterial.node_tree.nodes['PaletteColor2'].location = (-900, -400)
+        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+        pCol.name = 'PaletteColor3'
+        sxmaterial.node_tree.nodes['PaletteColor3'].location = (-900, -600)
+        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+        pCol.name = 'PaletteColor4'
+        sxmaterial.node_tree.nodes['PaletteColor4'].location = (-900, -800)
+
         # Vertex color source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
         sxmaterial.node_tree.nodes['Attribute'].attribute_name = compositeUVSet
@@ -633,7 +649,6 @@ class SXTOOLS_setup(object):
         bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
 
         sxglobals.copyLayer = None
-        sxglobals.activeSelection = None
         sxglobals.listItems = []
         sxglobals.listIndices = {}
         sxglobals.prevMode = None
@@ -1895,6 +1910,7 @@ class SXTOOLS_tools(object):
         for idx in range(1, 6):
             layer = utils.findLayerFromIndex(objs[0], idx)
             color = palette[idx - 1]
+            bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = color
 
             self.applyColor(objs, layer, color, False, noise, mono)
 
@@ -2840,6 +2856,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         for i in range(5):
                             row2_mpalette.prop(palette, 'color'+str(i), text='')
                         mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
+                        mp_button.label = name
 
                     row_mnoise = box_palette.row(align=True)
                     row_mnoise.prop(scene, 'palettenoise', slider=True)
@@ -2873,6 +2890,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         for i in range(3):
                             row2_mat.prop(material, 'color'+str(i), text='')
                         mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
+                        mat_button.label = name
 
                     row_pbrnoise = box_materials.row(align=True)
                     row_pbrnoise.prop(scene, 'materialnoise', slider=True)
