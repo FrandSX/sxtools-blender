@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 13),
+    'version': (2, 9, 14),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -380,7 +380,8 @@ class SXTOOLS_setup(object):
                         uvArray.append(layer.uvLayer2)
                     if layer.uvLayer3 != '':
                         uvArray.append(layer.uvLayer3)
-            uvSets = set(uvArray)
+            nameSet = set(uvArray)
+            uvSets = sorted(nameSet)
 
             # Check if vertex color layers exist,
             # and delete if legacy data is found
