@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 16),
+    'version': (2, 10, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -248,6 +248,13 @@ class SXTOOLS_utils(object):
             if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled == True):
                 compLayers.append(sxLayer)
         compLayers.sort(key=lambda x: x.index)
+        if obj.sxlayers['gradient1'].enabled:
+            compLayers.append(obj.sxlayers['gradient1'])
+        if obj.sxlayers['gradient2'].enabled:
+            compLayers.append(obj.sxlayers['gradient2'])
+        if obj.sxlayers['overlay'].enabled:
+            compLayers.append(obj.sxlayers['overlay'])
+
         return compLayers
 
     def findListLayers(self, obj):
@@ -449,6 +456,12 @@ class SXTOOLS_setup(object):
             elif values[0] == 'emission':
                 emissionUVSet = values[10]
                 emission = values[1]
+            elif values[0] == 'gradient1':
+                gradient1UVSet = values[10]
+                gradient1 = values[1]
+            elif values[0] == 'gradient2':
+                gradient2UVSet = values[10]
+                gradient2 = values[1]
 
         sxmaterial = bpy.data.materials.new(name='SXMaterial')
         sxmaterial.use_nodes = True
@@ -511,7 +524,7 @@ class SXTOOLS_setup(object):
 
             metSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             metSep.name = 'MetallicXYZ'
-            sxmaterial.node_tree.nodes['MetallicXYZ'].location = (-300, -200) # Sep001
+            sxmaterial.node_tree.nodes['MetallicXYZ'].location = (-300, -200)
 
         if smoothness:
             sxmaterial.node_tree.nodes.new(type='ShaderNodeInvert')
@@ -526,7 +539,7 @@ class SXTOOLS_setup(object):
 
             emsSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             emsSep.name = 'EmissionXYZ'
-            sxmaterial.node_tree.nodes['EmissionXYZ'].location = (-300, -400) #Sep002
+            sxmaterial.node_tree.nodes['EmissionXYZ'].location = (-300, -400)
 
         if emission:
             sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
@@ -539,6 +552,16 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes['Math'].inputs[0].default_value = 10
             sxmaterial.node_tree.nodes['Math'].location = (300, -400)
 
+        # Gradien1 and gradient2 source
+        if gradient1 or gradient2:
+            grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            grd.name = 'GradientUV'
+            sxmaterial.node_tree.nodes['GradientUV'].uv_map = gradient1UVSet
+            sxmaterial.node_tree.nodes['GradientUV'].location = (-600, -600)
+
+            grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            grdSep.name = 'GradientXYZ'
+            sxmaterial.node_tree.nodes['GradientXYZ'].location = (-300, -600)
 
         # Node connections
         # Vertex color to mixer
@@ -617,6 +640,12 @@ class SXTOOLS_setup(object):
             # Value to emission
             output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
+            sxmaterial.node_tree.links.new(input, output)
+
+        if gradient1 or gradient2:
+            # Split gradients
+            output = sxmaterial.node_tree.nodes['GradientUV'].outputs['UV']
+            input = sxmaterial.node_tree.nodes['GradientXYZ'].inputs['Vector']
             sxmaterial.node_tree.links.new(input, output)
 
     def resetScene(self):
@@ -823,8 +852,10 @@ class SXTOOLS_layers(object):
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
+            uvValues = obj.data.uv_layers
             resultColors = vertexColors[resultLayer.vertexColorLayer].data
             baseColors = vertexColors[baseLayer.vertexColorLayer].data
+            channels = {'U': 0, 'V': 1}
 
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
@@ -842,27 +873,50 @@ class SXTOOLS_layers(object):
                         else:
                             blend = getattr(obj.sxlayers[layer.name], 'blendMode')
                             alpha = getattr(obj.sxlayers[layer.name], 'alpha')
-                            top = [
-                                vertexColors[layer.vertexColorLayer].data[idx].color[0],
-                                vertexColors[layer.vertexColorLayer].data[idx].color[1],
-                                vertexColors[layer.vertexColorLayer].data[idx].color[2],
-                                vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
+                            fillmode = getattr(obj.sxlayers[layer.name], 'layerType')
 
-                            # alpha blend
+                            if fillmode == 'COLOR':
+                                top = [
+                                    vertexColors[layer.vertexColorLayer].data[idx].color[0],
+                                    vertexColors[layer.vertexColorLayer].data[idx].color[1],
+                                    vertexColors[layer.vertexColorLayer].data[idx].color[2],
+                                    vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
+
+                            elif layer.name == 'gradient1':
+                                top = [
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[0],
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[1],
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[2],
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
+
+                            elif layer.name == 'gradient2':
+                                top = [
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[0],
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[1],
+                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[2],
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
+
+                            elif fillmode == 'UV4':
+                                top = [
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
+                                    uvValues[layer.uvLayer1].data[idx].uv[channels[layer.uvChannel1]],
+                                    uvValues[layer.uvLayer2].data[idx].uv[channels[layer.uvChannel2]],
+                                    uvValues[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]]][:]
+
                             if blend == 'ALPHA':
                                 for j in range(3):
                                     base[j] = (top[j] * (top[3] * alpha) + base[j] * (1 - (top[3] * alpha)))
                                 base[3] += top[3]
                                 if base[3] > 1.0:
                                     base[3] = 1.0
-                            # additive
+
                             elif blend == 'ADD':
                                 for j in range(3):
                                     base[j] += top[j] * (top[3] * alpha)
                                 base[3] += top[3]
                                 if base[3] > 1.0:
                                     base[3] = 1.0
-                            # multiply
+
                             elif blend == 'MUL':
                                 for j in range(3):
                                     # layer2 lerp with white using (1-alpha), multiply with layer1
@@ -1970,16 +2024,15 @@ def updateLayers(self, context):
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            if obj.sxlayers[layer.name].layerType == 'COLOR':
-                setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
-                setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
-                setattr(obj.sxlayers[layer.name], 'visibility', visVal)
+            setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
+            setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
+            setattr(obj.sxlayers[layer.name], 'visibility', visVal)
 
-                sxglobals.refreshInProgress = True
-                setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
-                setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
-                sxglobals.refreshInProgress = False
+            sxglobals.refreshInProgress = True
+            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+            sxglobals.refreshInProgress = False
 
         setup.setupGeometry(objs)
         sxglobals.composite = True
@@ -1998,14 +2051,13 @@ def refreshActives(self, context):
             setattr(obj.sxtools, 'selectedlayer', idx)
             if vcols != '':
                 obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
-            if obj.sxlayers[layer.name].layerType == 'COLOR':
-                alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
-                blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
-                visVal = getattr(obj.sxlayers[layer.name], 'visibility')
+            alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
+            blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
+            visVal = getattr(obj.sxlayers[layer.name], 'visibility')
 
-                setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
-                setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
         if mode != 'FULL':
             sxglobals.composite = True
@@ -2748,7 +2800,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_palette.prop(scene, 'layerpalette7', text='')
                 row_palette.prop(scene, 'layerpalette8', text='')
 
-                if (layer.layerType != 'COLOR') or (scene.shadingmode != 'FULL'):
+                if (layer.name == 'occlusion') or (layer.name == 'smoothness') or (layer.name == 'metallic') or (layer.name == 'transmission') or (layer.name == 'emission') or (scene.shadingmode != 'FULL'):
                     row_blend.enabled = False
                     row_alpha.enabled = False
 
