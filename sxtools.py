@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 9, 10),
+    'version': (2, 9, 13),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -603,7 +603,10 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.links.new(input, output)
 
     def resetScene(self):
+        sxglobals.refreshInProgress = True
         objs = bpy.context.scene.objects
+        scene = bpy.context.scene.sxtools
+
         for obj in objs:
             removeColList = []
             removeUVList = []
@@ -633,13 +636,23 @@ class SXTOOLS_setup(object):
         sxglobals.listItems = []
         sxglobals.listIndices = {}
         sxglobals.prevMode = None
-        sxglobals.refreshInProgress = False
         sxglobals.composite = False
         sxglobals.paletteDict = {}
         sxglobals.masterPaletteArray = []
         sxglobals.materialArray = []
         for value in sxglobals.layerInitArray:
             value[1] = False
+
+        scene.numlayers = 7
+        scene.numalphas = 0
+        scene.numoverlays = 0
+        scene.enableocclusion = True
+        scene.enablemetallic = True
+        scene.enablesmoothness = True
+        scene.enabletransmission = True
+        scene.enableemission = True
+
+        sxglobals.refreshInProgress = False
 
     def __del__(self):
         print('SX Tools: Exiting setup')
@@ -2684,10 +2697,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 col.prop(scene, 'enablesmoothness', text='Smoothness (UV)')
                 col.prop(scene, 'enabletransmission', text='Transmission (UV)')
                 col.prop(scene, 'enableemission', text='Emission (UV)')
+                if 'SXMaterial' in bpy.data.materials.keys():
+                    col.enabled = False
+                col2 = self.layout.column(align=True)
                 if (len(objs) == 1):
-                    col.operator('sxtools.scenesetup', text='Set Up Object')
+                    col2.operator('sxtools.scenesetup', text='Set Up Object')
                 else:
-                    col.operator('sxtools.scenesetup', text='Set Up Objects')
+                    col2.operator('sxtools.scenesetup', text='Set Up Objects')
             else:
                 sel_idx = objs[0].sxtools.selectedlayer
                 layer = utils.findLayerFromIndex(obj, sel_idx)
@@ -2901,10 +2917,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
         else:
             layout = self.layout
-            col = self.layout.column(align=True)
+            col = self.layout.column()
             if 'SXMaterial' in bpy.data.materials.keys():
                 col.operator('sxtools.resetscene', text='Reset scene')
-            col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='Set Library Data Folder')
+                col.separator()
+            col.label(text='Set Library Data Folder:')
+            col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
             col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
             col.separator()
             col.label(text='Select a mesh to continue')
