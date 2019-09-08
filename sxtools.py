@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 10, 2),
+    'version': (2, 10, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -2979,6 +2979,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_subdiv.label(text='Miscellaneous')
                 if scene.expandsubdiv:
                     col_masks = box_subdiv.column(align=True)
+                    col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
                     col_masks.prop(sxtools, 'staticvertexcolors', text='No Palettes') 
                     col_masks.operator('sxtools.generatemasks', text='Generate Masks')
                     col_sds = box_subdiv.column(align=True)
@@ -3071,6 +3072,10 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         sxglobals.listItems.clear()
         sxglobals.listIndices.clear()
 
+        for obj in objs:
+            print('obj name: ', obj.name)
+            for layer in obj.sxlayers:
+                print('layer: ', layer.name, layer.enabled)
         for sxLayer in objs[0].sxlayers:
             sxLayerArray.append(sxLayer)
             flt_neworder.append(sxLayer.index)
@@ -3085,6 +3090,9 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
 
         for i, idx in enumerate(sxglobals.listItems):
             sxglobals.listIndices[idx] = i
+
+        print('listItems: ', sxglobals.listItems)
+        print('listIndices: ', sxglobals.listIndices)
 
         return flt_flags, flt_neworder
 
@@ -3470,6 +3478,39 @@ class SXTOOLS_OT_generatemasks(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_enableall(bpy.types.Operator):
+    bl_idname = 'sxtools.enableall'
+    bl_label = 'Enable All Layers'
+    bl_options = {'UNDO'}
+    bl_description = 'Enables all layers on selected objects'
+
+    def invoke(self, context, event):
+        scn = bpy.context.scene.sxtools
+        objs = selectionValidator(self, context)
+
+        for obj in objs:
+            for layer in obj.sxlayers:
+                if (layer.name != 'composite') and (layer.name != 'masks') and (layer.name != 'texture'):
+                    layer.enabled = True
+
+        bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
+
+        scn.numlayers = 7
+        scn.numalphas = 2
+        scn.numoverlays = 1
+        scn.enableocclusion = True
+        scn.enabletransmission = True
+        scn.enableemission = True
+        scn.enablemetallic = True
+        scn.enablesmoothness = True
+
+        setup.updateInitArray()
+        setup.setupLayers(objs)
+        setup.setupGeometry(objs)
+
+        refreshActives(self, context)
+        return {'FINISHED'}
+
 class SXTOOLS_OT_resetscene(bpy.types.Operator):
     bl_idname = 'sxtools.resetscene'
     bl_label = 'Reset Scene'
@@ -3517,6 +3558,7 @@ classes = (
     SXTOOLS_OT_pastelayer,
     SXTOOLS_OT_modifiers,
     SXTOOLS_OT_generatemasks,
+    SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
     SXTOOLS_PT_panel)
 
