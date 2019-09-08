@@ -3072,8 +3072,6 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         sxglobals.listItems.clear()
         sxglobals.listIndices.clear()
 
-        for obj in objs:
-            for layer in obj.sxlayers:
         for sxLayer in objs[0].sxlayers:
             sxLayerArray.append(sxLayer)
             flt_neworder.append(sxLayer.index)
