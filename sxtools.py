@@ -3073,9 +3073,7 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         sxglobals.listIndices.clear()
 
         for obj in objs:
-            print('obj name: ', obj.name)
             for layer in obj.sxlayers:
-                print('layer: ', layer.name, layer.enabled)
         for sxLayer in objs[0].sxlayers:
             sxLayerArray.append(sxLayer)
             flt_neworder.append(sxLayer.index)
@@ -3090,9 +3088,6 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
 
         for i, idx in enumerate(sxglobals.listItems):
             sxglobals.listIndices[idx] = i
-
-        print('listItems: ', sxglobals.listItems)
-        print('listIndices: ', sxglobals.listIndices)
 
         return flt_flags, flt_neworder
 
