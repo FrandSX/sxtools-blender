@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 10, 4),
+    'version': (2, 11, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -18,6 +18,7 @@ import json
 from collections import defaultdict
 from mathutils import Vector
 from bpy.types import AddonPreferences
+from bl_operators.presets import AddPresetBase
 
 
 # ------------------------------------------------------------------------
@@ -2781,6 +2782,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     layer = utils.findLayerFromIndex(obj, sel_idx)
                     print('SX Tools: Error, invalid layer selected!')
 
+                row = layout.row(align=True)
+                row.menu('SXTOOLS_MT_presets', text='Presets')
+                row.operator('sxtools.addpreset', text='', icon='ADD')
+                row.operator('sxtools.addpreset', text='', icon='REMOVE').remove_active = True
+
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
 
@@ -3000,46 +3006,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             col.label(text='Select a mesh to continue')
 
 
-class SXTOOLS_MT_piemenu(bpy.types.Menu):
-    bl_idname = 'SXTOOLS_MT_piemenu'
-    bl_label = 'SX Tools'
-
-    def draw(self, context):
-        objs = selectionValidator(self, context)
-        if len(objs) > 0:
-            obj = objs[0]
-
-            layout = self.layout
-            mesh = obj.data
-            mode = obj.mode
-            sxtools = obj.sxtools
-            sxlayers = obj.sxlayers
-            scene = context.scene.sxtools
-            palettes = context.scene.sxpalettes
-
-            pie = layout.menu_pie()
-            fill_row = pie.row()
-            fill_row.prop(scene, 'fillcolor', text='')
-            fill_row.operator('sxtools.applycolor', text='Apply Color')
-
-            grd_col = pie.column()
-            grd_col.prop(scene, 'rampmode', text='')
-            grd_col.operator('sxtools.applyramp', text='Apply Gradient')
-
-            layer_col = pie.column()
-            layer_col.prop(sxtools, 'activeLayerBlendMode', text='')
-            layer_col.prop(sxtools, 'activeLayerVisibility', text='Visibility')
-            layer_col.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
-
-            pie.prop(scene, 'shadingmode', text='')
-
-            pie.operator('sxtools.copylayer', text='Copy Layer')
-            pie.operator('sxtools.pastelayer', text='Paste Layer')
-            pie.operator('sxtools.clear', text='Clear Layer')
-
-            pie.operator('sxtools.selmask', text='Select Mask')
-
-
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -3088,6 +3054,72 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
             sxglobals.listIndices[idx] = i
 
         return flt_flags, flt_neworder
+
+
+class SXTOOLS_MT_piemenu(bpy.types.Menu):
+    bl_idname = 'SXTOOLS_MT_piemenu'
+    bl_label = 'SX Tools'
+
+    def draw(self, context):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            obj = objs[0]
+
+            layout = self.layout
+            mesh = obj.data
+            mode = obj.mode
+            sxtools = obj.sxtools
+            sxlayers = obj.sxlayers
+            scene = context.scene.sxtools
+            palettes = context.scene.sxpalettes
+
+            pie = layout.menu_pie()
+            fill_row = pie.row()
+            fill_row.prop(scene, 'fillcolor', text='')
+            fill_row.operator('sxtools.applycolor', text='Apply Color')
+
+            grd_col = pie.column()
+            grd_col.prop(scene, 'rampmode', text='')
+            grd_col.operator('sxtools.applyramp', text='Apply Gradient')
+
+            layer_col = pie.column()
+            layer_col.prop(sxtools, 'activeLayerBlendMode', text='')
+            layer_col.prop(sxtools, 'activeLayerVisibility', text='Visibility')
+            layer_col.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
+
+            pie.prop(scene, 'shadingmode', text='')
+
+            pie.operator('sxtools.copylayer', text='Copy Layer')
+            pie.operator('sxtools.pastelayer', text='Paste Layer')
+            pie.operator('sxtools.clear', text='Clear Layer')
+
+            pie.operator('sxtools.selmask', text='Select Mask')
+
+
+class SXTOOLS_MT_presets(bpy.types.Menu):
+    bl_label = 'Presets'
+    preset_subdir = 'object/sxtools_presets'
+    preset_operator = 'script.execute_preset'
+    draw = bpy.types.Menu.draw_preset
+
+
+class SXTOOLS_OT_addpreset(AddPresetBase, bpy.types.Operator):
+    bl_idname = 'sxtools.addpreset'
+    bl_label = 'Add preset'
+    preset_menu = 'SXTOOLS_MT_presets'
+
+    # Common variable used for all preset values
+    preset_defines = [
+        'obj = bpy.context.object',
+        'scene = bpy.context.scene' ]
+    # Properties to store in the preset
+    preset_values = [
+        'obj.sxtools',
+        'obj.sxlayers',
+        'scene.sxtools' ]
+
+    # Directory to store the presets
+    preset_subdir = 'object/sxtools_presets'
 
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
@@ -3532,6 +3564,8 @@ classes = (
     SXTOOLS_layer,
     SXTOOLS_UL_layerlist,
     SXTOOLS_MT_piemenu,
+    SXTOOLS_MT_presets,
+    SXTOOLS_OT_addpreset,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
@@ -3626,6 +3660,6 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
-# - Bake thickness
+# - Apply gradient and overlay layer alpha values before export
 # - Select mask gives incorrect results with one-face-wide selections
 # - UI Palette layout for color swatches
