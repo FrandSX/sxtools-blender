@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 6),
+    'version': (2, 12, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1085,6 +1085,7 @@ class SXTOOLS_layers(object):
             uvValues = obj.data.uv_layers
             layers = utils.findColorLayers(obj)
             del layers[0]
+            for layer in layers:
             uvmap = obj.sxlayers['masks'].uvLayer0
             targetChannel = obj.sxlayers['masks'].uvChannel0
             for poly in obj.data.polygons:
@@ -1099,6 +1100,28 @@ class SXTOOLS_layers(object):
                                 uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
 
         bpy.ops.object.mode_set(mode=mode)
+
+
+    def flattenAlphas(self, objs):
+        for obj in objs:
+            vertexUVs = obj.data.uv_layers
+            channels = {'U': 0, 'V': 1}
+            for layer in obj.sxlayers:
+                if (layer.name == 'gradient1') or (layer.name == 'gradient2'):
+                    alpha = layer.alpha
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] * alpha
+                            vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] = value
+                    layer.alpha = 1.0
+
+                elif layer.name == 'overlay':
+                    alpha = layer.alpha
+                    for poly in obj.data.polygons:
+                        for idx in poly.loop_indices:
+                            value = vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] * alpha
+                            vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] = value
+                    layer.alpha = 1.0
 
 
     def mergeLayers(self, objs, sourceLayer, targetLayer):
@@ -2117,6 +2140,7 @@ class SXTOOLS_tools(object):
 
     def applyModifiers(self, objs):
         for obj in objs:
+            bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxEdgeSplit' in obj.modifiers.keys():
@@ -3791,6 +3815,7 @@ class SXTOOLS_OT_generatemasks(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         layers.generateMasks(objs)
+        layers.flattenAlphas(objs)
         return {'FINISHED'}
 
 
@@ -3877,7 +3902,7 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
         scene.rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         scene.rampnoise = 0.01
-        scene.sxtools.rampmono = False
+        scene.rampmono = False
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
         # Apply PBR metal based on layer7
         obj.sxtools.selectedlayer = 7
@@ -3928,7 +3953,7 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
         scene.rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         scene.rampnoise = 0.01
-        scene.sxtools.rampmono = False
+        scene.rampmono = False
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
         # Apply PBR metal based on layer7
         obj.sxtools.selectedlayer = 7
@@ -4050,13 +4075,11 @@ if __name__ == '__main__':
 #   - Hide/unhide layer
 #   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
 #   - hidden/mask/adjustment indication
-# - Ramp fill color presets
 # - Master palette library save/manage
 # - PBR material library save/manage
 # - Skinning support?
 # - Export settings:
 #   - Submesh support
-#   - Static vs. paletted vertex colors
 #   - Choose export path
 #   - Export fbx settings
 # - Tool settings:
@@ -4068,6 +4091,4 @@ if __name__ == '__main__':
 # TODO:
 # - Vertex levels? 
 # - Deleting a ramp preset may error at empty
-# - Apply gradient and overlay layer alpha values before export
 # - Select mask gives incorrect results with one-face-wide selections
-# - UI Palette layout for color swatches
