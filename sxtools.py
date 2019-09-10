@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 11, 1),
+    'version': (2, 12, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -93,20 +93,22 @@ class SXTOOLS_files(object):
         if len(directory) > 0:
             try:
                 with open(filePath, 'r') as input:
+                    tempDict = {}
+                    tempDict = json.load(input)
                     if mode == 'palettes':
-                        tempDict = {}
-                        tempDict = json.load(input)
                         del sxglobals.masterPaletteArray[:]
                         while len(bpy.context.scene.sxpalettes.keys()) > 0:
                             bpy.context.scene.sxpalettes.remove(0)
                         sxglobals.masterPaletteArray = tempDict['Palettes']
                     elif mode == 'materials':
-                        tempDict = {}
-                        tempDict = json.load(input)
                         del sxglobals.materialArray[:]
                         while len(bpy.context.scene.sxmaterials.keys()) > 0:
                             bpy.context.scene.sxmaterials.remove(0)
                         sxglobals.materialArray = tempDict['Materials']
+                    elif mode == 'gradients':
+                        sxglobals.rampDict.clear()
+                        sxglobals.rampDict = tempDict
+
                     input.close()
                 print('SX Tools: ' + mode + ' loaded from ' + filePath)
             except ValueError:
@@ -137,6 +139,10 @@ class SXTOOLS_files(object):
                 elif mode == 'materials':
                     tempDict = {}
                     tempDict['materials'] = sxglobals.materialArray
+                    json.dump(tempDict, output, indent=4)
+                elif mode == 'gradients':
+                    tempDict = {}
+                    tempDict = sxglobals.rampDict
                     json.dump(tempDict, output, indent=4)
                 output.close()
             print('SX Tools: ' + mode + ' saved')
@@ -192,6 +198,7 @@ class SXTOOLS_files(object):
         tempDict['elements'] = tempColorArray
         sxglobals.rampDict[rampName] = tempDict
 
+        self.saveFile('gradients')
 
 # ------------------------------------------------------------------------
 #    Layer Data Find Functions
@@ -968,8 +975,21 @@ class SXTOOLS_layers(object):
                                 for j in range(3):
                                     # layer2 lerp with white using (1-alpha), multiply with layer1
                                     mul = ((top[j] * (top[3] * alpha) + (1.0 * (1 - (top[3] * alpha)))))
-                                    base[j] = mul * base[j]        
-                    
+                                    base[j] = mul * base[j]
+
+                            elif blend == 'OVR':
+                                over = [0.0, 0.0, 0.0, 0.0]
+                                for j in range(3):
+                                    if base[j] < 0.5:
+                                        over[j] = 2 * base[j] * top[j]
+                                    else:
+                                        over[j] = 1 - 2 * (1 - base[j]) * (1 - top[j])
+                                    over[3] += top[3]
+                                    base[j] = (over[j] * (over[3] * alpha) + base[j] * (1 - (over[3] * alpha)))
+                                base[3] += top[3]
+                                if base[3] > 1.0:
+                                    base[3] = 1.0
+
                     resultColors[idx].color = base[:]
         bpy.ops.object.mode_set(mode=mode)
 
@@ -1063,7 +1083,8 @@ class SXTOOLS_layers(object):
             obj['staticVertexColors'] = obj.sxtools.staticvertexcolors
             vertexColors = obj.data.vertex_colors
             uvValues = obj.data.uv_layers
-            layers = utils.findCompLayers(obj)
+            layers = utils.findColorLayers(obj)
+            del layers[0]
             uvmap = obj.sxlayers['masks'].uvLayer0
             targetChannel = obj.sxlayers['masks'].uvChannel0
             for poly in obj.data.polygons:
@@ -2062,6 +2083,7 @@ class SXTOOLS_tools(object):
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].quality = 6
+                obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].show_on_cage = True
             else:
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
@@ -2076,6 +2098,13 @@ class SXTOOLS_tools(object):
 
         mode = objs[0].mode
 
+
+    def applyModifiers(self, objs):
+        for obj in objs:
+            if 'sxSubdivision' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
+            if 'sxEdgeSplit' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -2319,7 +2348,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         items=[
             ('ALPHA', 'Alpha', ''),
             ('ADD', 'Additive', ''),
-            ('MUL', 'Multiply', '')],
+            ('MUL', 'Multiply', ''),
+            ('OVR', 'Overlay', '')],
         default='ALPHA',
         update=updateLayers)
 
@@ -2561,12 +2591,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Overwrite Alpha',
         default=True)
 
-    rampname: bpy.props.StringProperty(
-        name='Ramp Name',
-        description='The name to use for a ramp preset',
-        maxlen=32,
-        default='')
-
     ramplist: bpy.props.EnumProperty(
         name='Ramp Presets',
         items=rampLister,
@@ -2655,8 +2679,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Materials',
         default=False)
 
-    expandchcopy: bpy.props.BoolProperty(
-        name='Expand Channelcopy',
+    expandmacros: bpy.props.BoolProperty(
+        name='Expand Macros',
         default=False)
 
     libraryfolder: bpy.props.StringProperty(
@@ -2791,7 +2815,8 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
         items=[
             ('ALPHA', 'Alpha', ''),
             ('ADD', 'Additive', ''),
-            ('MUL', 'Multiply', '')],
+            ('MUL', 'Multiply', ''),
+            ('OVR', 'Overlay', '')],
         default='ALPHA')
 
     vertexColorLayer: bpy.props.StringProperty(
@@ -3018,12 +3043,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 split2_gradient.operator('sxtools.applyramp', text='Apply')
 
                 if scene.expandramp:
-                    row2_gradient = box_gradient.row()
-                    row2_gradient.prop(scene, 'rampname', text='Ramp Name')
-                    row2_gradient.operator('sxtools.saveramp', text='Save Ramp')
-                    row2_gradient.prop(scene, 'ramplist', text='Load Ramp')
+                    row2_gradient = box_gradient.row(align=True)
+                    row2_gradient.prop(scene, 'ramplist', text='')
+                    row2_gradient.operator('sxtools.addramp', text='', icon='ADD')
+                    row2_gradient.operator('sxtools.delramp', text='', icon='REMOVE')
+
                     box_gradient.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
-                    box_gradient.prop(scene, 'rampbbox', text='Use Global Bbox')
+                    box_gradient.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
                     if mode == 'OBJECT':
                         box_gradient.prop(scene, 'rampalpha')
                     if scene.rampmode == 'OCC' or scene.rampmode == 'THK':
@@ -3138,7 +3164,21 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_sds = box_subdiv.column(align=True)
                     col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                     col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                    col_sds.operator('sxtools.modifiers', text='Update Modifiers')
+                    row_sds = box_subdiv.row(align=True)
+                    row_sds.operator('sxtools.modifiers', text='Update Modifiers')
+                    row_sds.operator('sxtools.applymodifiers', text='Apply Modifiers')
+
+                # Macros -------------------------------------------------------
+                box_macros = layout.box()
+                row_macros = box_macros.row()
+                row_macros.prop(scene, 'expandmacros',
+                    icon='TRIA_DOWN' if scene.expandmacros else 'TRIA_RIGHT',
+                    icon_only=True, emboss=False)
+
+                row_macros.label(text='Macros')
+                if scene.expandmacros:
+                    col_macros = box_macros.column(align=True)
+                    col_macros.operator('sxtools.macro1')
 
         else:
             layout = self.layout
@@ -3253,6 +3293,41 @@ class SXTOOLS_MT_presets(bpy.types.Menu):
     draw = bpy.types.Menu.draw_preset
 
 
+class SXTOOLS_OT_addramp(bpy.types.Operator):
+    bl_idname = 'sxtools.addramp'
+    bl_label = 'Add Ramp Preset'
+
+    rampName: bpy.props.StringProperty(name='Ramp Name')
+
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+        col.prop(self, 'rampName', text='')
+
+
+    def execute(self, context):
+        files.saveRamp(self.rampName)
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_delramp(bpy.types.Operator):
+    bl_idname = 'sxtools.delramp'
+    bl_label = 'Remove Ramp Preset'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        rampName = sxglobals.rampLookup[context.scene.sxtools.ramplist]
+        del sxglobals.rampDict[rampName]
+        del sxglobals.rampLookup[context.scene.sxtools.ramplist]
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_addpreset(AddPresetBase, bpy.types.Operator):
     bl_idname = 'sxtools.addpreset'
     bl_label = 'Add preset'
@@ -3292,12 +3367,13 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
     bl_idname = 'sxtools.loadlibraries'
     bl_label = 'Load Libraries'
-    bl_description = 'Load Palettes and Materials'
+    bl_description = 'Load SX Tools Presets'
 
 
     def invoke(self, context, event):
         files.loadFile('palettes')
         files.loadFile('materials')
+        files.loadFile('gradients')
         return {'FINISHED'}
 
 
@@ -3348,31 +3424,6 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         sxglobals.composite = True
         refreshActives(self, context)
         return {'FINISHED'}
-
-
-class SXTOOLS_OT_loadramp(bpy.types.Operator):
-    bl_idname = 'sxtools.loadramp'
-    bl_label = 'Load Ramp'
-    bl_options = {'UNDO'}
-    bl_description = 'Restore a saved ramp'
-
-
-    def invoke(self, context, event):
-        name = context.scene.sxtools.rampname
-        files.loadRamp(name)
-        return{'FINISHED'}
-
-
-class SXTOOLS_OT_saveramp(bpy.types.Operator):
-    bl_idname = 'sxtools.saveramp'
-    bl_label = 'Save Ramp'
-    bl_description = 'Save current ramp'
-
-
-    def invoke(self, context, event):
-        name = context.scene.sxtools.rampname
-        files.saveRamp(name)
-        return{'FINISHED'}
 
 
 class SXTOOLS_OT_mergeup(bpy.types.Operator):
@@ -3686,6 +3737,19 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
+    bl_idname = 'sxtools.applymodifiers'
+    bl_label = 'Apply Modifiers'
+    bl_options = {'UNDO'}
+    bl_description = 'Applies Subdivision and Edge Split modifiers to selection'
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        tools.applyModifiers(objs)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_generatemasks(bpy.types.Operator):
     bl_idname = 'sxtools.generatemasks'
     bl_label = 'Create Palette Masks'
@@ -3733,6 +3797,7 @@ class SXTOOLS_OT_enableall(bpy.types.Operator):
         refreshActives(self, context)
         return {'FINISHED'}
 
+
 class SXTOOLS_OT_resetscene(bpy.types.Operator):
     bl_idname = 'sxtools.resetscene'
     bl_label = 'Reset Scene'
@@ -3744,6 +3809,51 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
         setup.resetScene()
         return {'FINISHED'}
 
+
+# This is a prototype batch used for vehicles in a game project
+class SXTOOLS_OT_macro1(bpy.types.Operator):
+    bl_idname = 'sxtools.macro1'
+    bl_label = 'Bake High-Poly Exports'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        scene = bpy.context.scene.sxtools
+        objs = selectionValidator(self, context)
+        obj = objs[0]
+
+        # Create palette masks
+        obj.sxtools.staticvertexcolors = False
+        bpy.ops.sxtools.generatemasks('INVOKE_DEFAULT')
+        # Create modifiers
+        obj.sxtools.subdivisionlevel = 2
+        bpy.ops.sxtools.modifiers('INVOKE_DEFAULT')
+        # Apply modifiers
+        bpy.ops.sxtools.applymodifiers('INVOKE_DEFAULT')
+        # Apply occlusion
+        obj.sxtools.selectedlayer = 11
+        scene.rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 1000
+        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Apply custom overlay
+        obj.sxtools.selectedlayer = 10
+        obj.sxtools.activeLayerBlendMode = 'OVR'
+        obj.sxtools.activeLayerAlpha = 0.2
+        scene.rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        # NOTE: Add noise
+        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Apply PBR metal based on layer7
+
+        # --
+        # emissives are smooth
+        # --
+        # slightly rgba-noisy curvature to overlay
+        # --
+        # 
+        return {'FINISHED'}
 
 # ------------------------------------------------------------------------
 #    Registration and initialization
@@ -3770,8 +3880,8 @@ classes = (
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
-    SXTOOLS_OT_saveramp,
-    SXTOOLS_OT_loadramp,
+    SXTOOLS_OT_addramp,
+    SXTOOLS_OT_delramp,
     SXTOOLS_OT_crease0,
     SXTOOLS_OT_crease1,
     SXTOOLS_OT_crease2,
@@ -3785,10 +3895,12 @@ classes = (
     SXTOOLS_OT_mergeup,
     SXTOOLS_OT_mergedown,
     SXTOOLS_OT_pastelayer,
+    SXTOOLS_OT_applymodifiers,
     SXTOOLS_OT_modifiers,
     SXTOOLS_OT_generatemasks,
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
+    SXTOOLS_OT_macro1,
     SXTOOLS_PT_panel)
 
 addon_keymaps = []
@@ -3864,6 +3976,8 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
+# - Add noise to gradient
+# - Deleting a ramp preset may error at empty
 # - Apply gradient and overlay layer alpha values before export
 # - Select mask gives incorrect results with one-face-wide selections
 # - UI Palette layout for color swatches

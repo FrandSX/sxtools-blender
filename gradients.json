@@ -1,0 +1,29 @@
+{
+    "BlackAndWhite": {
+        "mode": "RGB",
+        "interpolation": "LINEAR",
+        "hue_interpolation": "NEAR",
+        "elements": [
+            [
+                0.0,
+                [
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                null
+            ],
+            [
+                1.0,
+                [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                null
+            ]
+        ]
+    }
+}
