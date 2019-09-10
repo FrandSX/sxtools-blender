@@ -1086,18 +1086,18 @@ class SXTOOLS_layers(object):
             layers = utils.findColorLayers(obj)
             del layers[0]
             for layer in layers:
-            uvmap = obj.sxlayers['masks'].uvLayer0
-            targetChannel = obj.sxlayers['masks'].uvChannel0
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    for i, layer in enumerate(layers):
-                        i += 1
-                        if i == 1:
-                            uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
-                        else:
-                            vertexAlpha = vertexColors[layer.vertexColorLayer].data[idx].color[3]
-                            if vertexAlpha >= sxglobals.alphaTolerance:
+                uvmap = obj.sxlayers['masks'].uvLayer0
+                targetChannel = obj.sxlayers['masks'].uvChannel0
+                for poly in obj.data.polygons:
+                    for idx in poly.loop_indices:
+                        for i, layer in enumerate(layers):
+                            i += 1
+                            if i == 1:
                                 uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
+                            else:
+                                vertexAlpha = vertexColors[layer.vertexColorLayer].data[idx].color[3]
+                                if vertexAlpha >= sxglobals.alphaTolerance:
+                                    uvValues[uvmap].data[idx].uv[channels[targetChannel]] = i
 
         bpy.ops.object.mode_set(mode=mode)
 
