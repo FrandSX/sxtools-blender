@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 3),
+    'version': (2, 12, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1521,6 +1521,15 @@ class SXTOOLS_tools(object):
                 zmin, zmax = bbx[2][0], bbx[2][1]
 
             for vert_idx, loop_indices in vertLoopDict.items():
+                noiseColor = [0.0, 0.0, 0.0, 0.0]
+                if mono:
+                    monoNoise = random.uniform(-noise, noise)
+                    for i in range(4):
+                        noiseColor[i] += monoNoise
+                else:
+                    for i in range(4):
+                        noiseColor[i] += random.uniform(-noise, noise)
+
                 for i, loop_idx in enumerate(loop_indices):
                     ratioRaw = None
                     ratio = None
@@ -1549,40 +1558,47 @@ class SXTOOLS_tools(object):
                     elif rampmode == 'LUM':
                         ratioRaw = valueDict[vert_idx][1]
 
-                    color = []
+                    color = [0.0, 0.0, 0.0, 0.0]
                     if rampmode == 'LUM':
                         ratio = []
                         for rt in ratioRaw:
                             ratio.append(max(min(rt, 1), 0))
-                        color = ramp.color_ramp.evaluate(ratio[i])
+                        evalColor = ramp.color_ramp.evaluate(ratio[i])
+                        for i, value in enumerate(evalColor):
+                            color[i] = value
                     else:
                         ratio = max(min(ratioRaw, 1), 0)
-                        color = ramp.color_ramp.evaluate(ratio)
+                        evalColor = ramp.color_ramp.evaluate(ratio)
+                        for i, value in enumerate(evalColor):
+                            color[i] = value
 
                     if overwrite:
                         if fillMode == 'COLOR':
+                            color[0] += noiseColor[0]
+                            color[1] += noiseColor[1]
+                            color[2] += noiseColor[2]
                             vertexColors[loop_idx].color = color
                         elif fillMode == 'UV4':
-                            uvValues0[loop_idx].uv[fillChannel0] = color[0]
-                            uvValues1[loop_idx].uv[fillChannel1] = color[1]
-                            uvValues2[loop_idx].uv[fillChannel2] = color[2]
+                            uvValues0[loop_idx].uv[fillChannel0] = color[0] + noiseColor[0]
+                            uvValues1[loop_idx].uv[fillChannel1] = color[1] + noiseColor[1]
+                            uvValues2[loop_idx].uv[fillChannel2] = color[2] + noiseColor[2]
                             uvValues3[loop_idx].uv[fillChannel3] = color[3]
                         elif fillMode == 'UV':
                             fillValue = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
+                            uvValues0[loop_idx].uv[fillChannel0] = fillValue + noiseColor[0]
                     else:
                         if fillMode == 'COLOR':
                             if vertexColors[loop_idx].color[3] > 0.0:
-                                vertexColors[loop_idx].color[0] = color[0]
-                                vertexColors[loop_idx].color[1] = color[1]
-                                vertexColors[loop_idx].color[2] = color[2]
+                                vertexColors[loop_idx].color[0] = (color[0] + noiseColor[0])
+                                vertexColors[loop_idx].color[1] = (color[1] + noiseColor[1])
+                                vertexColors[loop_idx].color[2] = (color[2] + noiseColor[2])
                             else:
                                 vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
                         elif fillMode == 'UV4':
                             if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
-                                uvValues0[loop_idx].uv[fillChannel0] = color[0]
-                                uvValues1[loop_idx].uv[fillChannel1] = color[1]
-                                uvValues2[loop_idx].uv[fillChannel2] = color[2]
+                                uvValues0[loop_idx].uv[fillChannel0] = (color[0] + noiseColor[0])
+                                uvValues1[loop_idx].uv[fillChannel1] = (color[1] + noiseColor[1])
+                                uvValues2[loop_idx].uv[fillChannel2] = (color[2] + noiseColor[2])
                             else:
                                 uvValues0[loop_idx].uv[fillChannel0] = 0.0
                                 uvValues1[loop_idx].uv[fillChannel1] = 0.0
@@ -1592,7 +1608,7 @@ class SXTOOLS_tools(object):
                             if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
                                 color = ramp.color_ramp.evaluate(ratio[i])
                                 fillValue = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-                                uvValues0[loop_idx].uv[fillChannel0] = fillValue
+                                uvValues0[loop_idx].uv[fillChannel0] = (fillValue + noiseColor[0])
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2591,6 +2607,16 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Overwrite Alpha',
         default=True)
 
+    rampnoise: bpy.props.FloatProperty(
+        name='Noise',
+        min=0.0,
+        max=1.0,
+        default=0.0)
+
+    rampmono: bpy.props.BoolProperty(
+        name='Monochrome',
+        default=False)
+
     ramplist: bpy.props.EnumProperty(
         name='Ramp Presets',
         items=rampLister,
@@ -3047,9 +3073,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row2_gradient.prop(scene, 'ramplist', text='')
                     row2_gradient.operator('sxtools.addramp', text='', icon='ADD')
                     row2_gradient.operator('sxtools.delramp', text='', icon='REMOVE')
-
                     box_gradient.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
+                    box_gradient.prop(scene, 'rampnoise', slider=True)
+                    box_gradient.prop(scene, 'rampmono', text='Monochromatic')
                     box_gradient.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
+
                     if mode == 'OBJECT':
                         box_gradient.prop(scene, 'rampalpha')
                     if scene.rampmode == 'OCC' or scene.rampmode == 'THK':
@@ -3177,7 +3205,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 row_macros.label(text='Macros')
                 if scene.expandmacros:
-                    col_macros = box_macros.column(align=True)
+                    col_macros = box_macros.column()
+                    col_macros.operator('sxtools.macro2')
                     col_macros.operator('sxtools.macro1')
 
         else:
@@ -3416,10 +3445,12 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
         rampmode = context.scene.sxtools.rampmode
         mergebbx = context.scene.sxtools.rampbbox
         overwrite = context.scene.sxtools.rampalpha
+        noise = context.scene.sxtools.rampnoise
+        mono = context.scene.sxtools.rampmono
         if objs[0].mode == 'EDIT':
             overwrite = True
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx)
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         sxglobals.composite = True
         refreshActives(self, context)
@@ -3834,6 +3865,8 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
         obj.sxtools.selectedlayer = 11
         scene.rampmode = 'OCC'
         scene.ramplist = 'BLACKANDWHITE'
+        scene.rampnoise = 0.0
+        scene.rampmono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 1000
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
@@ -3843,16 +3876,72 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
         obj.sxtools.activeLayerAlpha = 0.2
         scene.rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
-        # NOTE: Add noise
+        scene.rampnoise = 0.01
+        scene.sxtools.rampmono = False
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
         # Apply PBR metal based on layer7
-
+        obj.sxtools.selectedlayer = 7
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
         # --
         # emissives are smooth
         # --
         # slightly rgba-noisy curvature to overlay
         # --
         # 
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.shade_smooth()
+        return {'FINISHED'}
+
+
+# This is a prototype batch used for vehicles in a game project
+class SXTOOLS_OT_macro2(bpy.types.Operator):
+    bl_idname = 'sxtools.macro2'
+    bl_label = 'Low-Res Export Preview'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        scene = bpy.context.scene.sxtools
+        objs = selectionValidator(self, context)
+        obj = objs[0]
+
+        # Create palette masks
+        obj.sxtools.staticvertexcolors = False
+        bpy.ops.sxtools.generatemasks('INVOKE_DEFAULT')
+        # Create modifiers
+        obj.sxtools.subdivisionlevel = 2
+        bpy.ops.sxtools.modifiers('INVOKE_DEFAULT')
+        # Apply occlusion
+        obj.sxtools.selectedlayer = 11
+        scene.rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        scene.rampnoise = 0.0
+        scene.rampmono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 1000
+        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Apply custom overlay
+        obj.sxtools.selectedlayer = 10
+        obj.sxtools.activeLayerBlendMode = 'OVR'
+        obj.sxtools.activeLayerAlpha = 0.2
+        scene.rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        scene.rampnoise = 0.01
+        scene.sxtools.rampmono = False
+        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Apply PBR metal based on layer7
+        obj.sxtools.selectedlayer = 7
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
+        # --
+        # emissives are smooth
+        # --
+        # slightly rgba-noisy curvature to overlay
+        # --
+        # 
+        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.shade_smooth()
         return {'FINISHED'}
 
 # ------------------------------------------------------------------------
@@ -3901,6 +3990,7 @@ classes = (
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
     SXTOOLS_OT_macro1,
+    SXTOOLS_OT_macro2,
     SXTOOLS_PT_panel)
 
 addon_keymaps = []
@@ -3976,7 +4066,7 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
-# - Add noise to gradient
+# - Vertex levels? 
 # - Deleting a ramp preset may error at empty
 # - Apply gradient and overlay layer alpha values before export
 # - Select mask gives incorrect results with one-face-wide selections
