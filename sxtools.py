@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 13),
+    'version': (2, 12, 15),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -2137,6 +2137,12 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxEdgeSplit'].show_on_cage = True
             else:
                 obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
+            if 'sxWeightedNormal' not in obj.modifiers.keys():
+                obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
+                obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
+                obj.modifiers['sxWeightedNormal'].weight = 95
+            else:
+                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
         mode = objs[0].mode
 
@@ -2148,6 +2154,8 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
+            if 'sxWeightedNormal' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
     def __del__(self):
         print('SX Tools: Exiting tools')
