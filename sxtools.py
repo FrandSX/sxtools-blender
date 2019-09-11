@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 9),
+    'version': (2, 12, 13),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -549,7 +549,7 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes['Mix'].inputs[0].default_value = 1
         sxmaterial.node_tree.nodes['Mix'].inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
         sxmaterial.node_tree.nodes['Mix'].blend_type = 'MULTIPLY'
-        sxmaterial.node_tree.nodes['Mix'].location = (0, 200)
+        sxmaterial.node_tree.nodes['Mix'].location = (300, 200)
 
         # Occlusion source
         if occlusion:
@@ -575,7 +575,7 @@ class SXTOOLS_setup(object):
 
         if smoothness:
             sxmaterial.node_tree.nodes.new(type='ShaderNodeInvert')
-            sxmaterial.node_tree.nodes['Invert'].location = (0, -200)
+            sxmaterial.node_tree.nodes['Invert'].location = (300, -200)
 
         # Emission and transmission source
         if emission or transmission:
@@ -592,14 +592,14 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
             sxmaterial.node_tree.nodes['Mix.001'].inputs[0].default_value = 1
             sxmaterial.node_tree.nodes['Mix.001'].blend_type = 'MULTIPLY'
-            sxmaterial.node_tree.nodes['Mix.001'].location = (0, -400)
+            sxmaterial.node_tree.nodes['Mix.001'].location = (300, -400)
 
             sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
             sxmaterial.node_tree.nodes['Math'].operation = 'MULTIPLY'
             sxmaterial.node_tree.nodes['Math'].inputs[0].default_value = 10
-            sxmaterial.node_tree.nodes['Math'].location = (300, -400)
+            sxmaterial.node_tree.nodes['Math'].location = (0, -400)
 
-        # Gradien1 and gradient2 source
+        # Gradient1 and gradient2 source
         if gradient1 or gradient2:
             grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
             grd.name = 'GradientUV'
@@ -671,21 +671,21 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.links.new(input, output)
 
         if emission:
-            # Y to multiply occ/base mix
-            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
-            sxmaterial.node_tree.links.new(input, output)
+            # Y to emission multiplier
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['Y']
-            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Mix to emission multiplier
-            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Math'].inputs[1]
             sxmaterial.node_tree.links.new(input, output)
 
-            # Value to emission
+            # Mix occlusion/base mix with emission
+            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+            sxmaterial.node_tree.links.new(input, output)
             output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
+            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Mix to emission
+            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -872,6 +872,9 @@ class SXTOOLS_layers(object):
                                 vertexColors[layer.vertexColorLayer].data[loop_idx].color[1],
                                 vertexColors[layer.vertexColorLayer].data[loop_idx].color[2],
                                 vertexColors[layer.vertexColorLayer].data[loop_idx].color[3]][:]
+                            top[0] *= top[3]
+                            top[1] *= top[3]
+                            top[2] *= top[3]
                         elif fillMode == 'UV4':
                             value0 = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
                             value1 = vertexUVs[layer.uvLayer1].data[loop_idx].uv[channels[layer.uvChannel1]]
@@ -981,11 +984,11 @@ class SXTOOLS_layers(object):
                                 over = [0.0, 0.0, 0.0, 0.0]
                                 for j in range(3):
                                     if base[j] < 0.5:
-                                        over[j] = 2 * base[j] * top[j]
+                                        over[j] = 2.0 * base[j] * top[j]
                                     else:
-                                        over[j] = 1 - 2 * (1 - base[j]) * (1 - top[j])
+                                        over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
                                     over[3] += top[3]
-                                    base[j] = (over[j] * (over[3] * alpha) + base[j] * (1 - (over[3] * alpha)))
+                                    base[j] = (over[j] * (over[3] * alpha) + base[j] * (1.0 - (over[3] * alpha)))
                                 base[3] += top[3]
                                 if base[3] > 1.0:
                                     base[3] = 1.0
@@ -2275,7 +2278,7 @@ def shadingMode(self, context):
 
         if emission:
             # Reconnect emission
-            output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
+            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -3904,16 +3907,34 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
         scene.rampnoise = 0.01
         scene.rampmono = False
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Construct smoothness
+        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        scene.fillcolor = (0.2, 0.2, 0.2, 1.0)
+        obj.sxtools.selectedlayer = 4
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 5
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        scene.fillcolor = (0.0, 0.0, 0.0, 1.0)
+        obj.sxtools.selectedlayer = 6
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
         # Apply PBR metal based on layer7
         obj.sxtools.selectedlayer = 7
         bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
         bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
-        # --
-        # emissives are smooth
-        # --
-        # slightly rgba-noisy curvature to overlay
-        # --
-        # 
+        # Make sure emissives are smooth
+        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
+        obj.sxtools.selectedlayer = 15
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.shade_smooth()
         return {'FINISHED'}
@@ -3955,16 +3976,34 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
         scene.rampnoise = 0.01
         scene.rampmono = False
         bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
+        # Construct smoothness
+        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        scene.fillcolor = (0.2, 0.2, 0.2, 1.0)
+        obj.sxtools.selectedlayer = 4
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 5
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        scene.fillcolor = (0.0, 0.0, 0.0, 1.0)
+        obj.sxtools.selectedlayer = 6
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
         # Apply PBR metal based on layer7
         obj.sxtools.selectedlayer = 7
         bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
         bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
-        # --
-        # emissives are smooth
-        # --
-        # slightly rgba-noisy curvature to overlay
-        # --
-        # 
+        # Make sure emissives are smooth
+        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
+        obj.sxtools.selectedlayer = 15
+        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
+        obj.sxtools.selectedlayer = 13
+        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.shade_smooth()
         return {'FINISHED'}
@@ -4089,6 +4128,8 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
+# - Mix macro smoothness with curvaturesmoothness
+# - Preset layer names?
 # - Vertex levels? 
 # - Deleting a ramp preset may error at empty
-# - Select mask gives incorrect results with one-face-wide selections
+# - Select mask gives incorrect results with one-face-wide selections, affects export match for emissives
