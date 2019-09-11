@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 15),
+    'version': (2, 12, 16),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -15,6 +15,7 @@ import random
 import math
 import bmesh
 import json
+import statistics
 from collections import defaultdict
 from mathutils import Vector
 from bpy.types import AddonPreferences
@@ -1504,7 +1505,7 @@ class SXTOOLS_tools(object):
         elif rampmode == 'LUM':
             objValues = self.calculateLuminance(objs, layer)
         elif rampmode == 'THK':
-            objValues = self.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.thicknessdistance)
+            objValues = self.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays)
 
         if mergebbx:
             bbx_x = []
@@ -1917,7 +1918,7 @@ class SXTOOLS_tools(object):
         return objOcclusions
 
 
-    def calculateThickness(self, objs, rayCount, dist, bias=0.000001):
+    def calculateThickness(self, objs, rayCount, bias=0.000001):
         objDicts = {}
         objDicts = self.selectionHandler(objs)
 
@@ -1927,10 +1928,8 @@ class SXTOOLS_tools(object):
         hemiSphere = [None] * rayCount
         bias = 1e-5
 
+        distances = list()
         objThicknesses = {}
-
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
 
         for obj in objs:
             for modifier in obj.modifiers:
@@ -1938,6 +1937,47 @@ class SXTOOLS_tools(object):
                     modifier.show_viewport = False
 
         bpy.ops.object.mode_set(mode='OBJECT')
+
+        # First pass to analyze ray hit distances,
+        # then set max ray distance to half of median distance
+        distHemiSphere = [None] * 20
+        for idx in range(20):
+            distHemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                vertLoc = Vector(vertPosDict[vert_idx][0])
+                vertNormal = Vector(vertPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+
+                biasVec = tuple([bias*x for x in invNormal])
+                rotQuat = forward.rotation_difference(invNormal)
+                vertPos = vertLoc
+
+                # offset ray origin with normal bias
+                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                for sample in distHemiSphere:
+                    sample = Vector(sample)
+                    sample.rotate(rotQuat)
+
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample)
+
+                    if hit:
+                        distanceVec = (loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2])
+                        distanceVec = Vector(distanceVec)
+                        distances.append(distanceVec.length)
+
+        rayDistance = statistics.median(distances) * 0.5
+
+        for idx in range(rayCount):
+            hemiSphere[idx] = self.rayRandomizer()
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1964,7 +2004,7 @@ class SXTOOLS_tools(object):
                     sample = Vector(sample)
                     sample.rotate(rotQuat)
 
-                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=rayDistance)
 
                     if hit:
                         thicknessValue += contribution
@@ -2682,12 +2722,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=100.0,
         default=10.0)
 
-    thicknessdistance: bpy.props.FloatProperty(
-        name='Ray Distance',
-        min=0.0,
-        max=10.0,
-        default=0.5)
-
     palettenoise: bpy.props.FloatProperty(
         name='Noise',
         min=0.0,
@@ -3120,8 +3154,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if scene.rampmode == 'OCC':
                             box_gradient.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             box_gradient.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
-                        else:
-                            box_gradient.prop(scene, 'thicknessdistance', slider=True, text='Ray Distance')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -4033,6 +4065,7 @@ classes = (
     SXTOOLS_material,
     SXTOOLS_rampcolor,
     SXTOOLS_layer,
+    SXTOOLS_PT_panel,
     SXTOOLS_UL_layerlist,
     SXTOOLS_MT_piemenu,
     SXTOOLS_MT_presets,
@@ -4062,8 +4095,7 @@ classes = (
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
     SXTOOLS_OT_macro1,
-    SXTOOLS_OT_macro2,
-    SXTOOLS_PT_panel)
+    SXTOOLS_OT_macro2)
 
 addon_keymaps = []
 
