@@ -1524,6 +1524,12 @@ class SXTOOLS_tools(object):
             objValues = self.calculateLuminance(objs, layer)
         elif rampmode == 'THK':
             objValues = self.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays)
+        elif rampmode == 'DIR':
+            inclination = (bpy.context.scene.sxtools.dirInclination - 90.0)* (2*math.pi)/360.0
+            angle = (bpy.context.scene.sxtools.dirAngle + 90) * (2*math.pi)/360.0
+            directionVector = (math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination))
+            directionVector = Vector(directionVector)
+            objValues = self.calculateDirection(objs, directionVector)
 
         if mergebbx:
             bbx_x = []
@@ -1540,7 +1546,7 @@ class SXTOOLS_tools(object):
             zmin, zmax = min(bbx_z), max(bbx_z)
 
         for obj in objs:
-            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM' or rampmode == 'THK':
+            if rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'LUM' or rampmode == 'THK' or rampmode == 'DIR':
                 valueDict = objValues[obj]
             if fillMode == 'COLOR':
                 vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
@@ -1559,7 +1565,7 @@ class SXTOOLS_tools(object):
             vertLoopDict = objDicts[obj][0]
             vertPosDict = objDicts[obj][1]
             
-            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM') and (rampmode != 'THK'):
+            if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM') and (rampmode != 'THK') and (rampmode != 'DIR'):
                 bbx = self.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
@@ -1598,7 +1604,7 @@ class SXTOOLS_tools(object):
                         if zdiv == 0:
                             zdiv = 1.0
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
-                    elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'THK':
+                    elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'THK' or rampmode == 'DIR':
                         ratioRaw = valueDict[vert_idx]
                     elif rampmode == 'LUM':
                         ratioRaw = valueDict[vert_idx][1]
@@ -2721,6 +2727,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('X', 'X-Axis', ''),
             ('Y', 'Y-Axis', ''),
             ('Z', 'Z-Axis', ''),
+            ('DIR', 'Directional', ''),
             ('LUM', 'Luminance', ''),
             ('C', 'Curvature', ''),
             ('CN', 'Normalized Curvature', ''),
@@ -2777,13 +2784,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default=10.0)
 
     dirInclination: bpy.props.FloatProperty(
-        name='Inclination Angle',
+        name='Inclination',
         min=-90.0,
         max=90.0,
         default=0.0)
 
-    dirRotation: bpy.props.FloatProperty(
-        name='Rotation Angle',
+    dirAngle: bpy.props.FloatProperty(
+        name='Angle',
         min=-360.0,
         max=360.0,
         default=0.0)
@@ -3228,7 +3235,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                     if mode == 'OBJECT':
                         box_gradient.prop(scene, 'rampalpha')
-                    if scene.rampmode == 'OCC' or scene.rampmode == 'THK':
+                    if scene.rampmode == 'DIR':
+                        box_gradient.prop(scene, 'dirInclination', slider=True, text='Inclination')
+                        box_gradient.prop(scene, 'dirAngle', slider=True, text='Angle')
+                    elif scene.rampmode == 'OCC' or scene.rampmode == 'THK':
                         box_gradient.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
                         if scene.rampmode == 'OCC':
                             box_gradient.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
@@ -4248,7 +4258,6 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
-# - Directional gradient
 # - Choose export path
 # - Export fbx settings
 # - Mix macro smoothness with curvaturesmoothness
