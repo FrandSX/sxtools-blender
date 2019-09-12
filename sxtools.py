@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 13, 12),
+    'version': (2, 13, 17),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1359,8 +1359,8 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
         return objDicts
 
-
-    def applyColor(self, objs, layer, color, overwrite, noise=0.0, mono=False):
+    # maskLayer assumes color layers only
+    def applyColor(self, objs, layer, color, overwrite, noise=0.0, mono=False, maskLayer=None):
         objDicts = self.selectionHandler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
@@ -1388,10 +1388,36 @@ class SXTOOLS_tools(object):
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
 
+            if maskLayer:
+                maskValues = obj.data.vertex_colors[maskLayer.vertexColorLayer].data
+
             if noise == 0.0:
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
-                        if overwrite:
+                        if maskLayer:
+                            if fillMode == 'COLOR':
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    vertexColors[loop_idx].color[0] = color[0]
+                                    vertexColors[loop_idx].color[1] = color[1]
+                                    vertexColors[loop_idx].color[2] = color[2]
+                                    vertexColors[loop_idx].color[3] = maskValues[loop_idx].color[3]
+                                else:
+                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                            elif fillMode == 'UV4':
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    uvValues0[loop_idx].uv[fillChannel0] = color[0]
+                                    uvValues1[loop_idx].uv[fillChannel1] = color[1]
+                                    uvValues2[loop_idx].uv[fillChannel2] = color[2]
+                                    uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
+                                else:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                            elif fillMode == 'UV':
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    uvValues0[loop_idx].uv[fillChannel0] = fillValue * maskValues[loop_idx].color[3]
+                        elif overwrite:
                             if fillMode == 'COLOR':
                                 vertexColors[loop_idx].color = color
                             elif fillMode == 'UV4':
@@ -1435,7 +1461,15 @@ class SXTOOLS_tools(object):
                             for i in range(3):
                                 noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
                         for loop_idx in loop_indices:
-                            if overwrite:
+                            if maskLayer:
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    vertexColors[loop_idx].color[0] = noiseColor[0]
+                                    vertexColors[loop_idx].color[1] = noiseColor[1]
+                                    vertexColors[loop_idx].color[2] = noiseColor[2]
+                                    vertexColors[loop_idx].color[3] = maskValues[loop_idx].color[3]
+                                else:
+                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                            elif overwrite:
                                 vertexColors[loop_idx].color = noiseColor
                             else:
                                 if vertexColors[loop_idx].color[3] > 0.0:
@@ -1455,7 +1489,18 @@ class SXTOOLS_tools(object):
                             for i in range(3):
                                 noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
                         for loop_idx in loop_indices:
-                            if overwrite:
+                            if maskLayer:
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
+                                    uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
+                                    uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
+                                    uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
+                                else:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                            elif overwrite:
                                 uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
                                 uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
                                 uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
@@ -1475,7 +1520,10 @@ class SXTOOLS_tools(object):
                         fillNoise = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
                         fillNoise += random.uniform(-fillNoise*noise, fillNoise*noise)
                         for loop_idx in loop_indices:
-                            if overwrite:
+                            if maskLayer:
+                                if maskValues[loop_idx].color[3] > 0.0:
+                                    uvValues0[loop_idx].uv[fillChannel0] = fillNoise * maskValues[loop_idx].color[3]
+                            elif overwrite:
                                 uvValues0[loop_idx].uv[fillChannel0] = fillNoise
                             else:
                                 if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
@@ -1505,7 +1553,7 @@ class SXTOOLS_tools(object):
                 setattr(scn, 'fillpalette' + str(i + 1), colorArray[i])
 
 
-    def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx=True, noise=0.0, mono=False):
+    def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx=True, noise=0.0, mono=False, maskLayer=None):
         objDicts = self.selectionHandler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
@@ -2286,10 +2334,8 @@ class SXTOOLS_tools(object):
         scene.occlusionrays = 1000
 
         mergebbx = scene.rampbbox
-        overwrite = scene.rampalpha
-
-        if obj.mode == 'EDIT':
-            overwrite = True
+        overwrite = True
+        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
@@ -2302,22 +2348,17 @@ class SXTOOLS_tools(object):
         noise = 0.01
         mono = False
 
-        mergebbx = scene.rampbbox
-        overwrite = scene.rampalpha
+        obj.mode == 'OBJECT'
 
-        if obj.mode == 'EDIT':
-            overwrite = True
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         # Construct smoothness
         color = (1.0, 1.0, 1.0, 1.0)
 
         layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-
-        noise = 0.0
+        overwrite = True
+        obj.mode == 'OBJECT'
+        noise = 0.01
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
@@ -2330,39 +2371,43 @@ class SXTOOLS_tools(object):
         overwrite = scene.fillalpha
         if obj.mode == 'EDIT':
             overwrite = True
-        noise = 0.0
+        noise = 0.01
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         color = (0.0, 0.0, 0.0, 1.0)
 
-        layer = obj.sxlayers['layer6']
-        tools.selectMask(objs, [layer, ], inverse)
-
+        maskLayer = obj.sxlayers['layer6']
         layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
+        overwrite = True
+
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         # Apply PBR metal based on layer7
         layer = obj.sxlayers['layer7']
-        tools.selectMask(objs, [layer, ], inverse)
-
+        overwrite = True
+        obj.mode == 'OBJECT'
         material = 'Iron'
-        overwrite = scene.materialalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
         noise = 0.01
         mono = True
 
-        tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
+        palette = [
+            bpy.context.scene.sxmaterials[material].color0,
+            bpy.context.scene.sxmaterials[material].color1,
+            bpy.context.scene.sxmaterials[material].color2]
+
+        tools.applyColor(objs, layer, palette[0], False, noise, mono)
+        tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
 
         # Make sure emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
-        obj.sxtools.selectedlayer = idx = 15
 
         layer = obj.sxlayers['emission']
         tools.selectMask(objs, [layer, ], inverse)
@@ -2374,12 +2419,6 @@ class SXTOOLS_tools(object):
         noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        layer = obj.sxlayers['emission']
-        tools.selectMask(objs, [layer, ], inverse)
-
-        layers.clearLayers(objs, obj.sxlayers['metallic'])
-        layers.clearLayers(objs, obj.sxlayers['layer7'])
 
 
     def __del__(self):
@@ -4293,15 +4332,13 @@ if __name__ == '__main__':
 #   - _paletted suffix
 # TODO:
 # - Filler operations with alpha
-# - MaskFiller function (selectLayer unreliable)
+# - Mix macro smoothness with curvaturesmoothness
 # - Shading activation after scene load broken
-# - Material fill to respect vertex selections
 # - High poly bake post normal fix
 # - Post-bake overlay blend mode fix
 # - Palettes and Materials under tabs in the same section
 # - Choose export path
 # - Export fbx settings
-# - Mix macro smoothness with curvaturesmoothness
 # - Preset layer names?
 # - Vertex levels? 
 # - Deleting a ramp preset may error at empty
