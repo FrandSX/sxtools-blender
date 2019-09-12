@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 13, 2),
+    'version': (2, 13, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1125,6 +1125,8 @@ class SXTOOLS_layers(object):
 
 
     def flattenAlphas(self, objs):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
         for obj in objs:
             vertexUVs = obj.data.uv_layers
             channels = {'U': 0, 'V': 1}
@@ -1144,6 +1146,8 @@ class SXTOOLS_layers(object):
                             value = vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] * alpha
                             vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] = value
                     layer.alpha = 1.0
+
+        bpy.ops.object.mode_set(mode=mode)
 
 
     def mergeLayers(self, objs, sourceLayer, targetLayer):
@@ -1664,7 +1668,7 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def selectMask(self, objs, layer, inverse):
+    def selectMask(self, objs, layers, inverse):
         mode = objs[0].mode
         channels = {'U': 0, 'V': 1}
 
@@ -1673,39 +1677,41 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         objDicts = self.selectionHandler(objs)
-        selMode = layer.layerType
 
         for obj in objs:
-            if selMode == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif selMode == 'UV4':
-                uvValues = obj.data.uv_layers[layer.uvLayer3].data
-                selChannel = channels[layer.uvChannel3]
-            elif selMode == 'UV':
-                uvValues = obj.data.uv_layers[layer.uvLayer0].data
-                selChannel = channels[layer.uvChannel0]
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
+            for layer in layers:
+                selMode = layer.layerType
+                if selMode == 'COLOR':
+                    vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+                elif selMode == 'UV4':
+                    uvValues = obj.data.uv_layers[layer.uvLayer3].data
+                    selChannel = channels[layer.uvChannel3]
+                elif selMode == 'UV':
+                    uvValues = obj.data.uv_layers[layer.uvLayer0].data
+                    selChannel = channels[layer.uvChannel0]
+                vertLoopDict = defaultdict(list)
+                vertLoopDict = objDicts[obj][0]
 
-            selList = []
-            for vert_idx, loop_indices in vertLoopDict.items():
-                for loop_idx in loop_indices:
-                    if inverse:
-                        if selMode == 'COLOR':
-                            if vertexColors[loop_idx].color[3] == 0.0:
-                                obj.data.vertices[vert_idx].select = True
-                        elif (selMode == 'UV') or (selMode == 'UV4'):
-                            if uvValues[loop_idx].uv[selChannel] == 0.0:
-                                obj.data.vertices[vert_idx].select = True
-                    else:
-                        if selMode == 'COLOR':
-                            if vertexColors[loop_idx].color[3] > 0.0:
-                                obj.data.vertices[vert_idx].select = True
-                        elif (selMode == 'UV') or (selMode == 'UV4'):
-                            if uvValues[loop_idx].uv[selChannel] > 0.0:
-                                obj.data.vertices[vert_idx].select = True
+                selList = []
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        if inverse:
+                            if selMode == 'COLOR':
+                                if vertexColors[loop_idx].color[3] == 0.0:
+                                    obj.data.vertices[vert_idx].select = True
+                            elif (selMode == 'UV') or (selMode == 'UV4'):
+                                if uvValues[loop_idx].uv[selChannel] == 0.0:
+                                    obj.data.vertices[vert_idx].select = True
+                        else:
+                            if selMode == 'COLOR':
+                                if vertexColors[loop_idx].color[3] > 0.0:
+                                    obj.data.vertices[vert_idx].select = True
+                            elif (selMode == 'UV') or (selMode == 'UV4'):
+                                if uvValues[loop_idx].uv[selChannel] > 0.0:
+                                    obj.data.vertices[vert_idx].select = True
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
 
 
     def selectCrease(self, objs, group):
@@ -2232,6 +2238,8 @@ class SXTOOLS_tools(object):
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
+                obj.modifiers['sxWeightedNormal'].keep_sharp = True
+
             else:
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
@@ -2247,6 +2255,132 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
+
+
+    def processObjects(self, objs, mode):
+        scene = bpy.context.scene.sxtools
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        obj = objs[0]
+        inverse = False
+
+        # Create palette masks
+        obj.sxtools.staticvertexcolors = False
+        layers.generateMasks(objs)
+        layers.flattenAlphas(objs)
+
+        # Create modifiers
+        obj.sxtools.subdivisionlevel = 2
+        tools.addModifiers(objs)
+
+        if mode == 'Hi':
+            # Apply modifiers
+            tools.applyModifiers(objs)
+
+        # Apply occlusion
+        layer = obj.sxlayers['occlusion']
+        rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 1000
+
+        mergebbx = scene.rampbbox
+        overwrite = scene.rampalpha
+
+        if obj.mode == 'EDIT':
+            overwrite = True
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        layer.blendMode = 'OVR'
+        layer.alpha = 0.5
+        rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.01
+        mono = False
+
+        mergebbx = scene.rampbbox
+        overwrite = scene.rampalpha
+
+        if obj.mode == 'EDIT':
+            overwrite = True
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        # Construct smoothness
+        color = (1.0, 1.0, 1.0, 1.0)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        sxlayers = [obj.sxlayers['layer4'], obj.sxlayers['layer5']]
+        tools.selectMask(objs, sxlayers, inverse)
+
+        color = (0.2, 0.2, 0.2, 1.0)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        color = (0.0, 0.0, 0.0, 1.0)
+
+        layer = obj.sxlayers['layer6']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        # Apply PBR metal based on layer7
+        layer = obj.sxlayers['layer7']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        material = 'Iron'
+        overwrite = scene.materialalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.01
+        mono = True
+
+        tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
+
+        # Make sure emissives are smooth
+        color = (1.0, 1.0, 1.0, 1.0)
+        obj.sxtools.selectedlayer = idx = 15
+
+        layer = obj.sxlayers['emission']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        layer = obj.sxlayers['emission']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        layers.clearLayers(objs, obj.sxlayers['metallic'])
+        layers.clearLayers(objs, obj.sxlayers['layer7'])
+
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -3759,8 +3893,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         idx = objs[0].sxtools.selectedlayer
         layer = utils.findLayerFromIndex(objs[0], idx)
 
-        tools.selectMask(objs, layer, inverse)
-        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
+        tools.selectMask(objs, [layer, ], inverse)
         return {'FINISHED'}
 
 
@@ -4011,62 +4144,11 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
     def invoke(self, context, event):
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
-        obj = objs[0]
+        tools.processObjects(objs, 'Hi')
 
-        # Create palette masks
-        obj.sxtools.staticvertexcolors = False
-        bpy.ops.sxtools.generatemasks('INVOKE_DEFAULT')
-        # Create modifiers
-        obj.sxtools.subdivisionlevel = 2
-        bpy.ops.sxtools.modifiers('INVOKE_DEFAULT')
-        # Apply modifiers
-        bpy.ops.sxtools.applymodifiers('INVOKE_DEFAULT')
-        # Apply occlusion
-        obj.sxtools.selectedlayer = 11
-        scene.rampmode = 'OCC'
-        scene.ramplist = 'BLACKANDWHITE'
-        scene.rampnoise = 0.0
-        scene.rampmono = True
-        scene.occlusionblend = 0.5
-        scene.occlusionrays = 1000
-        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
-        # Apply custom overlay
-        obj.sxtools.selectedlayer = 10
-        obj.sxtools.activeLayerBlendMode = 'OVR'
-        obj.sxtools.activeLayerAlpha = 0.2
-        scene.rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        scene.rampnoise = 0.01
-        scene.rampmono = False
-        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
-        # Construct smoothness
-        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        scene.fillcolor = (0.2, 0.2, 0.2, 1.0)
-        obj.sxtools.selectedlayer = 4
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 5
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        scene.fillcolor = (0.0, 0.0, 0.0, 1.0)
-        obj.sxtools.selectedlayer = 6
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        # Apply PBR metal based on layer7
-        obj.sxtools.selectedlayer = 7
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
-        # Make sure emissives are smooth
-        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
-        obj.sxtools.selectedlayer = 15
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        sxglobals.composite = True
+        refreshActives(self, context)
+
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.shade_smooth()
         return {'FINISHED'}
@@ -4082,60 +4164,12 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
     def invoke(self, context, event):
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
-        obj = objs[0]
+        tools.processObjects(objs, 'Lo')
 
-        # Create palette masks
-        obj.sxtools.staticvertexcolors = False
-        bpy.ops.sxtools.generatemasks('INVOKE_DEFAULT')
-        # Create modifiers
-        obj.sxtools.subdivisionlevel = 2
-        bpy.ops.sxtools.modifiers('INVOKE_DEFAULT')
-        # Apply occlusion
-        obj.sxtools.selectedlayer = 11
-        scene.rampmode = 'OCC'
-        scene.ramplist = 'BLACKANDWHITE'
-        scene.rampnoise = 0.0
-        scene.rampmono = True
-        scene.occlusionblend = 0.5
-        scene.occlusionrays = 1000
-        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
-        # Apply custom overlay
-        obj.sxtools.selectedlayer = 10
-        obj.sxtools.activeLayerBlendMode = 'OVR'
-        obj.sxtools.activeLayerAlpha = 0.2
-        scene.rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        scene.rampnoise = 0.01
-        scene.rampmono = False
-        bpy.ops.sxtools.applyramp('INVOKE_DEFAULT')
-        # Construct smoothness
-        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        scene.fillcolor = (0.2, 0.2, 0.2, 1.0)
-        obj.sxtools.selectedlayer = 4
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 5
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        scene.fillcolor = (0.0, 0.0, 0.0, 1.0)
-        obj.sxtools.selectedlayer = 6
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
-        # Apply PBR metal based on layer7
-        obj.sxtools.selectedlayer = 7
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        bpy.ops.sxtools.applymaterial('INVOKE_DEFAULT', label='Iron')
-        # Make sure emissives are smooth
-        scene.fillcolor = (1.0, 1.0, 1.0, 1.0)
-        obj.sxtools.selectedlayer = 15
-        bpy.ops.sxtools.selmask('INVOKE_DEFAULT')
-        obj.sxtools.selectedlayer = 13
-        bpy.ops.sxtools.applycolor('INVOKE_DEFAULT')
+        objs[0].sxtools.selectedlayer = 10
+        sxglobals.composite = True
+        refreshActives(self, context)
+
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.shade_smooth()
         return {'FINISHED'}
@@ -4258,6 +4292,13 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
+# - Filler operations with alpha
+# - MaskFiller function (selectLayer unreliable)
+# - Shading activation after scene load broken
+# - Material fill to respect vertex selections
+# - High poly bake post normal fix
+# - Post-bake overlay blend mode fix
+# - Palettes and Materials under tabs in the same section
 # - Choose export path
 # - Export fbx settings
 # - Mix macro smoothness with curvaturesmoothness
