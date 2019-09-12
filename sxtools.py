@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 12, 16),
+    'version': (2, 13, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -122,8 +122,12 @@ class SXTOOLS_files(object):
 
         if mode == 'palettes':
             self.loadPalettes()
+            return True
         elif mode == 'materials':
             self.loadMaterials()
+            return True
+        else:
+            return True
 
 
     def saveFile(self, mode):
@@ -200,6 +204,20 @@ class SXTOOLS_files(object):
         sxglobals.rampDict[rampName] = tempDict
 
         self.saveFile('gradients')
+
+
+    def exportFiles(self):
+        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children['MilkVan']
+        for collection in collections:
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            org_loc = obj.location.copy()
+            obj.location = (0,0,0)
+            exportPath = str(bpy.context.scene.sxtools.exportfolder + collection.name + '.' + 'fbx')
+            bpy.ops.export_scene.fbx(filepath=exportPath, use_selection=True)
+            print('SX Tools: Exported ', obj.name)
+            obj.location = org_loc
+
 
 # ------------------------------------------------------------------------
 #    Layer Data Find Functions
@@ -1830,6 +1848,33 @@ class SXTOOLS_tools(object):
         return (x, y, math.sqrt(max(0, 1 - u1)))
 
 
+    def calculateDirection(self, objs, directionVector):
+        objDicts = {}
+        objDicts = self.selectionHandler(objs)
+
+        mode = objs[0].mode
+        scene = bpy.context.scene
+
+        objDirections = {}
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertWorldPosDict = objDicts[obj][2]
+            vertDirDict = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
+
+                for loop_idx in loop_indices:
+                    vertDirDict[vert_idx] = vertWorldNormal @ directionVector
+            objDirections[obj] = vertDirDict
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objDirections
+
+
     def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
         objDicts = {}
         objDicts = self.selectionHandler(objs)
@@ -2415,6 +2460,15 @@ def loadRamp(self, context):
             newElement = ramp.elements.new(tempElement[0])
             newElement.color = [tempElement[1][0], tempElement[1][1], tempElement[1][2], tempElement[1][3]]
 
+def loadLibraries(self, context):
+    status1 = files.loadFile('palettes')
+    status2 = files.loadFile('materials')
+    status3 = files.loadFile('gradients')
+
+    if status1 and status2 and status3:
+        context.scene.sxtools.librarystatus = 'Libraries loaded successfully'
+    else:
+        context.scene.sxtools.librarystatus = 'Error loading libraries!'
 
 # ------------------------------------------------------------------------
 #    Settings and preferences
@@ -2722,6 +2776,18 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=100.0,
         default=10.0)
 
+    dirInclination: bpy.props.FloatProperty(
+        name='Inclination Angle',
+        min=-90.0,
+        max=90.0,
+        default=0.0)
+
+    dirRotation: bpy.props.FloatProperty(
+        name='Rotation Angle',
+        min=-360.0,
+        max=360.0,
+        default=0.0)
+
     palettenoise: bpy.props.FloatProperty(
         name='Noise',
         min=0.0,
@@ -2781,6 +2847,19 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     libraryfolder: bpy.props.StringProperty(
         name='Library Folder',
         description='Folder containing Materials and Palettes files',
+        default='',
+        maxlen=1024,
+        subtype='DIR_PATH',
+        update=loadLibraries)
+
+    librarystatus: bpy.props.StringProperty(
+        name='Library Status',
+        description='Indication of successful data loading',
+        default='Libraries not loaded!')
+
+    exportfolder: bpy.props.StringProperty(
+        name='Export Folder',
+        description='Folder to export FBX files to',
         default='',
         maxlen=1024,
         subtype='DIR_PATH')
@@ -3262,6 +3341,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_sds = box_subdiv.row(align=True)
                     row_sds.operator('sxtools.modifiers', text='Update Modifiers')
                     row_sds.operator('sxtools.applymodifiers', text='Apply Modifiers')
+                    col_export = box_subdiv.column(align=True)
+                    col_export.label(text='Set Export Folder:')
+                    col_export.prop(scene, 'exportfolder', text='')
+                    col_export.operator('sxtools.exportfiles', text='Export Selected')
 
                 # Macros -------------------------------------------------------
                 box_macros = layout.box()
@@ -3284,7 +3367,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 col.separator()
             col.label(text='Set Library Data Folder:')
             col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
-            col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
+            #col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
+            col.label(text=bpy.context.scene.sxtools.librarystatus)
             col.separator()
             col.label(text='Select a mesh to continue')
 
@@ -3457,19 +3541,6 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
         setup.setupGeometry(objs)
 
         refreshActives(self, context)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
-    bl_idname = 'sxtools.loadlibraries'
-    bl_label = 'Load Libraries'
-    bl_description = 'Load SX Tools Presets'
-
-
-    def invoke(self, context, event):
-        files.loadFile('palettes')
-        files.loadFile('materials')
-        files.loadFile('gradients')
         return {'FINISHED'}
 
 
@@ -3909,6 +3980,17 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_exportfiles(bpy.types.Operator):
+    bl_idname = 'sxtools.exportfiles'
+    bl_label = 'Export Selected'
+
+
+    def invoke(self, context, event):
+        #objs = selectionValidator(self, context)
+        files.exportFiles()
+        return {'FINISHED'}
+
+
 # This is a prototype batch used for vehicles in a game project
 class SXTOOLS_OT_macro1(bpy.types.Operator):
     bl_idname = 'sxtools.macro1'
@@ -4071,7 +4153,6 @@ classes = (
     SXTOOLS_MT_presets,
     SXTOOLS_OT_addpreset,
     SXTOOLS_OT_scenesetup,
-    SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
     SXTOOLS_OT_addramp,
@@ -4094,6 +4175,7 @@ classes = (
     SXTOOLS_OT_generatemasks,
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
+    SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_macro1,
     SXTOOLS_OT_macro2)
 
@@ -4159,8 +4241,6 @@ if __name__ == '__main__':
 # - Skinning support?
 # - Export settings:
 #   - Submesh support
-#   - Choose export path
-#   - Export fbx settings
 # - Tool settings:
 #   - Load/save prefs file
 #   - Channel enable/export prefs
@@ -4168,6 +4248,9 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # TODO:
+# - Directional gradient
+# - Choose export path
+# - Export fbx settings
 # - Mix macro smoothness with curvaturesmoothness
 # - Preset layer names?
 # - Vertex levels? 
