@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 13, 17),
+    'version': (2, 14, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -894,12 +894,17 @@ class SXTOOLS_layers(object):
                             top[0] *= top[3]
                             top[1] *= top[3]
                             top[2] *= top[3]
+                            top[3] = 1.0
                         elif fillMode == 'UV4':
-                            value0 = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
-                            value1 = vertexUVs[layer.uvLayer1].data[loop_idx].uv[channels[layer.uvChannel1]]
-                            value2 = vertexUVs[layer.uvLayer2].data[loop_idx].uv[channels[layer.uvChannel2]]
-                            value3 = vertexUVs[layer.uvLayer3].data[loop_idx].uv[channels[layer.uvChannel3]]
-                            top = [value0, value1, value2, value3]
+                            top = [
+                                vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]],
+                                vertexUVs[layer.uvLayer1].data[loop_idx].uv[channels[layer.uvChannel1]],
+                                vertexUVs[layer.uvLayer2].data[loop_idx].uv[channels[layer.uvChannel2]],
+                                vertexUVs[layer.uvLayer3].data[loop_idx].uv[channels[layer.uvChannel3]]][:]
+                            top[0] *= top[3]
+                            top[1] *= top[3]
+                            top[2] *= top[3]
+                            top[3] = 1.0
                         elif fillMode == 'UV':
                             value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
                             top = [value, value, value, 1.0]
@@ -1172,7 +1177,7 @@ class SXTOOLS_layers(object):
             obj.sxtools.selectedlayer = targetLayer.index
 
 
-    def pasteLayer(self, objs, sourceLayer, targetLayer, swap):
+    def pasteLayer(self, objs, sourceLayer, targetLayer, fillMode):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
         sourceMode = sourceLayer.layerType
@@ -1183,17 +1188,19 @@ class SXTOOLS_layers(object):
                 sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
                 targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
 
-                if swap == True:
+                if fillMode == 'swap':
                     setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
                     setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
                 else:
                     setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
 
-        if swap:
+        if fillMode == 'swap':
             tempLayer = objs[0].sxlayers['composite']
             tools.layerCopyManager(objs, sourceLayer, tempLayer)
             tools.layerCopyManager(objs, targetLayer, sourceLayer)
             tools.layerCopyManager(objs, tempLayer, targetLayer)
+        elif fillMode == 'merge':
+            self.mergeLayers(objs, sourceLayer, targetLayer)
         else:
             tools.layerCopyManager(objs, sourceLayer, targetLayer)
 
@@ -2808,6 +2815,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0))
 
+    toolmode: bpy.props.EnumProperty(
+        name='Tool Mode',
+        items=[
+            ('COL', 'Color', ''),
+            ('GRD', 'Gradient', '')],
+        default='COL')
+
     fillpalette1: bpy.props.FloatVectorProperty(
         name='Fill Palette 1',
         subtype='COLOR',
@@ -3000,10 +3014,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Fill',
         default=False)
 
-    expandramp: bpy.props.BoolProperty(
-        name='Expand Ramp',
-        default=False)
-
     expandcrease: bpy.props.BoolProperty(
         name='Expand Crease',
         default=False)
@@ -3012,16 +3022,15 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Subdiv',
         default=False)
 
+    palettemode: bpy.props.EnumProperty(
+        name='Palette Mode',
+        items=[
+            ('PAL', 'Palettes', ''),
+            ('MAT', 'Materials', '')],
+        default='PAL')
+
     expandpalette: bpy.props.BoolProperty(
         name='Expand Palette',
-        default=False)
-
-    expandmaterials: bpy.props.BoolProperty(
-        name='Expand Materials',
-        default=False)
-
-    expandmacros: bpy.props.BoolProperty(
-        name='Expand Macros',
         default=False)
 
     libraryfolder: bpy.props.StringProperty(
@@ -3329,7 +3338,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_palette.prop(scene, 'layerpalette7', text='')
                 row_palette.prop(scene, 'layerpalette8', text='')
 
-                if (layer.name == 'occlusion') or (layer.name == 'smoothness') or (layer.name == 'metallic') or (layer.name == 'transmission') or (layer.name == 'emission') or (scene.shadingmode != 'FULL'):
+                if (layer.name == 'occlusion') or (layer.name == 'smoothness') or (layer.name == 'metallic') or (layer.name == 'transmission') or (layer.name == 'emission'):
                     row_blend.enabled = False
                     row_alpha.enabled = False
 
@@ -3350,72 +3359,63 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
                 row_fill = box_fill.row()
-                split_fill = row_fill.split(factor=0.33)
-                split1_fill = split_fill.row()
-                split1_fill.prop(scene, 'expandfill',
+                row_fill.prop(scene, 'expandfill',
                     icon='TRIA_DOWN' if scene.expandfill else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
-                if layer.layerType == 'COLOR':
-                    split1_fill.label(text='Color Fill')
-                else:
-                    split1_fill.label(text='Color Fill (Grayscale)')
-                split2_fill = split_fill.row()
-                split2_fill.prop(scene, 'fillcolor', text='')
-                split2_fill.operator('sxtools.applycolor', text='Apply')
+                row_fill.prop(scene, 'toolmode', expand=True)
+                row2_fill = box_fill.row()
+                split_fill = row2_fill.split(factor=0.33)
+                split1_fill = split_fill.row()
 
-                if scene.expandfill:
-                    row_fpalette = box_fill.row(align=True)
-                    row_fpalette.prop(scene, 'fillpalette1', text='')
-                    row_fpalette.prop(scene, 'fillpalette2', text='')
-                    row_fpalette.prop(scene, 'fillpalette3', text='')
-                    row_fpalette.prop(scene, 'fillpalette4', text='')
-                    row_fpalette.prop(scene, 'fillpalette5', text='')
-                    row_fpalette.prop(scene, 'fillpalette6', text='')
-                    row_fpalette.prop(scene, 'fillpalette7', text='')
-                    row_fpalette.prop(scene, 'fillpalette8', text='')
-                    col_color = box_fill.column(align=True)
-                    col_color.prop(scene, 'fillnoise', slider=True)
-                    col_color.prop(scene, 'fillmono', text='Monochromatic')
-                    if mode == 'OBJECT':
-                        col_color.prop(scene, 'fillalpha')
+                if scene.toolmode == 'COL':
+                    split1_fill.label(text='Fill Color')
+                    split2_fill = split_fill.row()
+                    split2_fill.prop(scene, 'fillcolor', text='')
+                    split2_fill.operator('sxtools.applycolor', text='Apply')
+
+                    if scene.expandfill:
+                        row_fpalette = box_fill.row(align=True)
+                        row_fpalette.prop(scene, 'fillpalette1', text='')
+                        row_fpalette.prop(scene, 'fillpalette2', text='')
+                        row_fpalette.prop(scene, 'fillpalette3', text='')
+                        row_fpalette.prop(scene, 'fillpalette4', text='')
+                        row_fpalette.prop(scene, 'fillpalette5', text='')
+                        row_fpalette.prop(scene, 'fillpalette6', text='')
+                        row_fpalette.prop(scene, 'fillpalette7', text='')
+                        row_fpalette.prop(scene, 'fillpalette8', text='')
+                        col_color = box_fill.column(align=True)
+                        col_color.prop(scene, 'fillnoise', slider=True)
+                        col_color.prop(scene, 'fillmono', text='Monochromatic')
+                        if mode == 'OBJECT':
+                            col_color.prop(scene, 'fillalpha')
 
                 # Gradient Tool ---------------------------------------------------
-                box_gradient = layout.box()
-                row_gradient = box_gradient.row()
-                split_gradient = row_gradient.split(factor=0.33)
-                split1_gradient = split_gradient.row()
-                split1_gradient.prop(scene, 'expandramp',
-                    icon='TRIA_DOWN' if scene.expandramp else 'TRIA_RIGHT',
-                    icon_only=True, emboss=False)
+                elif scene.toolmode == 'GRD':
+                    split1_fill.label(text='Fill Mode')
+                    split2_fill = split_fill.row()
+                    split2_fill.prop(scene, 'rampmode', text='')
+                    split2_fill.operator('sxtools.applyramp', text='Apply')
 
-                if layer.layerType == 'COLOR':
-                    split1_gradient.label(text='Gradient')
-                else:
-                    split1_gradient.label(text='Gradient (Grayscale')
-                split2_gradient = split_gradient.row()
-                split2_gradient.prop(scene, 'rampmode', text='')
-                split2_gradient.operator('sxtools.applyramp', text='Apply')
+                    if scene.expandfill:
+                        row3_fill = box_fill.row(align=True)
+                        row3_fill.prop(scene, 'ramplist', text='')
+                        row3_fill.operator('sxtools.addramp', text='', icon='ADD')
+                        row3_fill.operator('sxtools.delramp', text='', icon='REMOVE')
+                        box_fill.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
+                        box_fill.prop(scene, 'rampnoise', slider=True)
+                        box_fill.prop(scene, 'rampmono', text='Monochromatic')
+                        box_fill.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
 
-                if scene.expandramp:
-                    row2_gradient = box_gradient.row(align=True)
-                    row2_gradient.prop(scene, 'ramplist', text='')
-                    row2_gradient.operator('sxtools.addramp', text='', icon='ADD')
-                    row2_gradient.operator('sxtools.delramp', text='', icon='REMOVE')
-                    box_gradient.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
-                    box_gradient.prop(scene, 'rampnoise', slider=True)
-                    box_gradient.prop(scene, 'rampmono', text='Monochromatic')
-                    box_gradient.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
-
-                    if mode == 'OBJECT':
-                        box_gradient.prop(scene, 'rampalpha')
-                    if scene.rampmode == 'DIR':
-                        box_gradient.prop(scene, 'dirInclination', slider=True, text='Inclination')
-                        box_gradient.prop(scene, 'dirAngle', slider=True, text='Angle')
-                    elif scene.rampmode == 'OCC' or scene.rampmode == 'THK':
-                        box_gradient.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
-                        if scene.rampmode == 'OCC':
-                            box_gradient.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
-                            box_gradient.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
+                        if mode == 'OBJECT':
+                            box_fill.prop(scene, 'rampalpha')
+                        if scene.rampmode == 'DIR':
+                            box_fill.prop(scene, 'dirInclination', slider=True, text='Inclination')
+                            box_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
+                        elif scene.rampmode == 'OCC' or scene.rampmode == 'THK':
+                            box_fill.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
+                            if scene.rampmode == 'OCC':
+                                box_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
+                                box_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -3423,69 +3423,70 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_palette.prop(scene, 'expandpalette',
                     icon='TRIA_DOWN' if scene.expandpalette else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
-                row_palette.label(text='Master Palettes')
+                row_palette.prop(scene, 'palettemode', expand=True)
+                #row_palette.label(text='Master Palettes')
+                if scene.palettemode == 'PAL':
+                    palettes = context.scene.sxpalettes
 
-                palettes = context.scene.sxpalettes
+                    if scene.expandpalette:
+                        category = ''
+                        for name in palettes.keys():
+                            palette = palettes[name]
+                            if palette.category != category:
+                                category = palette.category
+                                row_category = box_palette.row(align=True)
+                                row_category.label(text='CATEGORY: '+category)
+                                row_category.separator()
+                            row_mpalette = box_palette.row(align=True)
+                            split_mpalette = row_mpalette.split(factor=0.33)
+                            split_mpalette.label(text=name)
+                            split2_mpalette = split_mpalette.split()
+                            row2_mpalette = split2_mpalette.row(align=True)
+                            for i in range(5):
+                                row2_mpalette.prop(palette, 'color'+str(i), text='')
+                            mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
+                            mp_button.label = name
 
-                if scene.expandpalette:
-                    category = ''
-                    for name in palettes.keys():
-                        palette = palettes[name]
-                        if palette.category != category:
-                            category = palette.category
-                            row_category = box_palette.row(align=True)
-                            row_category.label(text='CATEGORY: '+category)
-                            row_category.separator()
-                        row_mpalette = box_palette.row(align=True)
-                        split_mpalette = row_mpalette.split(factor=0.33)
-                        split_mpalette.label(text=name)
-                        split2_mpalette = split_mpalette.split()
-                        row2_mpalette = split2_mpalette.row(align=True)
-                        for i in range(5):
-                            row2_mpalette.prop(palette, 'color'+str(i), text='')
-                        mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
-                        mp_button.label = name
-
-                    row_mnoise = box_palette.row(align=True)
-                    row_mnoise.prop(scene, 'palettenoise', slider=True)
-                    col_mcolor = box_palette.column(align=True)
-                    col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
+                        row_mnoise = box_palette.row(align=True)
+                        row_mnoise.prop(scene, 'palettenoise', slider=True)
+                        col_mcolor = box_palette.column(align=True)
+                        col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
 
                 # PBR Materials ---------------------------------------------------
-                box_materials = layout.box()
-                row_materials = box_materials.row()
-                row_materials.prop(scene, 'expandmaterials',
-                    icon='TRIA_DOWN' if scene.expandmaterials else 'TRIA_RIGHT',
-                    icon_only=True, emboss=False)
-                row_materials.label(text='PBR Materials')
+                #box_materials = layout.box()
+                #row_materials = box_materials.row()
+                #row_materials.prop(scene, 'expandmaterials',
+                #    icon='TRIA_DOWN' if scene.expandmaterials else 'TRIA_RIGHT',
+                #    icon_only=True, emboss=False)
+                #row_materials.label(text='PBR Materials')
+                elif scene.palettemode == 'MAT':
+                    materials = context.scene.sxmaterials
 
-                materials = context.scene.sxmaterials
+                    if scene.expandpalette:
+                        category = ''
+                        for name in materials.keys():
+                            material = materials[name]
+                            if material.category != category:
+                                category = material.category
+                                row_category = box_palette.row(align=True)
+                                row_category.label(text='CATEGORY: '+category)
+                                row_category.separator()
+                            row_mat = box_palette.row(align=True)
+                            split_mat = row_mat.split(factor=0.33)
+                            split_mat.label(text=name)
+                            split2_mat = split_mat.split()
+                            row2_mat = split2_mat.row(align=True)
+                            for i in range(3):
+                                row2_mat.prop(material, 'color'+str(i), text='')
+                            mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
+                            mat_button.label = name
 
-                if scene.expandmaterials:
-                    category = ''
-                    for name in materials.keys():
-                        material = materials[name]
-                        if material.category != category:
-                            category = material.category
-                            row_category = box_materials.row(align=True)
-                            row_category.label(text='CATEGORY: '+category)
-                            row_category.separator()
-                        row_mat = box_materials.row(align=True)
-                        split_mat = row_mat.split(factor=0.33)
-                        split_mat.label(text=name)
-                        split2_mat = split_mat.split()
-                        row2_mat = split2_mat.row(align=True)
-                        for i in range(3):
-                            row2_mat.prop(material, 'color'+str(i), text='')
-                        mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
-                        mat_button.label = name
-
-                    row_pbrnoise = box_materials.row(align=True)
-                    row_pbrnoise.prop(scene, 'materialnoise', slider=True)
-                    col_matcolor = box_materials.column(align=True)
-                    col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
-                    if mode == 'OBJECT':
-                        col_matcolor.prop(scene, 'materialalpha')
+                        row_pbrnoise = box_palette.row(align=True)
+                        row_pbrnoise.prop(scene, 'materialnoise', slider=True)
+                        col_matcolor = box_palette.column(align=True)
+                        col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
+                        if mode == 'OBJECT':
+                            col_matcolor.prop(scene, 'materialalpha')
 
                 # Crease Sets ---------------------------------------------------
                 box_crease = layout.box()
@@ -3512,7 +3513,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     icon='TRIA_DOWN' if scene.expandsubdiv else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
-                row_subdiv.label(text='Miscellaneous')
+                row_subdiv.label(text='Export Tools')
                 if scene.expandsubdiv:
                     col_masks = box_subdiv.column(align=True)
                     col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
@@ -3525,22 +3526,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_sds.operator('sxtools.modifiers', text='Update Modifiers')
                     row_sds.operator('sxtools.applymodifiers', text='Apply Modifiers')
                     col_export = box_subdiv.column(align=True)
+                    col_export.operator('sxtools.macro2')
+                    col_export.operator('sxtools.macro1')
+                    col_export.separator()
                     col_export.label(text='Set Export Folder:')
                     col_export.prop(scene, 'exportfolder', text='')
                     col_export.operator('sxtools.exportfiles', text='Export Selected')
-
-                # Macros -------------------------------------------------------
-                box_macros = layout.box()
-                row_macros = box_macros.row()
-                row_macros.prop(scene, 'expandmacros',
-                    icon='TRIA_DOWN' if scene.expandmacros else 'TRIA_RIGHT',
-                    icon_only=True, emboss=False)
-
-                row_macros.label(text='Macros')
-                if scene.expandmacros:
-                    col_macros = box_macros.column()
-                    col_macros.operator('sxtools.macro2')
-                    col_macros.operator('sxtools.macro1')
 
         else:
             layout = self.layout
@@ -3868,7 +3859,7 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
     bl_idname = 'sxtools.pastelayer'
     bl_label = 'Paste Layer'
     bl_options = {'UNDO'}
-    bl_description = 'Shift-click to swap with copied layer'
+    bl_description = 'Shift-click to swap with copied layer, alt-click to merge with target layer (color layers only!)'
 
 
     def invoke(self, context, event):
@@ -3878,12 +3869,17 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
         targetLayer = utils.findLayerFromIndex(objs[0], idx)
 
         if event.shift:
-            mode = True
+            mode = 'swap'
+        elif event.alt:
+            mode = 'merge'
         else:
             mode = False
 
         if sourceLayer == None:
             print('SX Tools: Nothing to paste!')
+            return {'FINISHED'}
+        elif (targetLayer.layerType != 'COLOR') and (mode == 'Merge'):
+            print('SX Tools: Merging only supported with color layers')
             return {'FINISHED'}
         else:
             layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
@@ -4336,7 +4332,6 @@ if __name__ == '__main__':
 # - Shading activation after scene load broken
 # - High poly bake post normal fix
 # - Post-bake overlay blend mode fix
-# - Palettes and Materials under tabs in the same section
 # - Choose export path
 # - Export fbx settings
 # - Preset layer names?
