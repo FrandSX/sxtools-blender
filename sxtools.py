@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 14, 4),
+    'version': (2, 14, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -206,15 +206,21 @@ class SXTOOLS_files(object):
         self.saveFile('gradients')
 
 
-    def exportFiles(self):
-        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children['MilkVan']
-        for collection in collections:
+    def exportFiles(self, objs):
+        for obj in objs:
             bpy.ops.object.select_all(action='DESELECT')
             obj.select_set(True)
             org_loc = obj.location.copy()
             obj.location = (0,0,0)
-            exportPath = str(bpy.context.scene.sxtools.exportfolder + collection.name + '.' + 'fbx')
-            bpy.ops.export_scene.fbx(filepath=exportPath, use_selection=True)
+            exportPath = str(bpy.context.scene.sxtools.exportfolder + obj.name + '.' + 'fbx')
+            bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
+            bpy.ops.export_scene.fbx(
+                filepath=exportPath,
+                use_selection=True,
+                use_active_collection=False,
+                add_leaf_bones=False,
+                object_types={'ARMATURE', 'EMPTY', 'MESH'},
+                use_custom_props=True)
             print('SX Tools: Exported ', obj.name)
             obj.location = org_loc
 
@@ -2312,7 +2318,13 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
 
+    # This is a project-specific batch operation.
+    # These should be adapted to the needs of the game,
+    # baking object-category -specific values to achieve
+    # consistent project-wide looks.
     def processObjects(self, objs, mode):
+
+
         scene = bpy.context.scene.sxtools
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
@@ -3006,6 +3018,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Monochrome',
         default=False)
 
+    creasemode: bpy.props.EnumProperty(
+        name='Creasing Mode',
+        items=[
+            ('CRS', 'Creasing', ''),
+            ('SDS', 'Subdivision', '')],
+        default='CRS')
+
     hardcrease: bpy.props.BoolProperty(
         name='Hard Crease',
         default=True)
@@ -3453,12 +3472,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
 
                 # PBR Materials ---------------------------------------------------
-                #box_materials = layout.box()
-                #row_materials = box_materials.row()
-                #row_materials.prop(scene, 'expandmaterials',
-                #    icon='TRIA_DOWN' if scene.expandmaterials else 'TRIA_RIGHT',
-                #    icon_only=True, emboss=False)
-                #row_materials.label(text='PBR Materials')
                 elif scene.palettemode == 'MAT':
                     materials = context.scene.sxmaterials
 
@@ -3494,19 +3507,25 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_crease.prop(scene, 'expandcrease',
                     icon='TRIA_DOWN' if scene.expandcrease else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
+                row_crease.prop(scene, 'creasemode', expand=True)
+                if scene.creasemode == 'CRS':
+                    if scene.expandcrease:
+                        row_sets = box_crease.row(align=True)
+                        row_sets.operator('sxtools.crease1', text='25%')
+                        row_sets.operator('sxtools.crease2', text='50%')
+                        row_sets.operator('sxtools.crease3', text='75%')
+                        row_sets.operator('sxtools.crease4', text='100%')
+                        col_sets = box_crease.column(align=True)
+                        col_sets.operator('sxtools.crease0', text='Uncrease')
+                elif scene.creasemode == 'SDS':
+                    if scene.expandcrease:
+                        col_sds = box_crease.column(align=True)
+                        col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
+                        col_sds.prop(scene, 'hardcrease', text='Sharp Edges on 100% Creases')
+                        col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
+                        col_sds.operator('sxtools.modifiers', text='Add/Update Modifiers')
 
-                row_crease.label(text='Crease Edges')
-                if scene.expandcrease:
-                    row_sets = box_crease.row(align=True)
-                    row_sets.operator('sxtools.crease1', text='25%')
-                    row_sets.operator('sxtools.crease2', text='50%')
-                    row_sets.operator('sxtools.crease3', text='75%')
-                    row_sets.operator('sxtools.crease4', text='100%')
-                    col_sets = box_crease.column(align=True)
-                    col_sets.prop(scene, 'hardcrease', text='Sharp on 100%')
-                    col_sets.operator('sxtools.crease0', text='Uncrease')
-
-                # Subdivision and Edge Split ------------------------------------
+                # Misc ------------------------------------
                 box_subdiv = layout.box()
                 row_subdiv = box_subdiv.row()
                 row_subdiv.prop(scene, 'expandsubdiv',
@@ -3517,17 +3536,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if scene.expandsubdiv:
                     col_masks = box_subdiv.column(align=True)
                     col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
-                    col_masks.prop(sxtools, 'staticvertexcolors', text='No Palettes') 
+                    col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
+                    col_masks.separator()
+                    col_masks.prop(sxtools, 'staticvertexcolors', text='Mark Objects as Non-Paletted') 
                     col_masks.operator('sxtools.generatemasks', text='Generate Masks')
-                    col_sds = box_subdiv.column(align=True)
-                    col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                    col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                    row_sds = box_subdiv.row(align=True)
-                    row_sds.operator('sxtools.modifiers', text='Update Modifiers')
-                    row_sds.operator('sxtools.applymodifiers', text='Apply Modifiers')
+                    col_masks.separator()
                     col_export = box_subdiv.column(align=True)
-                    col_export.operator('sxtools.macro2')
-                    col_export.operator('sxtools.macro1')
+                    col_export.operator('sxtools.macro2', text='Process Low-Detail Exports')
+                    col_export.operator('sxtools.macro1', text='Process High-Detail Exports')
                     col_export.separator()
                     col_export.label(text='Set Export Folder:')
                     col_export.prop(scene, 'exportfolder', text='')
@@ -4164,8 +4180,12 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        #objs = selectionValidator(self, context)
-        files.exportFiles()
+        selected = context.view_layer.objects.selected
+        objs = []
+        for obj in selected:
+            if obj.type == 'EMPTY':
+                objs.append(obj)
+        files.exportFiles(objs)
         return {'FINISHED'}
 
 
@@ -4177,6 +4197,7 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        loadLibraries(self, context)
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         tools.processObjects(objs, 'Hi')
@@ -4197,6 +4218,7 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        loadLibraries(self, context)
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         tools.processObjects(objs, 'Lo')
