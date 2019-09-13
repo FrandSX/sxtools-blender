@@ -1,6 +1,6 @@
 # sxtools-blender
 
-![Early Example](/sxtools-blender.png)
+![Example Situation](/images/sxtools-blender.png)
 
 ### Overview
 SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs. It supports driving a full PBR (physically based rendering) game material with vertex color -based data.
@@ -22,15 +22,23 @@ UV-channels are presented to the user as grayscale vertex-color layers, and thes
 - Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
 
 ## Installation:
-- Install and enable sxtools.py through the Blender add-on interface
+- Download the zip file, uncompress it, then install and enable sxtools.py through the Blender add-on interface
 - SX Tools will appear in the top right corner of the 3D view
+- Open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
 
-## Quick Start
-- After installation, open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
-- Pick the folder that contains palettes.json and materials.json
-- Click on 'Load Palettes and Materials'
-- Create a mesh object, select it, and press the "Set Up Object" button in SX Tools panel
-- The tool will automatically generate the needed layers and the necessary material
+![Step One](/images/sxtools-01.png)
+- Point SX Tools to the folder where the zip was uncompressed. This also contains example palettes, PBR materials and gradient presets.
+
+![Step Two](/images/sxtools-02.png)
+- Create and select a mesh object.
+- Enable the layers and channels you wish to work on. *These settings are scene-specific.*
+- Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary.
+- Click on *Set Up Object*
+- SX Tools will now generate the needed layers, UV sets, variables and a custom material
+
+![Step Three](/images/sxtools-03.png)
+- The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool. Share and enjoy.
+
 
 ## The Interface
 ### Shading Modes
