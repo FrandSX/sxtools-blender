@@ -2658,6 +2658,7 @@ def loadRamp(self, context):
             newElement = ramp.elements.new(tempElement[0])
             newElement.color = [tempElement[1][0], tempElement[1][1], tempElement[1][2], tempElement[1][3]]
 
+
 def loadLibraries(self, context):
     status1 = files.loadFile('palettes')
     status2 = files.loadFile('materials')
@@ -2667,6 +2668,7 @@ def loadLibraries(self, context):
         context.scene.sxtools.librarystatus = 'Libraries loaded successfully'
     else:
         context.scene.sxtools.librarystatus = 'Error loading libraries!'
+
 
 # ------------------------------------------------------------------------
 #    Settings and preferences
@@ -4383,23 +4385,7 @@ if __name__ == '__main__':
 
     bpy.ops.wm.call_menu_pie(name='SXTOOLS_MT_piemenu')
 
-# MISSING FEATURES FROM SXTOOLS-MAYA:
-# - Parallel layer sets (needs more vertex color layers)
-# - Layer view features:
-#   - Hide/unhide layer
-#   - Copy / Paste / Swap / Merge Up / Merge Down RMB menu
-#   - hidden/mask/adjustment indication
-# - Master palette library save/manage
-# - PBR material library save/manage
-# - Skinning support?
-# - Export settings:
-#   - Submesh support
-# - Tool settings:
-#   - Load/save prefs file
-#   - Channel enable/export prefs
-#   - Export grid spacing
-#   - Layer renaming
-#   - _paletted suffix
+
 # TODO:
 # - Filler operations with alpha
 # - Mix macro smoothness with curvaturesmoothness
@@ -4407,6 +4393,17 @@ if __name__ == '__main__':
 # - High poly bake post normal fix
 # - Post-bake overlay blend mode fix
 # - Preset layer names?
-# - Vertex levels? 
+# - Vertex levels?
+# - mask/adjustment indication
+# - Master palette library save/manage
+# - PBR material library save/manage
+# - Skinning support?
+# - Submesh support
+# - Tool settings:
+#   - Load/save prefs file
+#   - Layer renaming
+#   - _paletted suffix
+# - Split to multiple python files
+# - Run from direct github zip download
+# - Batch process to deselect EMPTY objects
 # - Deleting a ramp preset may error at empty
-# - Select mask gives incorrect results with one-face-wide selections, affects export match for emissives
