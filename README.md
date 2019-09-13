@@ -26,18 +26,24 @@ UV-channels are presented to the user as grayscale vertex-color layers, and thes
 - SX Tools will appear in the top right corner of the 3D view
 - Open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
 
+## Getting Started:
+
 ![Step One](/images/sxtools-01.png)
-- Point SX Tools to the folder where the zip was uncompressed. This also contains example palettes, PBR materials and gradient presets.
+1) Point SX Tools to the folder where the zip was uncompressed. This also contains example palettes, PBR materials and gradient presets.
 
 ![Step Two](/images/sxtools-02.png)
-- Create and select a mesh object.
-- Enable the layers and channels you wish to work on. *These settings are scene-specific.*
-- Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary.
-- Click on *Set Up Object*
-- SX Tools will now generate the needed layers, UV sets, variables and a custom material
+
+2) Create and select a mesh object.
+
+3) Enable the layers and channels you wish to work on. *These settings are scene-specific.*
+
+4) Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary.
+
+5) Click on *Set Up Object*. SX Tools will now generate the needed layers, UV sets, variables and a custom material
 
 ![Step Three](/images/sxtools-03.png)
-- The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool. Share and enjoy.
+
+6) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool. Share and enjoy.
 
 
 ## The Interface
