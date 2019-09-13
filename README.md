@@ -43,8 +43,11 @@ UV-channels are presented to the user as grayscale vertex-color layers, and thes
 
 ![Step Three](/images/sxtools-03.png)
 
-6) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool. Share and enjoy.
+6) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool.
 
+![Step Four](/images/sxtools-04.png)
+
+7) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
 
 ## The Interface
 ### Shading Modes
