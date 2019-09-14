@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 7),
+    'version': (2, 16, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -2449,12 +2449,17 @@ class SXTOOLS_tools(object):
     # baking object-category -specific values to achieve
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
-
-
         scene = bpy.context.scene.sxtools
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
         inverse = False
+
+        # Remove empties from selected objects
+        for sel in bpy.context.view_layer.objects.selected:
+            if sel.type != 'MESH':
+                sel.select_set(False)
+
+        bpy.context.view_layer.objects.active = obj
 
         # Create palette masks
         obj.sxtools.staticvertexcolors = False
@@ -4485,6 +4490,7 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
         sxglobals.composite = True
         refreshActives(self, context)
 
+        scene.shadingmode = 'FULL'
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.shade_smooth()
         return {'FINISHED'}
