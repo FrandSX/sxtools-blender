@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 6),
+    'version': (2, 16, 7),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -2496,6 +2496,9 @@ class SXTOOLS_tools(object):
         obj.mode == 'OBJECT'
 
         self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = 0.5
 
         # Construct layer1-7 smoothness base mask
         color = (1.0, 1.0, 1.0, 1.0)
@@ -4590,10 +4593,10 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Calculate active selection mean brightness
 # - Shading activation after scene load broken
+# - Calculate active selection mean brightness
+# - High poly bake crash
 # - High poly bake post normal fix
-# - Post-bake overlay blend mode fix
 # - Preset layer names?
 # - mask/adjustment indication
 # - Master palette library save/manage
