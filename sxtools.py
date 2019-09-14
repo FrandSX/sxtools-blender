@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 15, 0),
+    'version': (2, 16, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -28,6 +28,7 @@ from bl_operators.presets import AddPresetBase
 class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
+        self.brightnessUpdate = False
         self.composite = False
         self.copyLayer = None
         self.listItems = []
@@ -1284,6 +1285,19 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
+    def updateLayerBrightness(self, objs, layer):
+        luminanceDict = tools.calculateLuminance(objs, layer)
+        luminanceList = list()
+        for vertDict in luminanceDict.values():
+            for valueList in vertDict.values():
+                luminanceList.extend(valueList[1])
+
+        brightness = statistics.mean(luminanceList)
+        sxglobals.brightnessUpdate = True
+        bpy.context.scene.sxtools.brightnessvalue = brightness
+        sxglobals.brightnessUpdate = False
+
+
     def __del__(self):
         print('SX Tools: Exiting tools')
 
@@ -1541,6 +1555,88 @@ class SXTOOLS_tools(object):
                             else:
                                 if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
                                     uvValues0[loop_idx].uv[fillChannel0] = fillNoise
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+    def applyBrightness(self, objs, layer, newBrightness):
+        objDicts = self.selectionHandler(objs)
+        fillMode = layer.layerType
+        channels = {'U': 0, 'V': 1}
+        fillChannel0 = channels[layer.uvChannel0]
+        fillChannel1 = channels[layer.uvChannel1]
+        fillChannel2 = channels[layer.uvChannel2]
+        fillChannel3 = channels[layer.uvChannel3]
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        luminanceDict = tools.calculateLuminance(objs, layer)
+        luminanceList = list()
+        for vertDict in luminanceDict.values():
+            for valueList in vertDict.values():
+                luminanceList.extend(valueList[1])
+
+        avgBrightness = statistics.mean(luminanceList)
+        if avgBrightness == 0.0:
+            fillValue = 0.01
+        else:
+            fillValue = float(newBrightness)/float(avgBrightness)
+
+        for obj in objs:
+            if fillMode == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif fillMode == 'UV':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+            elif fillMode == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
+
+            if avgBrightness != 0.0:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        if fillMode == 'COLOR':
+                            vertexColors[loop_idx].color[0] *= fillValue
+                            vertexColors[loop_idx].color[1] *= fillValue
+                            vertexColors[loop_idx].color[2] *= fillValue
+                            if vertexColors[loop_idx].color[0] > 1.0:
+                                vertexColors[loop_idx].color[0] = 1.0
+                            if vertexColors[loop_idx].color[1] > 1.0:
+                                vertexColors[loop_idx].color[1] = 1.0
+                            if vertexColors[loop_idx].color[2] > 1.0:
+                                vertexColors[loop_idx].color[2] = 1.0
+                        elif fillMode == 'UV4':
+                            uvValues0[loop_idx].uv[fillChannel0] *= fillValue
+                            uvValues1[loop_idx].uv[fillChannel1] *= fillValue
+                            uvValues2[loop_idx].uv[fillChannel2] *= fillValue
+                            if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
+                                uvValues0[loop_idx].uv[fillChannel0] = 1.0
+                            if uvValues1[loop_idx].uv[fillChannel1] > 1.0:
+                                uvValues1[loop_idx].uv[fillChannel1] = 1.0
+                            if uvValues2[loop_idx].uv[fillChannel2] > 1.0:
+                                uvValues2[loop_idx].uv[fillChannel2] = 1.0
+                        elif fillMode == 'UV':
+                            uvValues0[loop_idx].uv[fillChannel0] *= fillValue
+                            if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
+                                uvValues0[loop_idx].uv[fillChannel0] = 1.0
+            else:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        if fillMode == 'COLOR':
+                            vertexColors[loop_idx].color[0] = fillValue
+                            vertexColors[loop_idx].color[1] = fillValue
+                            vertexColors[loop_idx].color[2] = fillValue
+                        elif fillMode == 'UV4':
+                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
+                            uvValues1[loop_idx].uv[fillChannel1] = fillValue
+                            uvValues2[loop_idx].uv[fillChannel2] = fillValue
+                        elif fillMode == 'UV':
+                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2501,6 +2597,7 @@ def refreshActives(self, context):
 
         sxglobals.refreshInProgress = False
         layers.updateLayerPalette(objs[0], layer)
+        layers.updateLayerBrightness(objs, layer)
 
 
 # Clicking a palette color would ideally set it in fillcolor, TBD
@@ -2668,6 +2765,17 @@ def loadLibraries(self, context):
         context.scene.sxtools.librarystatus = 'Libraries loaded successfully'
     else:
         context.scene.sxtools.librarystatus = 'Error loading libraries!'
+
+
+def adjustBrightness(self, context):
+    if not sxglobals.brightnessUpdate:
+        objs = selectionValidator(self, context)
+        idx = objs[0].sxtools.selectedlayer
+        layer = utils.findLayerFromIndex(objs[0], idx)
+
+        tools.applyBrightness(objs, layer, context.scene.sxtools.brightnessvalue)
+        sxglobals.composite = True
+        refreshActives(self, context)
 
 
 # ------------------------------------------------------------------------
@@ -2845,6 +2953,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0))
+
+    brightnessvalue: bpy.props.FloatProperty(
+        name='Brightness',
+        description='Offset for selection values',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+        update=adjustBrightness)
 
     toolmode: bpy.props.EnumProperty(
         name='Tool Mode',
@@ -3423,6 +3539,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_misc2.operator('sxtools.mergedown')
                 row_misc2.operator('sxtools.pastelayer', text='Paste')
                 row_misc2.operator('sxtools.selmask', text='Select Mask')
+
+                col_misc = self.layout.row(align=True)
+                if obj.mode == 'OBJECT':
+                    col_misc.prop(scene, 'brightnessvalue', slider=True, text='Layer Brightness')
+                else:
+                    col_misc.prop(scene, 'brightnessvalue', slider=True, text='Selection Brightness')
 
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
@@ -4387,13 +4509,13 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Calculate active selection mean brightness
 # - Filler operations with alpha
 # - Mix macro smoothness with curvaturesmoothness
 # - Shading activation after scene load broken
 # - High poly bake post normal fix
 # - Post-bake overlay blend mode fix
 # - Preset layer names?
-# - Vertex levels?
 # - mask/adjustment indication
 # - Master palette library save/manage
 # - PBR material library save/manage
@@ -4407,3 +4529,5 @@ if __name__ == '__main__':
 # - Run from direct github zip download
 # - Batch process to deselect EMPTY objects
 # - Deleting a ramp preset may error at empty
+# - Copypasting to respect component selections
+# - calculateLuminance UV4 support?
