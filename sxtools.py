@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 0),
+    'version': (2, 16, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -870,6 +870,9 @@ class SXTOOLS_layers(object):
             channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
             if shadingmode == 'FULL':
+                for obj in objs:
+                    obj.sxlayers['layer1'].blendMode = 'ALPHA'
+                    obj.sxlayers['layer1'].alpha = 1.0
                 self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
                 self.blendDebug(objs, layer, shadingmode)
@@ -947,14 +950,14 @@ class SXTOOLS_layers(object):
 
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
-                    if baseLayer.name == 'composite':
-                        base = [0.0, 0.0, 0.0, 1.0]
-                    else:
-                        base = [
-                            baseColors[idx].color[0],
-                            baseColors[idx].color[1],
-                            baseColors[idx].color[2],
-                            baseColors[idx].color[3]][:]
+                    # if baseLayer.name == 'composite':
+                    #     base = [0.0, 0.0, 0.0, 1.0]
+                    # else:
+                    base = [
+                        baseColors[idx].color[0],
+                        baseColors[idx].color[1],
+                        baseColors[idx].color[2],
+                        baseColors[idx].color[3]][:]
                     for layer in topLayerArray:
                         if not getattr(obj.sxlayers[layer.name], 'visibility'):
                             continue
@@ -990,6 +993,13 @@ class SXTOOLS_layers(object):
                                     uvValues[layer.uvLayer1].data[idx].uv[channels[layer.uvChannel1]],
                                     uvValues[layer.uvLayer2].data[idx].uv[channels[layer.uvChannel2]],
                                     uvValues[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]]][:]
+
+                            elif fillmode == 'UV':
+                                top = [
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
+                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
+                                    1.0][:]
 
                             if blend == 'ALPHA':
                                 for j in range(3):
@@ -1286,7 +1296,7 @@ class SXTOOLS_layers(object):
 
 
     def updateLayerBrightness(self, objs, layer):
-        luminanceDict = tools.calculateLuminance(objs, layer)
+        luminanceDict = mesh.calculateLuminance(objs, layer)
         luminanceList = list()
         for vertDict in luminanceDict.values():
             for valueList in vertDict.values():
@@ -1303,11 +1313,14 @@ class SXTOOLS_layers(object):
 
 
 # ------------------------------------------------------------------------
-#    Tool Actions
+#    Mesh Analysis
 # ------------------------------------------------------------------------
-class SXTOOLS_tools(object):
+class SXTOOLS_mesh(object):
     def __init__(self):
         return None
+
+    def __del__(self):
+        print('SX Tools: Exiting mesh')
 
 
     def calculateBoundingBox(self, vertDict):
@@ -1328,6 +1341,366 @@ class SXTOOLS_tools(object):
 
         now = time.time()
         return bbx
+
+
+    def rayRandomizer(self):
+        u1 = random.uniform(0, 1)
+        u2 = random.uniform(0, 1)
+        r = math.sqrt(u1)
+        theta = 2*math.pi*u2
+
+        x = r * math.cos(theta)
+        y = r * math.sin(theta)
+
+        return (x, y, math.sqrt(max(0, 1 - u1)))
+
+
+    def calculateDirection(self, objs, directionVector):
+        objDicts = {}
+        objDicts = tools.selectionHandler(objs)
+
+        mode = objs[0].mode
+        scene = bpy.context.scene
+
+        objDirections = {}
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertWorldPosDict = objDicts[obj][2]
+            vertDirDict = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
+
+                for loop_idx in loop_indices:
+                    vertDirDict[vert_idx] = vertWorldNormal @ directionVector
+            objDirections[obj] = vertDirDict
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objDirections
+
+
+    def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
+        objDicts = {}
+        objDicts = tools.selectionHandler(objs)
+
+        mode = objs[0].mode
+        # bpy.ops.object.mode_set(mode='OBJECT')
+        scene = bpy.context.scene
+        contribution = 1.0/float(rayCount)
+        hemiSphere = [None] * rayCount
+        bias = 1e-5
+
+        objOcclusions = {}
+
+        for idx in range(rayCount):
+            hemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
+        # bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+            vertWorldPosDict = objDicts[obj][2]
+            vertOccDict = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                occValue = 1.0
+                scnOccValue = 1.0
+                vertLoc = Vector(vertPosDict[vert_idx][0])
+                vertNormal = Vector(vertPosDict[vert_idx][1])
+                vertWorldLoc = Vector(vertWorldPosDict[vert_idx][0])
+                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
+
+                # Pass 1: Local space occlusion for individual object
+                if 0.0 <= blend < 1.0:
+                    biasVec = tuple([bias*x for x in vertNormal])
+                    rotQuat = forward.rotation_difference(vertNormal)
+                    vertPos = vertLoc
+
+                    # offset ray origin with normal bias
+                    vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
+
+                        hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
+
+                        if hit:
+                            occValue -= contribution
+
+                # Pass 2: Worldspace occlusion for scene
+                if 0.0 < blend <= 1.0:
+                    scnNormal = vertWorldNormal
+                    biasVec = tuple([bias*x for x in scnNormal])
+                    rotQuat = forward.rotation_difference(scnNormal)
+                    scnVertPos = vertWorldLoc
+
+                    # offset ray origin with normal bias
+                    scnVertPos = (scnVertPos[0] + biasVec[0], scnVertPos[1] + biasVec[1], scnVertPos[2] + biasVec[2])
+
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
+
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
+
+                        if scnHit:
+                            scnOccValue -= contribution
+
+                for loop_idx in loop_indices:
+                    vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
+            objOcclusions[obj] = vertOccDict
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = True
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objOcclusions
+
+
+    def calculateThickness(self, objs, rayCount, bias=0.000001):
+        objDicts = {}
+        objDicts = tools.selectionHandler(objs)
+
+        mode = objs[0].mode
+        scene = bpy.context.scene
+        contribution = 1.0/float(rayCount)
+        hemiSphere = [None] * rayCount
+        bias = 1e-5
+
+        distances = list()
+        objThicknesses = {}
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # First pass to analyze ray hit distances,
+        # then set max ray distance to half of median distance
+        distHemiSphere = [None] * 20
+        for idx in range(20):
+            distHemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                vertLoc = Vector(vertPosDict[vert_idx][0])
+                vertNormal = Vector(vertPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+
+                biasVec = tuple([bias*x for x in invNormal])
+                rotQuat = forward.rotation_difference(invNormal)
+                vertPos = vertLoc
+
+                # offset ray origin with normal bias
+                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                for sample in distHemiSphere:
+                    sample = Vector(sample)
+                    sample.rotate(rotQuat)
+
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample)
+
+                    if hit:
+                        distanceVec = (loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2])
+                        distanceVec = Vector(distanceVec)
+                        distances.append(distanceVec.length)
+
+        rayDistance = statistics.median(distances) * 0.5
+
+        for idx in range(rayCount):
+            hemiSphere[idx] = self.rayRandomizer()
+
+        for obj in objs:
+            vertLoopDict = objDicts[obj][0]
+            vertPosDict = objDicts[obj][1]
+            vertDict = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                thicknessValue = 0.0
+                vertLoc = Vector(vertPosDict[vert_idx][0])
+                vertNormal = Vector(vertPosDict[vert_idx][1])
+                forward = Vector((0, 0, 1))
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+
+                biasVec = tuple([bias*x for x in invNormal])
+                rotQuat = forward.rotation_difference(invNormal)
+                vertPos = vertLoc
+
+                # offset ray origin with normal bias
+                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+
+                for sample in hemiSphere:
+                    sample = Vector(sample)
+                    sample.rotate(rotQuat)
+
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=rayDistance)
+
+                    if hit:
+                        thicknessValue += contribution
+
+                for loop_idx in loop_indices:
+                    vertDict[vert_idx] = thicknessValue
+            objThicknesses[obj] = vertDict
+
+        for obj in objs:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = True
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objThicknesses
+
+
+    def calculateLuminance(self, objs, layer):
+        objDicts = {}
+        objDicts = tools.selectionHandler(objs)
+        layerType = layer.layerType
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        channels = {'U': 0, 'V':1}
+
+        objLuminances = {}
+
+        for obj in objs:
+            if layerType == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif layerType == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+            elif layerType == 'UV':
+                uvValues = obj.data.uv_layers[layer.uvLayer0].data
+                if layer.uvChannel0 == 'U':
+                    selChannel = 0
+                elif layer.uvChannel0 == 'V':
+                    selChannel = 1
+
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
+            vtxLuminances = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                loopLuminances = []
+                for loop_idx in loop_indices:
+                    if layerType == 'COLOR':
+                        fvColor = vertexColors[loop_idx].color
+                        luminance = ((fvColor[0] +
+                                      fvColor[0] +
+                                      fvColor[2] +
+                                      fvColor[1] +
+                                      fvColor[1] +
+                                      fvColor[1]) / float(6.0))
+                    elif layerType == 'UV4':
+                        fvColor = [
+                            uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
+                            uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
+                            uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
+                            uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
+                        luminance = ((fvColor[0] +
+                                      fvColor[0] +
+                                      fvColor[2] +
+                                      fvColor[1] +
+                                      fvColor[1] +
+                                      fvColor[1]) / float(6.0))
+                    elif layerType == 'UV':
+                        luminance = uvValues[loop_idx].uv[selChannel]
+                    loopLuminances.append(luminance)
+                vertLoopDict[vert_idx] = (loop_indices, loopLuminances)
+            objLuminances[obj] = vertLoopDict
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objLuminances
+
+
+    def calculateCurvature(self, objs, normalize=False):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='EDIT')
+
+        objCurvatures = {}
+
+        for obj in objs:
+            vtxCurvatures = {}
+            bm = bmesh.from_edit_mesh(obj.data)
+            for vert in bm.verts:
+                numConnected = len(vert.link_edges)
+                edgeWeights = []
+                angles = []
+                for edge in vert.link_edges:
+                    edgeWeights.append(edge.calc_length())
+                    pos1 = vert.co
+                    pos2 = edge.other_vert(vert).co
+                    edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
+                    angles.append(math.acos(vert.normal.normalized() @ edgeVec.normalized()))
+
+                vtxCurvature = 0.0
+                for i in range(numConnected):
+                    curvature = angles[i] / math.pi - 0.5
+                    vtxCurvature += curvature
+
+                vtxCurvature = vtxCurvature / float(numConnected)
+                if vtxCurvature > 1.0:
+                    vtxCurvature = 1.0
+
+                vtxCurvatures[vert.index] = vtxCurvature
+            objCurvatures[obj] = vtxCurvatures
+
+        # Normalize convex and concave separately
+        # to maximize artist ability to crease
+
+        if normalize:
+            maxArray = []
+            minArray = []
+            for vtxCurvature in objCurvatures.values():
+                minArray.append(min(vtxCurvature.values()))
+                maxArray.append(max(vtxCurvature.values()))
+            minCurv = min(minArray)
+            maxCurv = max(maxArray)
+
+            for vtxCurvatures in objCurvatures.values():
+                for vert, vtxCurvature in vtxCurvatures.items():
+                    if vtxCurvature < 0:
+                        vtxCurvatures[vert] = (vtxCurvature / float(minCurv)) * -0.5 + 0.5
+                    else:
+                        vtxCurvatures[vert] = (vtxCurvature / float(maxCurv)) * 0.5 + 0.5
+        else:
+            for vtxCurvatures in objCurvatures.values():
+                for vert, vtxCurvature in vtxCurvatures.items():
+                    vtxCurvatures[vert] = (vtxCurvature + 0.5)
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objCurvatures
+
+
+# ------------------------------------------------------------------------
+#    Tool Actions
+# ------------------------------------------------------------------------
+class SXTOOLS_tools(object):
+    def __init__(self):
+        return None
 
 
     # Analyze if multi-object selection is in object or component mode,
@@ -1676,21 +2049,21 @@ class SXTOOLS_tools(object):
 
         curvatures = []
         if rampmode == 'C':
-            objValues = self.calculateCurvature(objs, False)
+            objValues = mesh.calculateCurvature(objs, False)
         elif rampmode == 'CN':
-            objValues = self.calculateCurvature(objs, True)
+            objValues = mesh.calculateCurvature(objs, True)
         elif rampmode == 'OCC':
-            objValues = self.calculateOcclusion(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend, bpy.context.scene.sxtools.occlusiondistance)
+            objValues = mesh.calculateOcclusion(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend, bpy.context.scene.sxtools.occlusiondistance)
         elif rampmode == 'LUM':
-            objValues = self.calculateLuminance(objs, layer)
+            objValues = mesh.calculateLuminance(objs, layer)
         elif rampmode == 'THK':
-            objValues = self.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays)
+            objValues = mesh.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays)
         elif rampmode == 'DIR':
             inclination = (bpy.context.scene.sxtools.dirInclination - 90.0)* (2*math.pi)/360.0
             angle = (bpy.context.scene.sxtools.dirAngle + 90) * (2*math.pi)/360.0
             directionVector = (math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination))
             directionVector = Vector(directionVector)
-            objValues = self.calculateDirection(objs, directionVector)
+            objValues = mesh.calculateDirection(objs, directionVector)
 
         if mergebbx:
             bbx_x = []
@@ -1727,7 +2100,7 @@ class SXTOOLS_tools(object):
             vertPosDict = objDicts[obj][1]
             
             if not mergebbx and (rampmode != 'C') and (rampmode != 'CN') and (rampmode != 'OCC') and (rampmode != 'LUM') and (rampmode != 'THK') and (rampmode != 'DIR'):
-                bbx = self.calculateBoundingBox(vertPosDict)
+                bbx = mesh.calculateBoundingBox(vertPosDict)
                 xmin, xmax = bbx[0][0], bbx[0][1]
                 ymin, ymax = bbx[1][0], bbx[1][1]
                 zmin, zmax = bbx[2][0], bbx[2][1]
@@ -1996,349 +2369,6 @@ class SXTOOLS_tools(object):
             layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
 
 
-    def processMesh(self, objs):
-        # placeholder for batch export preprocessor
-        # 0: UV0 for basic automatically laid out UVs
-        # 1: palettemasks to U1
-        # static flag to object
-        # Assume artist has placed occlusion, metallic, smoothness, emission and transmission
-        pass
-
-
-    def rayRandomizer(self):
-        u1 = random.uniform(0, 1)
-        u2 = random.uniform(0, 1)
-        r = math.sqrt(u1)
-        theta = 2*math.pi*u2
-
-        x = r * math.cos(theta)
-        y = r * math.sin(theta)
-
-        return (x, y, math.sqrt(max(0, 1 - u1)))
-
-
-    def calculateDirection(self, objs, directionVector):
-        objDicts = {}
-        objDicts = self.selectionHandler(objs)
-
-        mode = objs[0].mode
-        scene = bpy.context.scene
-
-        objDirections = {}
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        for obj in objs:
-            vertLoopDict = objDicts[obj][0]
-            vertWorldPosDict = objDicts[obj][2]
-            vertDirDict = {}
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
-
-                for loop_idx in loop_indices:
-                    vertDirDict[vert_idx] = vertWorldNormal @ directionVector
-            objDirections[obj] = vertDirDict
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objDirections
-
-
-    def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
-        objDicts = {}
-        objDicts = self.selectionHandler(objs)
-
-        mode = objs[0].mode
-        # bpy.ops.object.mode_set(mode='OBJECT')
-        scene = bpy.context.scene
-        contribution = 1.0/float(rayCount)
-        hemiSphere = [None] * rayCount
-        bias = 1e-5
-
-        objOcclusions = {}
-
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
-
-        for obj in objs:
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = False
-        # bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        for obj in objs:
-            vertLoopDict = objDicts[obj][0]
-            vertPosDict = objDicts[obj][1]
-            vertWorldPosDict = objDicts[obj][2]
-            vertOccDict = {}
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                occValue = 1.0
-                scnOccValue = 1.0
-                vertLoc = Vector(vertPosDict[vert_idx][0])
-                vertNormal = Vector(vertPosDict[vert_idx][1])
-                vertWorldLoc = Vector(vertWorldPosDict[vert_idx][0])
-                vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
-
-                # Pass 1: Local space occlusion for individual object
-                if 0.0 <= blend < 1.0:
-                    biasVec = tuple([bias*x for x in vertNormal])
-                    rotQuat = forward.rotation_difference(vertNormal)
-                    vertPos = vertLoc
-
-                    # offset ray origin with normal bias
-                    vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
-
-                    for sample in hemiSphere:
-                        sample = Vector(sample)
-                        sample.rotate(rotQuat)
-
-                        hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
-
-                        if hit:
-                            occValue -= contribution
-
-                # Pass 2: Worldspace occlusion for scene
-                if 0.0 < blend <= 1.0:
-                    scnNormal = vertWorldNormal
-                    biasVec = tuple([bias*x for x in scnNormal])
-                    rotQuat = forward.rotation_difference(scnNormal)
-                    scnVertPos = vertWorldLoc
-
-                    # offset ray origin with normal bias
-                    scnVertPos = (scnVertPos[0] + biasVec[0], scnVertPos[1] + biasVec[1], scnVertPos[2] + biasVec[2])
-
-                    for sample in hemiSphere:
-                        sample = Vector(sample)
-                        sample.rotate(rotQuat)
-
-                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
-
-                        if scnHit:
-                            scnOccValue -= contribution
-
-                for loop_idx in loop_indices:
-                    vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
-            objOcclusions[obj] = vertOccDict
-
-        for obj in objs:
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = True
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objOcclusions
-
-
-    def calculateThickness(self, objs, rayCount, bias=0.000001):
-        objDicts = {}
-        objDicts = self.selectionHandler(objs)
-
-        mode = objs[0].mode
-        scene = bpy.context.scene
-        contribution = 1.0/float(rayCount)
-        hemiSphere = [None] * rayCount
-        bias = 1e-5
-
-        distances = list()
-        objThicknesses = {}
-
-        for obj in objs:
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = False
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        # First pass to analyze ray hit distances,
-        # then set max ray distance to half of median distance
-        distHemiSphere = [None] * 20
-        for idx in range(20):
-            distHemiSphere[idx] = self.rayRandomizer()
-
-        for obj in objs:
-            vertLoopDict = objDicts[obj][0]
-            vertPosDict = objDicts[obj][1]
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                vertLoc = Vector(vertPosDict[vert_idx][0])
-                vertNormal = Vector(vertPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
-
-                # Invert normal to cast inside object
-                invNormal = tuple([-1*x for x in vertNormal])
-
-                biasVec = tuple([bias*x for x in invNormal])
-                rotQuat = forward.rotation_difference(invNormal)
-                vertPos = vertLoc
-
-                # offset ray origin with normal bias
-                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
-
-                for sample in distHemiSphere:
-                    sample = Vector(sample)
-                    sample.rotate(rotQuat)
-
-                    hit, loc, normal, index = obj.ray_cast(vertPos, sample)
-
-                    if hit:
-                        distanceVec = (loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2])
-                        distanceVec = Vector(distanceVec)
-                        distances.append(distanceVec.length)
-
-        rayDistance = statistics.median(distances) * 0.5
-
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
-
-        for obj in objs:
-            vertLoopDict = objDicts[obj][0]
-            vertPosDict = objDicts[obj][1]
-            vertDict = {}
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                thicknessValue = 0.0
-                vertLoc = Vector(vertPosDict[vert_idx][0])
-                vertNormal = Vector(vertPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
-
-                # Invert normal to cast inside object
-                invNormal = tuple([-1*x for x in vertNormal])
-
-                biasVec = tuple([bias*x for x in invNormal])
-                rotQuat = forward.rotation_difference(invNormal)
-                vertPos = vertLoc
-
-                # offset ray origin with normal bias
-                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
-
-                for sample in hemiSphere:
-                    sample = Vector(sample)
-                    sample.rotate(rotQuat)
-
-                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=rayDistance)
-
-                    if hit:
-                        thicknessValue += contribution
-
-                for loop_idx in loop_indices:
-                    vertDict[vert_idx] = thicknessValue
-            objThicknesses[obj] = vertDict
-
-        for obj in objs:
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = True
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objThicknesses
-
-
-    def calculateLuminance(self, objs, layer):
-        objDicts = {}
-        objDicts = self.selectionHandler(objs)
-        layerType = layer.layerType
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
-
-        objLuminances = {}
-
-        for obj in objs:
-            if layerType == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif layerType == 'UV':
-                uvValues = obj.data.uv_layers[layer.uvLayer0].data
-                if layer.uvChannel0 == 'U':
-                    selChannel = 0
-                elif layer.uvChannel0 == 'V':
-                    selChannel = 1
-
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
-            vtxLuminances = {}
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                loopLuminances = []
-                for loop_idx in loop_indices:
-                    if layerType == 'COLOR':
-                        fvColor = vertexColors[loop_idx].color
-                        luminance = ((fvColor[0] +
-                                      fvColor[0] +
-                                      fvColor[2] +
-                                      fvColor[1] +
-                                      fvColor[1] +
-                                      fvColor[1]) / float(6.0))
-                    elif layerType == 'UV':
-                        luminance = uvValues[loop_idx].uv[selChannel]
-                    loopLuminances.append(luminance)
-                vertLoopDict[vert_idx] = (loop_indices, loopLuminances)
-            objLuminances[obj] = vertLoopDict
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objLuminances
-
-
-    def calculateCurvature(self, objs, normalize=False):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='EDIT')
-
-        objCurvatures = {}
-
-        for obj in objs:
-            vtxCurvatures = {}
-            bm = bmesh.from_edit_mesh(obj.data)
-            for vert in bm.verts:
-                numConnected = len(vert.link_edges)
-                edgeWeights = []
-                angles = []
-                for edge in vert.link_edges:
-                    edgeWeights.append(edge.calc_length())
-                    pos1 = vert.co
-                    pos2 = edge.other_vert(vert).co
-                    edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
-                    angles.append(math.acos(vert.normal.normalized() @ edgeVec.normalized()))
-
-                vtxCurvature = 0.0
-                for i in range(numConnected):
-                    curvature = angles[i] / math.pi - 0.5
-                    vtxCurvature += curvature
-
-                vtxCurvature = vtxCurvature / float(numConnected)
-                if vtxCurvature > 1.0:
-                    vtxCurvature = 1.0
-
-                vtxCurvatures[vert.index] = vtxCurvature
-            objCurvatures[obj] = vtxCurvatures
-
-        # Normalize convex and concave separately
-        # to maximize artist ability to crease
-
-        if normalize:
-            maxArray = []
-            minArray = []
-            for vtxCurvature in objCurvatures.values():
-                minArray.append(min(vtxCurvature.values()))
-                maxArray.append(max(vtxCurvature.values()))
-            minCurv = min(minArray)
-            maxCurv = max(maxArray)
-
-            for vtxCurvatures in objCurvatures.values():
-                for vert, vtxCurvature in vtxCurvatures.items():
-                    if vtxCurvature < 0:
-                        vtxCurvatures[vert] = (vtxCurvature / float(minCurv)) * -0.5 + 0.5
-                    else:
-                        vtxCurvatures[vert] = (vtxCurvature / float(maxCurv)) * 0.5 + 0.5
-        else:
-            for vtxCurvatures in objCurvatures.values():
-                for vert, vtxCurvature in vtxCurvatures.items():
-                    vtxCurvatures[vert] = (vtxCurvature + 0.5)
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objCurvatures
-
-
     def applyPalette(self, objs, palette, noise, mono):
         palette = [
             bpy.context.scene.sxpalettes[palette].color0,
@@ -2433,11 +2463,11 @@ class SXTOOLS_tools(object):
 
         # Create modifiers
         obj.sxtools.subdivisionlevel = 2
-        tools.addModifiers(objs)
+        self.addModifiers(objs)
 
         if mode == 'Hi':
             # Apply modifiers
-            tools.applyModifiers(objs)
+            self.applyModifiers(objs)
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -2452,7 +2482,7 @@ class SXTOOLS_tools(object):
         overwrite = True
         obj.mode == 'OBJECT'
 
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
@@ -2465,9 +2495,9 @@ class SXTOOLS_tools(object):
 
         obj.mode == 'OBJECT'
 
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
-        # Construct smoothness
+        # Construct layer1-7 smoothness base mask
         color = (1.0, 1.0, 1.0, 1.0)
 
         layer = obj.sxlayers['smoothness']
@@ -2475,10 +2505,10 @@ class SXTOOLS_tools(object):
         obj.mode == 'OBJECT'
         noise = 0.01
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        self.applyColor(objs, layer, color, overwrite, noise, mono)
 
         sxlayers = [obj.sxlayers['layer4'], obj.sxlayers['layer5']]
-        tools.selectMask(objs, sxlayers, inverse)
+        self.selectMask(objs, sxlayers, inverse)
 
         color = (0.2, 0.2, 0.2, 1.0)
 
@@ -2488,7 +2518,7 @@ class SXTOOLS_tools(object):
             overwrite = True
         noise = 0.01
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        self.applyColor(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -2502,7 +2532,48 @@ class SXTOOLS_tools(object):
 
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+        self.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+
+        # Combine smoothness base mask with custom curvature gradient
+        layer = obj.sxlayers['composite']
+        for obj in objs:
+            obj.sxlayers['composite'].blendMode = 'ALPHA'
+            obj.sxlayers['composite'].alpha = 1.0
+        rampmode = 'CN'
+        scene.ramplist = 'CURVATURESMOOTHNESS'
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+
+        # Combine previous mix with directional dust
+        layer = obj.sxlayers['composite']
+        rampmode = 'DIR'
+        scene.ramplist = 'DIRECTIONALDUST'
+        scene.angle = 0.0
+        scene.inclination = 40.0
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+        for obj in objs:
+            obj.sxlayers['smoothness'].blendMode = 'ALPHA'
 
         # Apply PBR metal based on layer7
         layer = obj.sxlayers['layer7']
@@ -2517,15 +2588,25 @@ class SXTOOLS_tools(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        tools.applyColor(objs, layer, palette[0], False, noise, mono)
-        tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
-        tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
+        self.applyColor(objs, layer, palette[0], False, noise, mono)
+        self.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        self.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
 
-        # Make sure emissives are smooth
+        # Mix metallic with occlusion (dirt in crevices)
+        self.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
+        for obj in objs:
+            obj.sxlayers['metallic'].alpha = 1.0
+            obj.sxlayers['metallic'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
+        for obj in objs:
+            obj.sxlayers['metallic'].blendMode = 'ALPHA'
+
+        # Emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
-
         layer = obj.sxlayers['emission']
-        tools.selectMask(objs, [layer, ], inverse)
+        self.selectMask(objs, [layer, ], inverse)
 
         layer = obj.sxlayers['smoothness']
         overwrite = scene.fillalpha
@@ -2533,7 +2614,7 @@ class SXTOOLS_tools(object):
             overwrite = True
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        self.applyColor(objs, layer, color, overwrite, noise, mono)
 
 
     def __del__(self):
@@ -2956,7 +3037,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     brightnessvalue: bpy.props.FloatProperty(
         name='Brightness',
-        description='Offset for selection values',
+        description='The mean brightness of the selection',
         min=0.0,
         max=1.0,
         default=0.0,
@@ -4398,7 +4479,6 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
         objs = selectionValidator(self, context)
         tools.processObjects(objs, 'Lo')
 
-        objs[0].sxtools.selectedlayer = 10
         sxglobals.composite = True
         refreshActives(self, context)
 
@@ -4415,6 +4495,7 @@ files = SXTOOLS_files()
 utils = SXTOOLS_utils()
 layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
+mesh = SXTOOLS_mesh()
 tools = SXTOOLS_tools()
 
 classes = (
@@ -4510,8 +4591,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Calculate active selection mean brightness
-# - Filler operations with alpha
-# - Mix macro smoothness with curvaturesmoothness
 # - Shading activation after scene load broken
 # - High poly bake post normal fix
 # - Post-bake overlay blend mode fix
@@ -4530,4 +4609,3 @@ if __name__ == '__main__':
 # - Batch process to deselect EMPTY objects
 # - Deleting a ramp preset may error at empty
 # - Copypasting to respect component selections
-# - calculateLuminance UV4 support?
