@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 8),
+    'version': (2, 16, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -321,45 +321,6 @@ class SXTOOLS_utils(object):
             compLayers.append(obj.sxlayers['overlay'])
 
         return compLayers
-
-
-    def findListLayers(self, obj):
-        listLayers = []
-        for index in sxglobals.listItems:
-            for sxLayer in obj.sxLayers:
-                if index == sxLayer.index:
-                    listLayers.append(sxLayer)
-
-        return listLayers
-
-
-    def findExportChannels(self, obj, layer):
-        # The mapping of material channels to UVs (setindex, uv)
-        exportArray = []
-        sxLayer = obj.sxlayers[layer.name]
-
-        expLayerArray = [
-            'uvLayer0',
-            'uvLayer1',
-            'uvLayer2',
-            'uvLayer5']
-
-        expChannelArray = [
-            'uvChannel0',
-            'uvChannel1',
-            'uvChannel2',
-            'uvChannel3']
-
-        for i, layer in enumerate(expLayerArray):
-            uvSet = getattr(sxLayer, layer)
-            if uvSet == '':
-                break
-            else:
-                value = (uvSet, getattr(sxLayer, expChannelArray[i]))
-                expItem = value[:]
-                exportArray.append(expItem)
-
-        return exportArray
 
 
     def findLayerFromIndex(self, obj, index):
@@ -1157,16 +1118,14 @@ class SXTOOLS_layers(object):
                     alpha = layer.alpha
                     for poly in obj.data.polygons:
                         for idx in poly.loop_indices:
-                            value = vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] * alpha
-                            vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] = value
+                            vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] *= alpha
                     layer.alpha = 1.0
 
                 elif layer.name == 'overlay':
                     alpha = layer.alpha
                     for poly in obj.data.polygons:
                         for idx in poly.loop_indices:
-                            value = vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] * alpha
-                            vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] = value
+                            vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] *= alpha
                     layer.alpha = 1.0
 
         bpy.ops.object.mode_set(mode=mode)
@@ -1974,15 +1933,10 @@ class SXTOOLS_tools(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         if fillMode == 'COLOR':
-                            vertexColors[loop_idx].color[0] *= fillValue
-                            vertexColors[loop_idx].color[1] *= fillValue
-                            vertexColors[loop_idx].color[2] *= fillValue
-                            if vertexColors[loop_idx].color[0] > 1.0:
-                                vertexColors[loop_idx].color[0] = 1.0
-                            if vertexColors[loop_idx].color[1] > 1.0:
-                                vertexColors[loop_idx].color[1] = 1.0
-                            if vertexColors[loop_idx].color[2] > 1.0:
-                                vertexColors[loop_idx].color[2] = 1.0
+                            for i in range(3):
+                                vertexColors[loop_idx].color[i] *= fillValue
+                                if vertexColors[loop_idx].color[i] > 1.0:
+                                    vertexColors[loop_idx].color[i] = 1.0
                         elif fillMode == 'UV4':
                             uvValues0[loop_idx].uv[fillChannel0] *= fillValue
                             uvValues1[loop_idx].uv[fillChannel1] *= fillValue
@@ -2001,9 +1955,8 @@ class SXTOOLS_tools(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         if fillMode == 'COLOR':
-                            vertexColors[loop_idx].color[0] = fillValue
-                            vertexColors[loop_idx].color[1] = fillValue
-                            vertexColors[loop_idx].color[2] = fillValue
+                            for i in range(3):
+                                vertexColors[loop_idx].color[i] = fillValue
                         elif fillMode == 'UV4':
                             uvValues0[loop_idx].uv[fillChannel0] = fillValue
                             uvValues1[loop_idx].uv[fillChannel1] = fillValue
@@ -2159,9 +2112,8 @@ class SXTOOLS_tools(object):
 
                     if overwrite:
                         if fillMode == 'COLOR':
-                            color[0] += noiseColor[0]
-                            color[1] += noiseColor[1]
-                            color[2] += noiseColor[2]
+                            for i in range(3):
+                                color[i] += noiseColor[i]
                             vertexColors[loop_idx].color = color
                         elif fillMode == 'UV4':
                             uvValues0[loop_idx].uv[fillChannel0] = color[0] + noiseColor[0]
@@ -2174,9 +2126,8 @@ class SXTOOLS_tools(object):
                     else:
                         if fillMode == 'COLOR':
                             if vertexColors[loop_idx].color[3] > 0.0:
-                                vertexColors[loop_idx].color[0] = (color[0] + noiseColor[0])
-                                vertexColors[loop_idx].color[1] = (color[1] + noiseColor[1])
-                                vertexColors[loop_idx].color[2] = (color[2] + noiseColor[2])
+                                for i in range(3):
+                                    vertexColors[loop_idx].color[i] = (color[i] + noiseColor[i])
                             else:
                                 vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
                         elif fillMode == 'UV4':
@@ -4603,6 +4554,10 @@ if __name__ == '__main__':
 # - Calculate active selection mean brightness
 # - High poly bake crash
 # - High poly bake post normal fix
+# - Split to multiple python files
+# - Run from direct github zip download
+# - Deleting a ramp preset may error at empty
+# - Copypasting to respect component selections
 # - Preset layer names?
 # - mask/adjustment indication
 # - Master palette library save/manage
@@ -4613,8 +4568,3 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
-# - Split to multiple python files
-# - Run from direct github zip download
-# - Batch process to deselect EMPTY objects
-# - Deleting a ramp preset may error at empty
-# - Copypasting to respect component selections
