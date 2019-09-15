@@ -236,6 +236,7 @@ class SXTOOLS_utils(object):
 
     def findListIndex(self, obj, layer):
         index = obj.sxlayers[layer.name].index
+
         return sxglobals.listIndices[index]
 
 
@@ -456,8 +457,12 @@ class SXTOOLS_setup(object):
                 if len(clearSets) > 0:
                     for uvSet in clearSets:
                         for sxLayer in obj.sxlayers:
-                            if (sxLayer.layerType == 'UV') or (sxLayer.layerType == 'UV4'):
-                                if (sxLayer.uvLayer0 == uvSet) or (sxLayer.uvLayer1 == uvSet) or (sxLayer.uvLayer2 == uvSet) or (sxLayer.uvLayer3 == uvSet):
+                            if ((sxLayer.layerType == 'UV') or
+                               (sxLayer.layerType == 'UV4')):
+                                if ((sxLayer.uvLayer0 == uvSet) or
+                                   (sxLayer.uvLayer1 == uvSet) or
+                                   (sxLayer.uvLayer2 == uvSet) or
+                                   (sxLayer.uvLayer3 == uvSet)):
                                     layers.clearUVs([obj, ], sxLayer)
 
             # for i in range(5):
@@ -901,19 +906,17 @@ class SXTOOLS_layers(object):
     def blendLayers(self, objs, topLayerArray, baseLayer, resultLayer):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
+        sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+        channels = {'U': 0, 'V': 1}
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
             uvValues = obj.data.uv_layers
             resultColors = vertexColors[resultLayer.vertexColorLayer].data
             baseColors = vertexColors[baseLayer.vertexColorLayer].data
-            channels = {'U': 0, 'V': 1}
 
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
-                    # if baseLayer.name == 'composite':
-                    #     base = [0.0, 0.0, 0.0, 1.0]
-                    # else:
                     base = [
                         baseColors[idx].color[0],
                         baseColors[idx].color[1],
@@ -936,16 +939,16 @@ class SXTOOLS_layers(object):
 
                             elif layer.name == 'gradient1':
                                 top = [
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[0],
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[1],
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value[2],
+                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[0],
+                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[1],
+                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[2],
                                     uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
 
                             elif layer.name == 'gradient2':
                                 top = [
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[0],
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[1],
-                                    bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value[2],
+                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[0],
+                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[1],
+                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[2],
                                     uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
 
                             elif fillmode == 'UV4':
@@ -1005,7 +1008,6 @@ class SXTOOLS_layers(object):
     def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillMode):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
-
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
         for obj in objs:
@@ -1298,7 +1300,6 @@ class SXTOOLS_mesh(object):
                     elif fvPos[j] > bbx[j][1]:
                         bbx[j][1] = fvPos[j]
 
-        now = time.time()
         return bbx
 
 
@@ -1315,7 +1316,6 @@ class SXTOOLS_mesh(object):
 
 
     def calculateDirection(self, objs, directionVector):
-        objDicts = {}
         objDicts = tools.selectionHandler(objs)
 
         mode = objs[0].mode
@@ -1342,7 +1342,6 @@ class SXTOOLS_mesh(object):
 
 
     def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
-        objDicts = {}
         objDicts = tools.selectionHandler(objs)
 
         mode = objs[0].mode
@@ -1430,7 +1429,6 @@ class SXTOOLS_mesh(object):
 
 
     def calculateThickness(self, objs, rayCount, bias=0.000001):
-        objDicts = {}
         objDicts = tools.selectionHandler(objs)
 
         mode = objs[0].mode
@@ -1534,7 +1532,6 @@ class SXTOOLS_mesh(object):
 
 
     def calculateLuminance(self, objs, layer):
-        objDicts = {}
         objDicts = tools.selectionHandler(objs)
         layerType = layer.layerType
         mode = objs[0].mode
@@ -2666,7 +2663,8 @@ def shadingMode(self, context):
         for area in areas:
             for space in area.spaces:
                 if space.type == 'VIEW_3D':
-                    if (space.shading.type == 'WIREFRAME') or (space.shading.type == 'SOLID'):
+                    if ((space.shading.type == 'WIREFRAME') or
+                       (space.shading.type == 'SOLID')):
                         space.shading.type = shading
 
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
@@ -2876,14 +2874,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     numalphas: bpy.props.IntProperty(
         name='Alpha Overlay Layer Count',
-        description='The number of UV alpha overlays to use. Only useful with a game engine with a limited number of vertex color layers',
+        description='The number of UV alpha overlays to use\nOnly useful with a game engine with a limited number of vertex color layers',
         min=0,
         max=2,
         default=0)
 
     numoverlays: bpy.props.IntProperty(
         name='RGBA Overlay Layer Count',
-        description='The number of UV RGBA overlays to use. Only useful with a game engine with limited number of vertex color layers.',
+        description='The number of UV RGBA overlays to use\nOnly useful with a game engine with limited number of vertex color layers',
         min=0,
         max=1,
         default=0)
@@ -3230,7 +3228,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     hardcrease: bpy.props.BoolProperty(
         name='Hard Crease',
-        description='Crease edges with maximum crease are marked as sharp',
+        description='Edges with maximum crease are marked as sharp',
         default=True)
 
     expandfill: bpy.props.BoolProperty(
@@ -3562,7 +3560,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_palette.prop(scene, 'layerpalette7', text='')
                 row_palette.prop(scene, 'layerpalette8', text='')
 
-                if (layer.name == 'occlusion') or (layer.name == 'smoothness') or (layer.name == 'metallic') or (layer.name == 'transmission') or (layer.name == 'emission'):
+                if ((layer.name == 'occlusion') or
+                   (layer.name == 'smoothness') or
+                   (layer.name == 'metallic') or
+                   (layer.name == 'transmission') or
+                   (layer.name == 'emission')):
                     row_blend.enabled = False
                     row_alpha.enabled = False
 
@@ -3975,7 +3977,7 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
     bl_idname = 'sxtools.applyramp'
     bl_label = 'Apply Gradient'
     bl_options = {'UNDO'}
-    bl_description = 'Applies a gradient in various modes to the selected components or objects, optionally using their combined bounding volume.'
+    bl_description = 'Applies a gradient in various modes\nto the selected components or objects,\noptionally using their combined bounding volume'
 
 
     def invoke(self, context, event):
