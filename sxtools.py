@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 9),
+    'version': (2, 16, 11),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1257,6 +1257,9 @@ class SXTOOLS_layers(object):
 
 
     def updateLayerBrightness(self, objs, layer):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+
         luminanceDict = mesh.calculateLuminance(objs, layer)
         luminanceList = list()
         for vertDict in luminanceDict.values():
@@ -1268,6 +1271,7 @@ class SXTOOLS_layers(object):
         bpy.context.scene.sxtools.brightnessvalue = brightness
         sxglobals.brightnessUpdate = False
 
+        bpy.ops.object.mode_set(mode=mode)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -2401,6 +2405,10 @@ class SXTOOLS_tools(object):
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
         inverse = False
+
+        # Make sure auto-smooth is on
+        for obj in objs:
+            obj.data.use_auto_smooth = True
 
         # Remove empties from selected objects
         for sel in bpy.context.view_layer.objects.selected:
