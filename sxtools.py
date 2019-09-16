@@ -4,7 +4,7 @@ bl_info = {
     'version': (2, 17, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
-    'description': 'Multi-layer vertex paint tool',
+    'description': 'Multi-layer vertex coloring tool',
     'category': 'Development',
 }
 
@@ -850,8 +850,9 @@ class SXTOOLS_layers(object):
 
             if shadingmode == 'FULL':
                 for obj in objs:
-                    obj.sxlayers['layer1'].blendMode = 'ALPHA'
-                    obj.sxlayers['layer1'].alpha = 1.0
+                    layer = utils.findLayerFromIndex(obj, 1)
+                    obj.sxlayers[layer].blendMode = 'ALPHA'
+                    obj.sxlayers[layer].alpha = 1.0
                 self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
                 self.blendDebug(objs, layer, shadingmode)
@@ -2479,7 +2480,9 @@ class SXTOOLS_tools(object):
         mono = True
         self.applyColor(objs, layer, color, overwrite, noise, mono)
 
-        sxlayers = [obj.sxlayers['layer4'], obj.sxlayers['layer5']]
+        layer4 = utils.findLayerFromIndex(obj, 4)
+        layer5 = utils.findLayerFromIndex(obj, 5)
+        sxlayers = [layer4, layer5]
         self.selectMask(objs, sxlayers, inverse)
 
         color = (0.2, 0.2, 0.2, 1.0)
@@ -2498,7 +2501,7 @@ class SXTOOLS_tools(object):
 
         color = (0.0, 0.0, 0.0, 1.0)
 
-        maskLayer = obj.sxlayers['layer6']
+        maskLayer = utils.findLayerFromIndex(obj, 6)
         layer = obj.sxlayers['smoothness']
         overwrite = True
 
@@ -2548,7 +2551,7 @@ class SXTOOLS_tools(object):
             obj.sxlayers['smoothness'].blendMode = 'ALPHA'
 
         # Apply PBR metal based on layer7
-        layer = obj.sxlayers['layer7']
+        layer = utils.findLayerFromIndex(obj, 7)
         overwrite = True
         obj.mode == 'OBJECT'
         material = 'Iron'
