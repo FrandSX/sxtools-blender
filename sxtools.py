@@ -9,7 +9,6 @@ bl_info = {
 }
 
 import bpy
-import os
 import time
 import random
 import math
@@ -767,7 +766,6 @@ class SXTOOLS_layers(object):
 
     def clearLayers(self, objs, targetLayer=None):
         sxLayers = utils.findColorLayers(objs[0])
-        sxUVs = utils.findDefaultValues(objs[0], 'Dict')
 
         if targetLayer is None:
             print('SX Tools: Clearing all layers')
@@ -845,8 +843,6 @@ class SXTOOLS_layers(object):
             shadingmode = bpy.context.scene.sxtools.shadingmode
             idx = objs[0].sxtools.selectedlayer
             layer = utils.findLayerFromIndex(objs[0], idx)
-
-            channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
             if shadingmode == 'FULL':
                 for obj in objs:
@@ -1330,10 +1326,7 @@ class SXTOOLS_mesh(object):
 
     def calculateDirection(self, objs, directionVector):
         objDicts = tools.selectionHandler(objs)
-
         mode = objs[0].mode
-        scene = bpy.context.scene
-
         objDirections = {}
 
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1356,9 +1349,7 @@ class SXTOOLS_mesh(object):
 
     def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
         objDicts = tools.selectionHandler(objs)
-
         mode = objs[0].mode
-        # bpy.ops.object.mode_set(mode='OBJECT')
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
@@ -1373,7 +1364,7 @@ class SXTOOLS_mesh(object):
             for modifier in obj.modifiers:
                 if modifier.type == 'SUBSURF':
                     modifier.show_viewport = False
-        # bpy.ops.object.mode_set(mode='EDIT')
+
         bpy.ops.object.mode_set(mode='OBJECT')
 
         for obj in objs:
@@ -1443,9 +1434,7 @@ class SXTOOLS_mesh(object):
 
     def calculateThickness(self, objs, rayCount, bias=0.000001):
         objDicts = tools.selectionHandler(objs)
-
         mode = objs[0].mode
-        scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
         bias = 1e-5
@@ -1598,8 +1587,8 @@ class SXTOOLS_mesh(object):
                     elif layerType == 'UV':
                         luminance = uvValues[loop_idx].uv[selChannel]
                     loopLuminances.append(luminance)
-                vertLoopDict[vert_idx] = (loop_indices, loopLuminances)
-            objLuminances[obj] = vertLoopDict
+                vtxLuminances[vert_idx] = (loop_indices, loopLuminances)
+            objLuminances[obj] = vtxLuminances
 
         bpy.ops.object.mode_set(mode=mode)
         return objLuminances
@@ -2010,7 +1999,6 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        curvatures = []
         if rampmode == 'C':
             objValues = mesh.calculateCurvature(objs, False)
         elif rampmode == 'CN':
@@ -2160,14 +2148,12 @@ class SXTOOLS_tools(object):
 
 
     def selectMask(self, objs, layers, inverse):
-        mode = objs[0].mode
-        channels = {'U': 0, 'V': 1}
-
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         objDicts = self.selectionHandler(objs)
+        channels = {'U': 0, 'V': 1}
 
         for obj in objs:
             for layer in layers:
@@ -2183,7 +2169,6 @@ class SXTOOLS_tools(object):
                 vertLoopDict = defaultdict(list)
                 vertLoopDict = objDicts[obj][0]
 
-                selList = []
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for loop_idx in loop_indices:
                         if inverse:
@@ -2214,7 +2199,6 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='OBJECT')
 
         for obj in objs:
-            mesh = obj.data
             for edge in obj.data.edges:
                 if math.isclose(edge.crease, weight, abs_tol=0.1):
                     edge.select = True
@@ -2257,7 +2241,6 @@ class SXTOOLS_tools(object):
 
     # takes any layers in layerview, translates to copyChannel batches
     def layerCopyManager(self, objs, sourceLayer, targetLayer):
-        sourceChannels = ['R', 'G', 'B', 'A']
         sourceType = sourceLayer.layerType
         targetType = targetLayer.layerType
 
@@ -2391,7 +2374,7 @@ class SXTOOLS_tools(object):
             else:
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
-        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode=mode)
 
 
     def applyModifiers(self, objs):
@@ -2667,8 +2650,6 @@ def updateColorSwatches(self, context):
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
-    idx = objs[0].sxtools.selectedlayer
-    layer = utils.findLayerFromIndex(objs[0], idx)
     sxmaterial = bpy.data.materials['SXMaterial']
 
     occlusion = objs[0].sxlayers['occlusion'].enabled
@@ -3540,7 +3521,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             mesh = obj.data
             mode = obj.mode
             sxtools = obj.sxtools
-            sxlayers = obj.sxlayers
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
             
@@ -3872,12 +3852,8 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
             obj = objs[0]
 
             layout = self.layout
-            mesh = obj.data
-            mode = obj.mode
             sxtools = obj.sxtools
-            sxlayers = obj.sxlayers
             scene = context.scene.sxtools
-            palettes = context.scene.sxpalettes
 
             pie = layout.menu_pie()
             fill_row = pie.row()
@@ -4447,7 +4423,6 @@ class SXTOOLS_OT_macro1(bpy.types.Operator):
 
     def invoke(self, context, event):
         loadLibraries(self, context)
-        scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         tools.processObjects(objs, 'Hi')
 
@@ -4593,7 +4568,6 @@ if __name__ == '__main__':
 # - Run from direct github zip download
 # - Deleting a ramp preset may error at empty
 # - Copypasting to respect component selections
-# - Preset layer names?
 # - mask/adjustment indication
 # - Master palette library save/manage
 # - PBR material library save/manage
@@ -4603,4 +4577,5 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
+# - Preset layer names?
 # - Export folder to be per-category
