@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 17, 8),
+    'version': (2, 17, 10),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -847,8 +847,8 @@ class SXTOOLS_layers(object):
             if shadingmode == 'FULL':
                 for obj in objs:
                     layer = utils.findLayerFromIndex(obj, 1)
-                    obj.sxlayers[layer].blendMode = 'ALPHA'
-                    obj.sxlayers[layer].alpha = 1.0
+                    obj.sxlayers[layer.name].blendMode = 'ALPHA'
+                    obj.sxlayers[layer.name].alpha = 1.0
                 self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
                 self.blendDebug(objs, layer, shadingmode)
@@ -3564,14 +3564,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
 
                 row_palette = self.layout.row(align=True)
-                row_palette.prop(scene, 'layerpalette1', text='')
-                row_palette.prop(scene, 'layerpalette2', text='')
-                row_palette.prop(scene, 'layerpalette3', text='')
-                row_palette.prop(scene, 'layerpalette4', text='')
-                row_palette.prop(scene, 'layerpalette5', text='')
-                row_palette.prop(scene, 'layerpalette6', text='')
-                row_palette.prop(scene, 'layerpalette7', text='')
-                row_palette.prop(scene, 'layerpalette8', text='')
+                for i in range(8):
+                    row_palette.prop(scene, 'layerpalette' + str(i+1), text='')
 
                 if ((layer.name == 'occlusion') or
                    (layer.name == 'smoothness') or
@@ -3620,14 +3614,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                     if scene.expandfill:
                         row_fpalette = box_fill.row(align=True)
-                        row_fpalette.prop(scene, 'fillpalette1', text='')
-                        row_fpalette.prop(scene, 'fillpalette2', text='')
-                        row_fpalette.prop(scene, 'fillpalette3', text='')
-                        row_fpalette.prop(scene, 'fillpalette4', text='')
-                        row_fpalette.prop(scene, 'fillpalette5', text='')
-                        row_fpalette.prop(scene, 'fillpalette6', text='')
-                        row_fpalette.prop(scene, 'fillpalette7', text='')
-                        row_fpalette.prop(scene, 'fillpalette8', text='')
+                        for i in range(8):
+                            row_fpalette.prop(scene, 'fillpalette' + str(i+1), text='')
                         col_color = box_fill.column(align=True)
                         col_color.prop(scene, 'fillnoise', slider=True)
                         col_color.prop(scene, 'fillmono', text='Monochromatic')
