@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 16, 11),
+    'version': (2, 17, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -207,14 +207,26 @@ class SXTOOLS_files(object):
         self.saveFile('gradients')
 
 
-    def exportFiles(self, objs):
-        for obj in objs:
+    # In paletted export mode, gradients and overlays are
+    # not composited to VertexColor0 as that will be
+    # done by the shader on the game engine side 
+    def exportFiles(self, groups):
+        for group in groups:
             bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            org_loc = obj.location.copy()
-            obj.location = (0,0,0)
-            exportPath = str(bpy.context.scene.sxtools.exportfolder + obj.name + '.' + 'fbx')
+            group.select_set(True)
+            org_loc = group.location.copy()
+            group.location = (0,0,0)
+            exportPath = str(bpy.context.scene.sxtools.exportfolder + group.name + '.' + 'fbx')
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
+
+            selArray = bpy.context.view_layer.objects.selected
+            for sel in selArray:
+                if 'staticVertexColors' not in sel.keys():
+                    sel['staticVertexColors'] = True
+
+                compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
+                layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
+
             bpy.ops.export_scene.fbx(
                 filepath=exportPath,
                 use_selection=True,
@@ -222,8 +234,8 @@ class SXTOOLS_files(object):
                 add_leaf_bones=False,
                 object_types={'ARMATURE', 'EMPTY', 'MESH'},
                 use_custom_props=True)
-            print('SX Tools: Exported ', obj.name)
-            obj.location = org_loc
+            print('SX Tools: Exported ', group.name)
+            group.location = org_loc
 
 
 # ------------------------------------------------------------------------
@@ -308,18 +320,19 @@ class SXTOOLS_utils(object):
             return valueDict
 
 
-    def findCompLayers(self, obj):
+    def findCompLayers(self, obj, staticExport=True):
         compLayers = []
         for sxLayer in obj.sxlayers:
             if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled == True):
                 compLayers.append(sxLayer)
         compLayers.sort(key=lambda x: x.index)
-        if obj.sxlayers['gradient1'].enabled:
-            compLayers.append(obj.sxlayers['gradient1'])
-        if obj.sxlayers['gradient2'].enabled:
-            compLayers.append(obj.sxlayers['gradient2'])
-        if obj.sxlayers['overlay'].enabled:
-            compLayers.append(obj.sxlayers['overlay'])
+        if staticExport:
+            if obj.sxlayers['gradient1'].enabled:
+                compLayers.append(obj.sxlayers['gradient1'])
+            if obj.sxlayers['gradient2'].enabled:
+                compLayers.append(obj.sxlayers['gradient2'])
+            if obj.sxlayers['overlay'].enabled:
+                compLayers.append(obj.sxlayers['overlay'])
 
         return compLayers
 
@@ -1082,12 +1095,7 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode='OBJECT')
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
-        staticCols = objs[0].sxtools.staticvertexcolors
         for obj in objs:
-            obj.sxtools.staticvertexcolors = staticCols
-
-        for obj in objs:
-            obj['staticVertexColors'] = obj.sxtools.staticvertexcolors
             vertexColors = obj.data.vertex_colors
             uvValues = obj.data.uv_layers
             layers = utils.findColorLayers(obj)
@@ -2417,11 +2425,6 @@ class SXTOOLS_tools(object):
 
         bpy.context.view_layer.objects.active = obj
 
-        # Create palette masks
-        obj.sxtools.staticvertexcolors = False
-        layers.generateMasks(objs)
-        layers.flattenAlphas(objs)
-
         # Create modifiers
         obj.sxtools.subdivisionlevel = 2
         self.addModifiers(objs)
@@ -2580,6 +2583,9 @@ class SXTOOLS_tools(object):
         mono = True
         self.applyColor(objs, layer, color, overwrite, noise, mono)
 
+        # Create palette masks
+        layers.generateMasks(objs)
+        layers.flattenAlphas(objs)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -2764,8 +2770,7 @@ def shadingMode(self, context):
 def selectionValidator(self, context):
     selObjs = []
     for obj in context.view_layer.objects.selected:
-        objType = getattr(obj, 'type', '')
-        if objType == 'MESH':
+        if obj.type == 'MESH':
             selObjs.append(obj)
     return selObjs
 
@@ -2820,8 +2825,18 @@ def adjustBrightness(self, context):
         layer = utils.findLayerFromIndex(objs[0], idx)
 
         tools.applyBrightness(objs, layer, context.scene.sxtools.brightnessvalue)
+
         sxglobals.composite = True
         refreshActives(self, context)
+
+
+def markStaticColors(self, context):
+    objs = selectionValidator(self, context)
+    staticCols = objs[0].sxtools.staticvertexcolors
+    for obj in objs:
+        obj['staticVertexColors'] = staticCols
+        if obj.sxtools.staticvertexcolors != staticCols:
+            obj.sxtools.staticvertexcolors = staticCols
 
 
 # ------------------------------------------------------------------------
@@ -2869,7 +2884,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     staticvertexcolors: bpy.props.BoolProperty(
         name='Static Vertex Colors Export Flag',
-        default=True)
+        default=True,
+        update=markStaticColors)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -3746,7 +3762,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if mode == 'OBJECT':
                             col_matcolor.prop(scene, 'materialalpha')
 
-                # Misc ------------------------------------
+                # Exporting and Miscellaneous ------------------------------------
                 box_subdiv = layout.box()
                 row_subdiv = box_subdiv.row()
                 row_subdiv.prop(scene, 'expandsubdiv',
@@ -3758,9 +3774,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_masks = box_subdiv.column(align=True)
                     col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
                     col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
+                    col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                     col_masks.separator()
                     col_masks.prop(sxtools, 'staticvertexcolors', text='Mark Objects as Non-Paletted') 
-                    col_masks.operator('sxtools.generatemasks', text='Generate Masks')
                     col_masks.separator()
                     col_export = box_subdiv.column(align=True)
                     col_export.operator('sxtools.macro2', text='Process Low-Detail Exports')
@@ -4560,6 +4576,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - AdjustBrightness not working
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
 # - High poly bake crash
@@ -4578,3 +4595,5 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
+# - Export folder to be per-category
+# - Re-generating low-mesh preview should properly clear all material channels
