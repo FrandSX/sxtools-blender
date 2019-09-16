@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 17, 6),
+    'version': (2, 17, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex paint tool',
@@ -1912,7 +1912,7 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        luminanceDict = tools.calculateLuminance(objs, layer)
+        luminanceDict = mesh.calculateLuminance(objs, layer)
         luminanceList = list()
         for vertDict in luminanceDict.values():
             for valueList in vertDict.values():
@@ -2464,6 +2464,11 @@ class SXTOOLS_tools(object):
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = 0.5
 
+        # Clear metallic, smoothness, and transmission
+        layers.clearUVs(objs, obj.sxlayers['metallic'])
+        layers.clearUVs(objs, obj.sxlayers['smoothness'])
+        layers.clearUVs(objs, obj.sxlayers['transmission'])
+
         # Construct layer1-7 smoothness base mask
         color = (1.0, 1.0, 1.0, 1.0)
 
@@ -2884,6 +2889,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     staticvertexcolors: bpy.props.BoolProperty(
         name='Static Vertex Colors Export Flag',
+        description='Disable to use dynamic palettes in a game engine\nWhen paletted, overlays are not composited to VertexColor0',
         default=True,
         update=markStaticColors)
 
@@ -3776,7 +3782,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                     col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                     col_masks.separator()
-                    col_masks.prop(sxtools, 'staticvertexcolors', text='Mark Objects as Non-Paletted') 
+                    col_masks.prop(sxtools, 'staticvertexcolors', text='Export Static Vertex Colors on Selected Objects')
                     col_masks.separator()
                     col_export = box_subdiv.column(align=True)
                     col_export.operator('sxtools.macro2', text='Process Low-Detail Exports')
@@ -4415,7 +4421,7 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
 class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_idname = 'sxtools.exportfiles'
     bl_label = 'Export Selected'
-    bl_description = 'Saves FBX files of multi-part objects\nSelect root EMPTY node that the parts are parented under'
+    bl_description = 'Saves FBX files of multi-part objects\nSelect root EMPTY node and the hierarchy!'
 
 
     def invoke(self, context, event):
@@ -4576,7 +4582,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - AdjustBrightness not working
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
 # - High poly bake crash
@@ -4596,4 +4601,3 @@ if __name__ == '__main__':
 #   - Layer renaming
 #   - _paletted suffix
 # - Export folder to be per-category
-# - Re-generating low-mesh preview should properly clear all material channels
