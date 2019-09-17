@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 18, 4),
+    'version': (2, 18, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -213,6 +213,7 @@ class SXTOOLS_files(object):
     # done by the shader on the game engine side 
     def exportFiles(self, groups):
         for group in groups:
+            bpy.context.view_layer.objects.active = group
             bpy.ops.object.select_all(action='DESELECT')
             group.select_set(True)
             org_loc = group.location.copy()
@@ -228,7 +229,7 @@ class SXTOOLS_files(object):
                 layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
 
             subFolder = selArray[0].sxtools.category.lower() + '\\'
-            if (subFolder == 'standard') or (subFolder == 'paletted'):
+            if (subFolder == 'default'):
                 subFolder == ''
             exportPath = str(bpy.context.scene.sxtools.exportfolder + subFolder + group.name + '.' + 'fbx')
 
@@ -249,6 +250,20 @@ class SXTOOLS_files(object):
 class SXTOOLS_utils(object):
     def __init__(self):
         return None
+
+    # Finds groups to be exported,
+    # only EMPTY objects with no parents
+    def findGroups(self, objs):
+        groups = list()
+        for obj in objs:
+            if (obj.type == 'EMPTY') and (obj.parent == None):
+                groups.append(obj)
+
+            parent = obj.parent
+            if (parent is not None) and (parent.type == 'EMPTY') and (parent.parent == None):
+                groups.append(obj.parent)
+
+        return set(groups)
 
 
     def findListIndex(self, obj, layer):
@@ -4386,16 +4401,13 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
 class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_idname = 'sxtools.exportfiles'
     bl_label = 'Export Selected'
-    bl_description = 'Saves FBX files of multi-part objects\nSelect root EMPTY node and the hierarchy!'
+    bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY groups at root based on selection are exported'
 
 
     def invoke(self, context, event):
         selected = context.view_layer.objects.selected
-        objs = []
-        for obj in selected:
-            if obj.type == 'EMPTY':
-                objs.append(obj)
-        files.exportFiles(objs)
+        groups = utils.findGroups(selected)
+        files.exportFiles(groups)
         return {'FINISHED'}
 
 
