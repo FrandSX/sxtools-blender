@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 18, 1),
+    'version': (2, 18, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -217,7 +217,6 @@ class SXTOOLS_files(object):
             group.select_set(True)
             org_loc = group.location.copy()
             group.location = (0,0,0)
-            exportPath = str(bpy.context.scene.sxtools.exportfolder + group.name + '.' + 'fbx')
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             selArray = bpy.context.view_layer.objects.selected
@@ -227,6 +226,11 @@ class SXTOOLS_files(object):
 
                 compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
                 layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
+
+            subFolder = selArray[0].sxtools.category.lower() + '\\'
+            if (subFolder == 'standard') or (subFolder == 'paletted'):
+                subFolder == ''
+            exportPath = str(bpy.context.scene.sxtools.exportfolder + subFolder + group.name + '.' + 'fbx')
 
             bpy.ops.export_scene.fbx(
                 filepath=exportPath,
@@ -2777,11 +2781,17 @@ def categoryLister(self, context):
 
 def loadCategory(self, context):
     objs = selectionValidator(self, context)
-    categoryNames = sxglobals.categoryDict[sxglobals.presetLookup[context.scene.sxtools.categorylist]]
+    categoryNames = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
+    for i in range(7):
+        layer = utils.findLayerFromIndex(objs[0], i+1)
+        layer.name = categoryNames[i]
+
     for obj in objs:
-        for i in range(7):
-            layer = utils.findLayerFromIndex(obj, i+1)
-            layer.name = categoryNames[i]
+        if obj.sxtools.category != objs[0].sxtools.category:
+            obj.sxtools.category = objs[0].sxtools.category
+            for i in range(7):
+                layer = utils.findLayerFromIndex(obj, i+1)
+                layer.name = categoryNames[i]
 
 
 def loadRamp(self, context):
@@ -2843,6 +2853,12 @@ def markStaticColors(self, context):
 #    Settings and preferences
 # ------------------------------------------------------------------------
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
+    category: bpy.props.EnumProperty(
+        name='Category Presets',
+        description='Select object category\nRenames layers to match',
+        items=categoryLister,
+        update=loadCategory)
+
     selectedlayer: bpy.props.IntProperty(
         name='Selected Layer',
         min=0,
@@ -2935,12 +2951,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Enable Emission',
         description='Use per-vertex emission values',
         default=True)
-
-    categorylist: bpy.props.EnumProperty(
-        name='Category Presets',
-        description='Select object category\nRenames layers to match',
-        items=categoryLister,
-        update=loadCategory)
 
     shadingmode: bpy.props.EnumProperty(
         name='Shading Mode',
@@ -3567,7 +3577,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     print('SX Tools: Error, invalid layer selected!')
 
                 row = layout.row(align=True)
-                row.prop(scene, 'categorylist', text='Category')
+                row.prop(sxtools, 'category', text='Category')
 
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
@@ -4551,4 +4561,3 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
-# - Export folder to be per-category
