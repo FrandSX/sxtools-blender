@@ -1,0 +1,38 @@
+{
+    "Default": [
+        "layer1",
+        "layer2",
+        "layer3",
+        "layer4",
+        "layer5",
+        "layer6",
+        "layer7"
+    ],
+    "Paletted": [
+        "layer1 - Palette Color 1",
+        "layer2 - Palette Color 2",
+        "layer3 - Palette Color 3",
+        "layer4 - Palette Color 4",
+        "layer5 - Palette Color 5",
+        "layer6 - Static Colors",
+        "layer7 - Metallic"
+    ],
+    "Vehicles": [
+        "layer1 - Paint (Primary)",
+        "layer2 - Paint (Secondary)",
+        "layer3 - Paint (Tertiary)",
+        "layer4 - Seats",
+        "layer5 - Inside Panels",
+        "layer6 - Static Colors",
+        "layer7 - Metallic"
+    ],
+    "Buildings": [
+        "layer1 - Walls (Primary)",
+        "layer2 - Walls (Secondary)",
+        "layer3 - Walls (Tertiary)",
+        "layer4 - Ground Floor",
+        "layer5 - Secondary Detail",
+        "layer6 - Static Colors",
+        "layer7 - Glass"
+    ]
+}

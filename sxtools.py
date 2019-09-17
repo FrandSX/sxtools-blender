@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 17, 10),
+    'version': (2, 18, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -17,8 +17,6 @@ import json
 import statistics
 from collections import defaultdict
 from mathutils import Vector
-from bpy.types import AddonPreferences
-from bl_operators.presets import AddPresetBase
 
 
 # ------------------------------------------------------------------------
@@ -35,7 +33,8 @@ class SXTOOLS_sxglobals(object):
         self.prevMode = None
 
         self.rampDict = {}
-        self.rampLookup = {}
+        self.categoryDict = {}
+        self.presetLookup = {}
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
@@ -109,6 +108,9 @@ class SXTOOLS_files(object):
                     elif mode == 'gradients':
                         sxglobals.rampDict.clear()
                         sxglobals.rampDict = tempDict
+                    elif mode == 'categories':
+                        sxglobals.categoryDict.clear()
+                        sxglobals.categoryDict = tempDict
 
                     input.close()
                 print('SX Tools: ' + mode + ' loaded from ' + filePath)
@@ -528,21 +530,10 @@ class SXTOOLS_setup(object):
         sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 200)
 
         # Palette colors
-        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
-        pCol.name = 'PaletteColor0'
-        sxmaterial.node_tree.nodes['PaletteColor0'].location = (-900, 0)
-        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
-        pCol.name = 'PaletteColor1'
-        sxmaterial.node_tree.nodes['PaletteColor1'].location = (-900, -200)
-        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
-        pCol.name = 'PaletteColor2'
-        sxmaterial.node_tree.nodes['PaletteColor2'].location = (-900, -400)
-        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
-        pCol.name = 'PaletteColor3'
-        sxmaterial.node_tree.nodes['PaletteColor3'].location = (-900, -600)
-        pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
-        pCol.name = 'PaletteColor4'
-        sxmaterial.node_tree.nodes['PaletteColor4'].location = (-900, -800)
+        for i in range(5):
+            pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+            pCol.name = 'PaletteColor' + str(i)
+            sxmaterial.node_tree.nodes[pCol.name].location = (-900, -200*i)
 
         # Vertex color source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
@@ -2768,14 +2759,33 @@ def rampLister(self, context):
     items = sxglobals.rampDict.keys()
     enumItems = []
     for item in items:
-        sxglobals.rampLookup[item.replace(" ", "_").upper()] = item
+        sxglobals.presetLookup[item.replace(" ", "_").upper()] = item
         enumItem = (item.replace(" ", "_").upper(), item, '')
         enumItems.append(enumItem)
     return enumItems
 
 
+def categoryLister(self, context):
+    items = sxglobals.categoryDict.keys()
+    enumItems = []
+    for item in items:
+        sxglobals.presetLookup[item.replace(" ", "_").upper()] = item
+        enumItem = (item.replace(" ", "_").upper(), item, '')
+        enumItems.append(enumItem)
+    return enumItems
+
+
+def loadCategory(self, context):
+    objs = selectionValidator(self, context)
+    categoryNames = sxglobals.categoryDict[sxglobals.presetLookup[context.scene.sxtools.categorylist]]
+    for obj in objs:
+        for i in range(7):
+            layer = utils.findLayerFromIndex(obj, i+1)
+            layer.name = categoryNames[i]
+
+
 def loadRamp(self, context):
-    rampName = sxglobals.rampLookup[context.scene.sxtools.ramplist]
+    rampName = sxglobals.presetLookup[context.scene.sxtools.ramplist]
     ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'].color_ramp
     tempDict = sxglobals.rampDict[rampName]
 
@@ -2800,8 +2810,9 @@ def loadLibraries(self, context):
     status1 = files.loadFile('palettes')
     status2 = files.loadFile('materials')
     status3 = files.loadFile('gradients')
+    status4 = files.loadFile('categories')
 
-    if status1 and status2 and status3:
+    if status1 and status2 and status3 and status4:
         context.scene.sxtools.librarystatus = 'Libraries loaded successfully'
     else:
         context.scene.sxtools.librarystatus = 'Error loading libraries!'
@@ -2924,6 +2935,12 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Enable Emission',
         description='Use per-vertex emission values',
         default=True)
+
+    categorylist: bpy.props.EnumProperty(
+        name='Category Presets',
+        description='Select object category\nRenames layers to match',
+        items=categoryLister,
+        update=loadCategory)
 
     shadingmode: bpy.props.EnumProperty(
         name='Shading Mode',
@@ -3550,9 +3567,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     print('SX Tools: Error, invalid layer selected!')
 
                 row = layout.row(align=True)
-                row.menu('SXTOOLS_MT_presets', text='Presets')
-                row.operator('sxtools.addpreset', text='', icon='ADD')
-                row.operator('sxtools.addpreset', text='', icon='REMOVE').remove_active = True
+                row.prop(scene, 'categorylist', text='Category')
 
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
@@ -3866,13 +3881,6 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
             pie.operator('sxtools.selmask', text='Select Mask')
 
 
-class SXTOOLS_MT_presets(bpy.types.Menu):
-    bl_label = 'Presets'
-    preset_subdir = 'object/sxtools_presets'
-    preset_operator = 'script.execute_preset'
-    draw = bpy.types.Menu.draw_preset
-
-
 class SXTOOLS_OT_addramp(bpy.types.Operator):
     bl_idname = 'sxtools.addramp'
     bl_label = 'Add Ramp Preset'
@@ -3902,30 +3910,10 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        rampName = sxglobals.rampLookup[context.scene.sxtools.ramplist]
+        rampName = sxglobals.presetLookup[context.scene.sxtools.ramplist]
         del sxglobals.rampDict[rampName]
-        del sxglobals.rampLookup[context.scene.sxtools.ramplist]
+        del sxglobals.presetLookup[context.scene.sxtools.ramplist]
         return {'FINISHED'}
-
-
-class SXTOOLS_OT_addpreset(AddPresetBase, bpy.types.Operator):
-    bl_idname = 'sxtools.addpreset'
-    bl_label = 'Add preset'
-    bl_description = 'Choose an object category\nThese presets are project-specific'
-    preset_menu = 'SXTOOLS_MT_presets'
-
-    # Common variable used for all preset values
-    preset_defines = [
-        'obj = bpy.context.object',
-        'scene = bpy.context.scene' ]
-    # Properties to store in the preset
-    preset_values = [
-        'obj.sxtools',
-        'obj.sxlayers',
-        'scene.sxtools' ]
-
-    # Directory to store the presets
-    preset_subdir = 'object/sxtools_presets'
 
 
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
@@ -4466,8 +4454,6 @@ classes = (
     SXTOOLS_PT_panel,
     SXTOOLS_UL_layerlist,
     SXTOOLS_MT_piemenu,
-    SXTOOLS_MT_presets,
-    SXTOOLS_OT_addpreset,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
@@ -4565,5 +4551,4 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
-# - Preset layer names?
 # - Export folder to be per-category
