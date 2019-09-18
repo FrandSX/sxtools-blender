@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 18, 8),
+    'version': (2, 19, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2385,11 +2385,24 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
 
+    def removeModifiers(self, objs):
+        for obj in objs:
+            bpy.context.view_layer.objects.active = obj
+            if 'sxSubdivision' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxSubdivision')
+            if 'sxEdgeSplit' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
+            if 'sxWeightedNormal' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
+
+
     # This is a project-specific batch operation.
     # These should be adapted to the needs of the game,
     # baking object-category -specific values to achieve
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
+        then = time.time()
+        # depsgraph = bpy.context.evaluated_depsgraph_get()
         scene = bpy.context.scene.sxtools
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
@@ -2411,6 +2424,11 @@ class SXTOOLS_tools(object):
         self.addModifiers(objs)
 
         if mode == 'Hi':
+            # meshes = list()
+            # for obj in objs:
+            #     obj_eval = obj.evaluated_get(depsgraph)
+            #     mesh = obj_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
+            #     meshes.append(mesh)
             # Apply modifiers
             self.applyModifiers(objs)
 
@@ -2421,13 +2439,16 @@ class SXTOOLS_tools(object):
         noise = 0.0
         mono = True
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 1000
+        scene.occlusionrays = 200
 
         mergebbx = scene.rampbbox
         overwrite = True
         obj.mode == 'OBJECT'
 
         self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
@@ -2449,6 +2470,9 @@ class SXTOOLS_tools(object):
         layers.clearUVs(objs, obj.sxlayers['metallic'])
         layers.clearUVs(objs, obj.sxlayers['smoothness'])
         layers.clearUVs(objs, obj.sxlayers['transmission'])
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Construct layer1-7 smoothness base mask
         color = (1.0, 1.0, 1.0, 1.0)
@@ -2501,6 +2525,9 @@ class SXTOOLS_tools(object):
 
         obj.mode == 'OBJECT'
 
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -2519,6 +2546,9 @@ class SXTOOLS_tools(object):
         mono = True
 
         obj.mode == 'OBJECT'
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
@@ -2574,6 +2604,10 @@ class SXTOOLS_tools(object):
         # Create palette masks
         layers.generateMasks(objs)
         layers.flattenAlphas(objs)
+
+        now = time.time()
+        print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
+
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -3699,6 +3733,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
                         col_sds.prop(scene, 'hardcrease', text='Sharp Edges on 100% Creases')
                         col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
+                        col_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
                         col_sds.operator('sxtools.modifiers', text='Add/Update Modifiers')
 
                 # Master Palette ---------------------------------------------------
@@ -4324,6 +4359,19 @@ class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
+    bl_idname = 'sxtools.removemodifiers'
+    bl_label = 'Remove Modifiers'
+    bl_options = {'UNDO'}
+    bl_description = 'Remove SX Tools modifiers from selected objects'
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        tools.removeModifiers(objs)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_generatemasks(bpy.types.Operator):
     bl_idname = 'sxtools.generatemasks'
     bl_label = 'Create Palette Masks'
@@ -4483,6 +4531,7 @@ classes = (
     SXTOOLS_OT_pastelayer,
     SXTOOLS_OT_applymodifiers,
     SXTOOLS_OT_modifiers,
+    SXTOOLS_OT_removemodifiers,
     SXTOOLS_OT_generatemasks,
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
@@ -4560,3 +4609,9 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
+# - Automatic groundplane for AO?
+# - Color management vs. palettes vs. color picking
+# - updatelayerpalettes on selection
+# - to_mesh() export
+# - Weighted Normals as last step in high-poly export
+# - Setup Objects to filter non-meshes?
