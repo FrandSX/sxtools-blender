@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 18, 6),
+    'version': (2, 18, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1200,58 +1200,44 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def updateLayerPalette(self, obj, layer):
-        mode = obj.mode
+    def updateLayerPalette(self, objs, layer):
+        mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
-        mesh = obj.data
-        if layer.layerType == 'COLOR':
-            vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-        elif layer.layerType == 'UV4':
-            uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-            uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-            uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-            uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
-        elif layer.layerType == 'UV':
-            uvValues = obj.data.uv_layers[layer.uvLayer0].data
+        channels = {'U': 0, 'V': 1}
         colorArray = []
 
-        for poly in mesh.polygons:
-            for loop_idx in poly.loop_indices:
-                if layer.layerType == 'COLOR':
-                    vColor = vertexColors[loop_idx].color[:]
-                elif layer.layerType == 'UV4':
-                    if layer.uvChannel0 == 'U':
-                        uvValue0 = round(uvValues0[loop_idx].uv[0], 1)
-                    else:
-                        uvValue0 = round(uvValues0[loop_idx].uv[1], 1)
-                    if layer.uvChannel1 == 'U':
-                        uvValue1 = round(uvValues1[loop_idx].uv[0], 1)
-                    else:
-                        uvValue1 = round(uvValues1[loop_idx].uv[1], 1)
-                    if layer.uvChannel2 == 'U':
-                        uvValue2 = round(uvValues2[loop_idx].uv[0], 1)
-                    else:
-                        uvValue2 = round(uvValues2[loop_idx].uv[1], 1)
-                    if layer.uvChannel3 == 'U':
-                        uvValue3 = round(uvValues3[loop_idx].uv[0], 1)
-                    else:
-                        uvValue3 = round(uvValues3[loop_idx].uv[1], 1)
-                    uvColor = [uvValue0, uvValue1, uvValue2, uvValue3]
-                elif layer.layerType == 'UV':
-                    if layer.uvChannel0 == 'U':
-                        vValue = round(uvValues[loop_idx].uv[0], 1)
-                    else:
-                        vValue = round(uvValues[loop_idx].uv[1], 1)
+        for obj in objs:
+            mesh = obj.data
+            if layer.layerType == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif layer.layerType == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+            elif layer.layerType == 'UV':
+                uvValues = obj.data.uv_layers[layer.uvLayer0].data
 
-                if (layer.layerType == 'COLOR') and (vColor[3] != 0.0):
-                    listColor = (round(vColor[0], 1), round(vColor[1], 1), round(vColor[2], 1), 1.0)
-                    colorArray.append(listColor)
-                elif (layer.layerType == 'UV4') and (uvColor[3] != 0.0):
-                    listColor = (round(uvColor[0], 1), round(uvColor[1], 1), round(uvColor[2], 1), 1.0)
-                    colorArray.append(listColor)                    
-                elif layer.layerType == 'UV':
-                    listColor = (vValue, vValue, vValue, 1.0)
-                    colorArray.append(listColor)
+            for poly in mesh.polygons:
+                for loop_idx in poly.loop_indices:
+                    if layer.layerType == 'COLOR':
+                        color = vertexColors[loop_idx].color[:]
+                    elif layer.layerType == 'UV4':
+                        uvValue0 = uvValues0[loop_idx].uv[channels[layer.uvChannel0]]
+                        uvValue1 = uvValues1[loop_idx].uv[channels[layer.uvChannel1]]
+                        uvValue2 = uvValues2[loop_idx].uv[channels[layer.uvChannel2]]
+                        uvValue3 = uvValues3[loop_idx].uv[channels[layer.uvChannel3]]
+                        color = (uvValue0, uvValue1, uvValue2, uvValue3)
+                    elif layer.layerType == 'UV':
+                        uvValue = uvValues[loop_idx].uv[channels[layer.uvChannel0]]
+                        color = (uvValue, uvValue, uvValue, uvValue)
+
+                    if color[3] > 0.0:
+                        colorArray.append(color)
+
+        if len(colorArray) == 0:
+            color = (0.0, 0.0, 0.0, 1.0)
+            colorArray.append(color)
 
         colorSet = set(colorArray)
         colorFreq = []
@@ -1264,6 +1250,7 @@ class SXTOOLS_layers(object):
             sortColors.append((0, [0.0, 0.0, 0.0, 1.0]))
             colLen += 1
 
+        sortColors = sortColors[0::int(colLen/8)]
         scn = bpy.context.scene.sxtools
         for i in range(8):
             setattr(scn, 'layerpalette' + str(i + 1), sortColors[i][1])
@@ -2648,7 +2635,7 @@ def refreshActives(self, context):
         layers.compositeLayers(objs)
 
         sxglobals.refreshInProgress = False
-        layers.updateLayerPalette(objs[0], layer)
+        layers.updateLayerPalette(objs, layer)
         layers.updateLayerBrightness(objs, layer)
 
 
