@@ -140,27 +140,19 @@ Allows for quick editing of edge creases, particularly useful with a subdivision
 The package contains example shader graphs for both HDRP and LWRP renderers in Unity 2019.
 Currently the export channels are set in the following way:
 
-UV0 - Reserved for a regular texture
-
-U1 - Used layer coverage masks if the object will be dynamically paletted in the game
-
-V1 - Occlusion
-
-U2 - Transmission
-
-V2 - Emission
-
-U3 - Metallic
-
-V3 - Smoothness
-
-U4 - Alpha Overlay 1 is an alpha mask channel
-
-V4 - Alpha Overlay 2 is an alpha mask channel
-
-U5/V5/U6/V6 - RGBA Overlay is an optional additional color layer 
-
-UV7 - Currently not in use
+Channel | Function
+---------|-------------
+UV0 | Reserved for a regular texturing
+U1 | Layer coverage masks for dynamic palettes
+V1 | Ambient Occlusion
+U2 | Transmission
+V2 | Emission
+U3 | Metallic
+V3 | Smoothness
+U4 | Alpha Overlay 1, an alpha mask channel
+V4 | Alpha Overlay 2, an alpha mask channel
+UV5/UV6 | RGBA Overlay, an optional additional color layer 
+UV7 | Currently not in use
 
 Vertex colors are exported from the Composite/VertexColor0 layer. Material properties are assigned according to the list above.
 Note that emission is only an 8-bit mask for base vertex color, not a full RGBA-channel.
