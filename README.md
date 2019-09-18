@@ -3,22 +3,32 @@
 ![Example Situation](/images/sxtools-blender.png)
 
 ### Overview
-SX Tools for Blender is a work-in-progress adaptation of SX Tools for Maya. The goal of this project is to provide an artist toolbox for multi-layered vertex coloring, referencing the workflow from common 2D image editing programs. It supports driving a full PBR (physically based rendering) game material with vertex color -based data.
+
+## For Game Developers
+SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game.
+
+## For 3D Artists
+SX Tools is a multi-layer vertex coloring toolbox, referencing a workflow from common 2D image editing programs.
 
 ## Highlights
-UV-channels are presented to the user as grayscale vertex-color layers, and these UV-channels are exported to game engine as PBR material channels. The user can therefore apply per-vertex occlusion/metallic/smoothness/transmission/emission directly on the model, and see the effects in realtime.
+For game artists, UV-channels are presented as grayscale layers. Regular paint operations like gradients, color fills and even occlusion baking can be performed directly to UVs like they were vertex color layers. The toolbox comes with a custom material that displays all edits in the viewport in realtime.
+
+The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmission/emission directly on the model, and tweak the results interactively.
 
 ### Features
 - Multi-layer vertex color editing
-- Layer blend modes (alpha, additive, multiply)
-- Color filler with noise
-- Color gradient tool
+- Layer blend modes (alpha, additive, multiply, overlay)
+- Color filler with optional noise
+- Color gradient tool with optional noise
 - Curvature-based shading
 - Vertex ambient occlusion baking
+- Mesh thickness baking
+- Luminance-based tone-mapping
 - Master Palette Tool for quickly replacing the color scheme of object/objects
-- PBR Material Tool that allows driving shader properties with real-world values
+- PBR Material Library
 - Quick-crease tools
-- Vertex-color -based material channel inputs
+- Modifier automations
+- Material channel editing via UV channel values (subsurface scattering, occlusion, metallic, roughness)
 - Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
 
 ## Installation:
@@ -70,20 +80,26 @@ This is similar to popular 2D paint programs:
 
 **Multiply** - darkens the layer below
 
+**Overlay** - lightens and darkens the layer below
+
 ### The layer opacity slider
 Dragging the slider changes a layer alpha value that influences the composited result. All alpha values in the layer itself are preserved.
 
 ### Layer color swatches
-Displays the active layer 
+Displays prominent colors from the selected objects
 
 ### The layer list:
+* The eye-icon indicates if the layer is hidden or visible
 * Click to select layers
+* For game developers: object categories can be defined that rename the layers as needed
 
 ### Merge Up / Merge Down buttons
 Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode. Merging is not permitted with material channels.
 
 ### Copy / Paste buttons
-Allows any layer to be copied and pasted. Grayscale layers (material channels) are expanded to RGB values upon pasting, and if a color layer is pasted on a material channel, the luminance of the color is used for grayscale. Shift-clicking on paste swaps the source and the target layers.
+Allows any layer to be copied and pasted. Grayscale layers (material channels) are expanded to RGB values upon pasting, and if a color layer is pasted on a material channel, the luminance of the color is used for grayscale. 
+* Shift-clicking on paste swaps the source and the target layers.
+* Alt-clicking merges the copied layer with the target according to the alpha and blendmode
 
 ### Select Layer Mask
 Click to select all vertices with alpha > 0. Shift-click to invert selection. With material channels, picks any vertex that is not black.
@@ -94,16 +110,20 @@ Shift-clicking will clear ALL layers.
 
 ### Apply Color
 Fills selected objects or components (faces, edges, verts supported).
+* Overwrite Alpha option can be unchecked to respect current alpha mask and only replace existing color values
+* Optional color or monochrome noise can be added
 
 ### Gradient Tool
 Fills selected objects or components with the selected gradient. The global bbox option stretches the gradient over multiple objects. 
 
 Modes:
 * X-Axis / Y-Axis / Z-Axis - maps the gradient across the bounding volume in the selected world axis
+* Directional - works like a directional light that maps the surface brightness to the gradient
 * Luminance - remaps the brightness values of the existing layer to the tones of the gradient
 * Curvature - drives the gradient tones using the convex/concave characteristics of the surface
 * Normalized Curvature - provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
 * Ambient Occlusion - maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
+* Thickness - maps the gradient according to mesh thickness. The quality of the calculation can be improved by increasing the ray count.
 
 ### Master Palettes
 Clicking Apply will replace colors in layers 1-5 with the colors of the palette while retaining alpha channels.
@@ -122,7 +142,7 @@ Currently the export channels are set in the following way:
 
 UV0 - Reserved for a regular texture
 
-U1 - Currently not in use
+U1 - Used layer coverage masks if the object will be dynamically paletted in the game
 
 V1 - Occlusion
 
@@ -134,9 +154,15 @@ U3 - Metallic
 
 V3 - Smoothness
 
-UV4-UV7 - Currently not in use
+U4 - Alpha Overlay 1 is an alpha mask channel
 
-Vertex colors are exported from the Composite layer. Material properties are assigned according to the list above.
+V4 - Alpha Overlay 2 is an alpha mask channel
+
+U5/V5/U6/V6 - RGBA Overlay is an optional additional color layer 
+
+UV7 - Currently not in use
+
+Vertex colors are exported from the Composite/VertexColor0 layer. Material properties are assigned according to the list above.
 Note that emission is only an 8-bit mask for base vertex color, not a full RGBA-channel.
 
 (c) 2017-2019 Jani Kahrama / Secret Exit Ltd.
