@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 19, 0),
+    'version': (2, 20, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -38,6 +38,8 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
+        self.exportObjects = []
+        self.sourceObjects = []
 
         # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
@@ -2396,9 +2398,20 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
 
 
+    def removeExports(self):
+        objs = sxglobals.exportObjects
+        bpy.ops.object.delete({"selected_objects": objs})
+
+        for obj in sxglobals.sourceObjects:
+            if obj.name.endswith('_org'):
+                obj.name = obj.name[:-4]
+            if obj.data and obj.data.name.endswith('_org'):
+                obj.data.name = obj.data.name[:-4]
+
+
     # This is a project-specific batch operation.
     # These should be adapted to the needs of the game,
-    # baking object-category -specific values to achieve
+    # baking category-specific values to achieve
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
         then = time.time()
@@ -2406,11 +2419,14 @@ class SXTOOLS_tools(object):
         scene = bpy.context.scene.sxtools
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
+        orgObjNames = {}
         inverse = False
 
         # Make sure auto-smooth is on
         for obj in objs:
             obj.data.use_auto_smooth = True
+            if '_mesh' not in obj.data.name:
+                obj.data.name = obj.name + '_mesh'
 
         # Remove empties from selected objects
         for sel in bpy.context.view_layer.objects.selected:
@@ -2423,14 +2439,48 @@ class SXTOOLS_tools(object):
         obj.sxtools.subdivisionlevel = 2
         self.addModifiers(objs)
 
-        if mode == 'Hi':
-            # meshes = list()
-            # for obj in objs:
-            #     obj_eval = obj.evaluated_get(depsgraph)
-            #     mesh = obj_eval.to_mesh(preserve_all_data_layers=True, depsgraph=depsgraph)
-            #     meshes.append(mesh)
-            # Apply modifiers
-            self.applyModifiers(objs)
+        if mode == 'HI':
+            newObjs = []
+
+            groups = utils.findGroups(objs)
+            for group in groups:
+                orgGroup = bpy.data.objects.new('empty', None)
+                bpy.context.scene.collection.objects.link(orgGroup)
+                orgGroup.empty_display_size = 2
+                orgGroup.empty_display_type = 'PLAIN_AXES'   
+                orgGroup.location = group.location
+                orgGroup.name = group.name + '_org'
+                orgGroup.hide_viewport = True
+                sxglobals.sourceObjects.append(orgGroup)
+
+            for obj in objs:
+                sxglobals.sourceObjects.append(obj)
+                newObj = obj.copy()
+                newObj.data = obj.data.copy()
+
+                orgObjNames[obj] = [obj.name, obj.data.name][:]
+                obj.data.name = obj.data.name + '_org'
+                obj.name = obj.name + '_org'
+
+                newObj.name = orgObjNames[obj][0]
+                newObj.data.name = orgObjNames[obj][1]
+
+                bpy.context.scene.collection.objects.link(newObj)
+                newObjs.append(newObj)
+                sxglobals.exportObjects.append(newObj)
+
+                obj.parent = bpy.context.view_layer.objects[obj.parent.name + '_org']
+                obj.hide_viewport = True
+
+            self.applyModifiers(newObjs)
+
+            objs = newObjs
+            bpy.context.view_layer.objects.active = objs[0]
+
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -2601,9 +2651,23 @@ class SXTOOLS_tools(object):
         mono = True
         self.applyColor(objs, layer, color, overwrite, noise, mono)
 
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         # Create palette masks
         layers.generateMasks(objs)
         layers.flattenAlphas(objs)
+
+        if mode == 'HI':
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            for obj in objs:
+                obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
+                obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
+                obj.modifiers['sxWeightedNormal'].weight = 95
+                obj.modifiers['sxWeightedNormal'].keep_sharp = True
+
+            # self.applyModifiers(objs)
 
         now = time.time()
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
@@ -3316,8 +3380,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Crease',
         default=False)
 
-    expandsubdiv: bpy.props.BoolProperty(
-        name='Expand Subdiv',
+    expandexport: bpy.props.BoolProperty(
+        name='Expand Export',
         default=False)
 
     palettemode: bpy.props.EnumProperty(
@@ -3331,6 +3395,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     expandpalette: bpy.props.BoolProperty(
         name='Expand Palette',
         default=False)
+
+    exportmode: bpy.props.EnumProperty(
+        name='Export Mode',
+        description='Low-detail mode uses base mesh for baking\nHigh-detail mode bakes after applying modifiers',
+        items=[
+            ('LO', 'Low-detail', ''),
+            ('HI', 'High-detail', '')],
+        default='LO')
 
     libraryfolder: bpy.props.StringProperty(
         name='Library Folder',
@@ -3802,24 +3874,27 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_matcolor.prop(scene, 'materialalpha')
 
                 # Exporting and Miscellaneous ------------------------------------
-                box_subdiv = layout.box()
-                row_subdiv = box_subdiv.row()
-                row_subdiv.prop(scene, 'expandsubdiv',
-                    icon='TRIA_DOWN' if scene.expandsubdiv else 'TRIA_RIGHT',
+                box_export = layout.box()
+                row_export = box_export.row()
+                row_export.prop(scene, 'expandexport',
+                    icon='TRIA_DOWN' if scene.expandexport else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
 
-                row_subdiv.label(text='Export Tools')
-                if scene.expandsubdiv:
-                    col_masks = box_subdiv.column(align=True)
+                row_export.label(text='Export Tools')
+                if scene.expandexport:
+                    col_masks = box_export.column(align=True)
                     col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
                     col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                     col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                     col_masks.separator()
                     col_masks.prop(sxtools, 'staticvertexcolors', text='Export Static Vertex Colors on Selected Objects')
                     col_masks.separator()
-                    col_export = box_subdiv.column(align=True)
-                    col_export.operator('sxtools.macro2', text='Process Low-Detail Exports')
-                    col_export.operator('sxtools.macro1', text='Process High-Detail Exports')
+                    row2_export = box_export.row(align=True)
+                    row2_export.prop(scene, 'exportmode', expand=True)
+                    col_export = box_export.column(align=True)
+                    col_export.operator('sxtools.macro', text='Process Exports')
+                    if len(sxglobals.exportObjects) > 0:
+                        col_export.operator('sxtools.removeexports', text='Remove Exports')
                     col_export.separator()
                     col_export.label(text='Set Export Folder:')
                     col_export.prop(scene, 'exportfolder', text='')
@@ -4446,31 +4521,21 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         return {'FINISHED'}
 
 
-# This is a prototype batch used for vehicles in a game project
-class SXTOOLS_OT_macro1(bpy.types.Operator):
-    bl_idname = 'sxtools.macro1'
-    bl_label = 'Bake High-Poly Exports'
-    bl_description = 'A prototype batch process used for vehicles in a game project\nApplies modifiers and calculates material channels'
-    bl_options = {'UNDO'}
+class SXTOOLS_OT_removeexports(bpy.types.Operator):
+    bl_idname = 'sxtools.removeexports'
+    bl_label = 'Remove Exports'
+    bl_description = 'Deletes generated high-poly objects\nReturns the original object to its regular state'
 
 
     def invoke(self, context, event):
-        loadLibraries(self, context)
-        objs = selectionValidator(self, context)
-        tools.processObjects(objs, 'Hi')
-
-        sxglobals.composite = True
-        refreshActives(self, context)
-
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.shade_smooth()
+        tools.removeExports()
         return {'FINISHED'}
 
 
 # This is a prototype batch used for vehicles in a game project
-class SXTOOLS_OT_macro2(bpy.types.Operator):
-    bl_idname = 'sxtools.macro2'
-    bl_label = 'Low-Res Export Preview'
+class SXTOOLS_OT_macro(bpy.types.Operator):
+    bl_idname = 'sxtools.macro'
+    bl_label = 'Process Exports'
     bl_description = 'A prototype batch process used for vehicles in a game project\nApplies modifiers and calculates material channels'
     bl_options = {'UNDO'}
 
@@ -4479,7 +4544,7 @@ class SXTOOLS_OT_macro2(bpy.types.Operator):
         loadLibraries(self, context)
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
-        tools.processObjects(objs, 'Lo')
+        tools.processObjects(objs, context.scene.sxtools.exportmode)
 
         sxglobals.composite = True
         refreshActives(self, context)
@@ -4536,8 +4601,8 @@ classes = (
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
     SXTOOLS_OT_exportfiles,
-    SXTOOLS_OT_macro1,
-    SXTOOLS_OT_macro2)
+    SXTOOLS_OT_removeexports,
+    SXTOOLS_OT_macro)
 
 addon_keymaps = []
 
