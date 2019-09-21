@@ -61,11 +61,12 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 
 ## The Interface
 ### Shading Modes
-**Final** - Displays a composite of layers 1-7 in Rendered shading mode
 
-**Debug** - Displays only the selected layer using Vertex Paint mode and Solid shading
-
-**Alpha** - Displays the selected layer alpha in grayscale
+Shading Mode | Function
+------------ | -------------
+**Full** | Displays a composite of layers 1-7 in Rendered shading mode
+**Debug** | Displays only the selected layer with alpha as black
+**Alpha** | Displays the selected layer alpha in grayscale
 
 
 ### Visibility toggle
@@ -74,13 +75,12 @@ Toggles the visibility of the selected layer in Full shading mode
 ### Blend mode selection
 This is similar to popular 2D paint programs:
 
-**Alpha** - the regular transparency blend
-
-**Add**  - creates an additive (brighter) result
-
-**Multiply** - darkens the layer below
-
-**Overlay** - lightens and darkens the layer below
+Blend Mode | Function
+------------ | -------------
+**Alpha** | The regular transparency blend
+**Add**  | Creates an additive (brighter) result
+**Multiply** | Darkens the layer below
+**Overlay** | Lightens and darkens the layer below
 
 ### The layer opacity slider
 Dragging the slider changes a layer alpha value that influences the composited result. All alpha values in the layer itself are preserved.
@@ -92,6 +92,9 @@ Displays prominent colors from the selected objects
 * The eye-icon indicates if the layer is hidden or visible
 * Click to select layers
 * For game developers: object categories can be defined that rename the layers as needed
+
+### Brightness slider
+Allows you to fine-tune the brightness of the selected objects or components
 
 ### Merge Up / Merge Down buttons
 Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode. Merging is not permitted with material channels.
@@ -116,14 +119,15 @@ Fills selected objects or components (faces, edges, verts supported).
 ### Gradient Tool
 Fills selected objects or components with the selected gradient. The global bbox option stretches the gradient over multiple objects. 
 
-Modes:
-* X-Axis / Y-Axis / Z-Axis - maps the gradient across the bounding volume in the selected world axis
-* Directional - works like a directional light that maps the surface brightness to the gradient
-* Luminance - remaps the brightness values of the existing layer to the tones of the gradient
-* Curvature - drives the gradient tones using the convex/concave characteristics of the surface
-* Normalized Curvature - provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
-* Ambient Occlusion - maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
-* Thickness - maps the gradient according to mesh thickness. The quality of the calculation can be improved by increasing the ray count.
+Gradient Mode | Function
+------------ | -------------
+**X/Y/Z-Axis** | Maps the gradient across the bounding volume in the selected world axis
+**Directional** | Works like a directional light that maps the surface brightness to the gradient
+**Luminance** | Remaps the brightness values of the existing layer to the tones of the gradient
+**Curvature** | Drives the gradient tones using the convex/concave characteristics of the surface
+**Normalized Curvature** | Provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
+**Ambient Occlusion** | Maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
+**Thickness** | Maps the gradient according to mesh thickness. The quality of the calculation can be improved by increasing the ray count.
 
 ### Master Palettes
 Clicking Apply will replace colors in layers 1-5 with the colors of the palette while retaining alpha channels.
