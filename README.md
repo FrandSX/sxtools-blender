@@ -5,7 +5,7 @@
 ### Overview
 
 ## For Game Developers
-SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game.
+SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game. This tool ships with baseline shader networks for Unreal and Unity.
 
 ## For 3D Artists
 SX Tools is a multi-layer vertex coloring toolbox, referencing a workflow from common 2D image editing programs.
@@ -139,9 +139,9 @@ Clicking Apply on a material will fill the current layer with the material color
 Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier.
 
 
-## Exporting to Unity
+## Exporting to Game Engines
 
-The package contains example shader graphs for both HDRP and LWRP renderers in Unity 2019.
+The package contains example shader graphs for Unreal4, and both HDRP and LWRP renderers in Unity 2019.
 Currently the export channels are set in the following way:
 
 Channel | Function
