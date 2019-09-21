@@ -4883,11 +4883,10 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
         return {'FINISHED'}
 
 
-# This is a prototype batch used for vehicles in a game project
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
-    bl_description = 'A prototype batch process used for vehicles in a game project\nApplies modifiers and calculates material channels'
+    bl_description = 'A prototype batch process used in a game project\nApplies modifiers and calculates material channels'
     bl_options = {'UNDO'}
 
 
@@ -5010,10 +5009,10 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Export save paths fail on MacOS
+# - High poly bake crash
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
-# - High poly bake crash
-# - Weighted Normals as last step in high-poly export
 # - Split to multiple python files
 # - Run from direct github zip download
 # - Deleting a ramp preset may error at empty
