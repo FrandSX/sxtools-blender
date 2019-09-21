@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 20, 1),
+    'version': (2, 21, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -859,8 +859,8 @@ class SXTOOLS_layers(object):
             if shadingmode == 'FULL':
                 for obj in objs:
                     layer = utils.findLayerFromIndex(obj, 1)
-                    obj.sxlayers[layer.name].blendMode = 'ALPHA'
-                    obj.sxlayers[layer.name].alpha = 1.0
+                    obj.sxlayers[idx].blendMode = 'ALPHA'
+                    obj.sxlayers[idx].alpha = 1.0
                 self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
                 self.blendDebug(objs, layer, shadingmode)
@@ -945,12 +945,13 @@ class SXTOOLS_layers(object):
                         baseColors[idx].color[2],
                         baseColors[idx].color[3]][:]
                     for layer in topLayerArray:
-                        if not getattr(obj.sxlayers[layer.name], 'visibility'):
+                        layerIdx = layer.index
+                        if not getattr(obj.sxlayers[layerIdx], 'visibility'):
                             continue
                         else:
-                            blend = getattr(obj.sxlayers[layer.name], 'blendMode')
-                            alpha = getattr(obj.sxlayers[layer.name], 'alpha')
-                            fillmode = getattr(obj.sxlayers[layer.name], 'layerType')
+                            blend = getattr(obj.sxlayers[layerIdx], 'blendMode')
+                            alpha = getattr(obj.sxlayers[layerIdx], 'alpha')
+                            fillmode = getattr(obj.sxlayers[layerIdx], 'layerType')
 
                             if fillmode == 'COLOR':
                                 top = [
@@ -2343,6 +2344,7 @@ class SXTOOLS_tools(object):
         vis = objs[0].sxtools.modifiervisibility
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
+            obj.data.use_auto_smooth = True
             obj.sxtools.modifiervisibility = vis
             obj.sxtools.subdivisionlevel = subdivLevel
 
@@ -2398,15 +2400,50 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
 
 
-    def removeExports(self):
-        objs = sxglobals.exportObjects
-        bpy.ops.object.delete({"selected_objects": objs})
+    def groupObjects(self, objs):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
 
-        for obj in sxglobals.sourceObjects:
-            if obj.name.endswith('_org'):
-                obj.name = obj.name[:-4]
-            if obj.data and obj.data.name.endswith('_org'):
-                obj.data.name = obj.data.name[:-4]
+        bbx_x = []
+        bbx_y = []
+        bbx_z = []
+        for obj in objs:
+            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            for corner in corners:
+                bbx_x.append(corner[0])
+                bbx_y.append(corner[1])
+                bbx_z.append(corner[2])
+        xmin, xmax = min(bbx_x), max(bbx_x)
+        ymin, ymax = min(bbx_y), max(bbx_y)
+        zmin, zmax = min(bbx_z), max(bbx_z)
+
+        pos = ((xmax + xmin)*0.5, (ymax + ymin)*0.5, zmin)
+
+        group = bpy.data.objects.new('empty', None)
+        bpy.context.scene.collection.objects.link(group)
+        group.empty_display_size = 2
+        group.empty_display_type = 'PLAIN_AXES'   
+        group.location = pos
+
+        for obj in objs:
+            obj.parent = group
+            obj.location.x -= group.location.x
+            obj.location.y -= group.location.y
+            obj.location.z -= group.location.z
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+    def __del__(self):
+        print('SX Tools: Exiting tools')
+
+
+# ------------------------------------------------------------------------
+#    Exporting Functions
+# ------------------------------------------------------------------------
+class SXTOOLS_export(object):
+    def __init__(self):
+        return None
 
 
     # This is a project-specific batch operation.
@@ -2417,10 +2454,8 @@ class SXTOOLS_tools(object):
         then = time.time()
         # depsgraph = bpy.context.evaluated_depsgraph_get()
         scene = bpy.context.scene.sxtools
-        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         obj = objs[0]
         orgObjNames = {}
-        inverse = False
 
         # Make sure auto-smooth is on
         for obj in objs:
@@ -2437,8 +2472,9 @@ class SXTOOLS_tools(object):
 
         # Create modifiers
         obj.sxtools.subdivisionlevel = 2
-        self.addModifiers(objs)
+        tools.addModifiers(objs)
 
+        # Create high-poly bake meshes
         if mode == 'HI':
             newObjs = []
 
@@ -2472,187 +2508,32 @@ class SXTOOLS_tools(object):
                 obj.parent = bpy.context.view_layer.objects[obj.parent.name + '_org']
                 obj.hide_viewport = True
 
-            self.applyModifiers(newObjs)
+            tools.applyModifiers(newObjs)
 
             objs = newObjs
             bpy.context.view_layer.objects.active = objs[0]
 
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-
-        # Apply occlusion
-        layer = obj.sxlayers['occlusion']
-        rampmode = 'OCC'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.0
-        mono = True
-        scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
-
-        mergebbx = scene.rampbbox
-        overwrite = True
-        obj.mode == 'OBJECT'
-
-        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # Apply custom overlay
-        layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
-        rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.01
-        mono = False
-
-        obj.mode == 'OBJECT'
-
-        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        # Begin category-specific compositing operations
         for obj in objs:
-            obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            if obj.sxtools.category == '':
+                obj.sxtools.category == 'DEFAULT'
 
-        # Clear metallic, smoothness, and transmission
-        layers.clearUVs(objs, obj.sxlayers['metallic'])
-        layers.clearUVs(objs, obj.sxlayers['smoothness'])
-        layers.clearUVs(objs, obj.sxlayers['transmission'])
+        categories = list(sxglobals.presetLookup.keys())
+        for category in categories:
+            categoryObjs = []
+            for obj in objs:
+                if obj.sxtools.category == category:
+                    categoryObjs.append(obj)
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # Construct layer1-7 smoothness base mask
-        color = (1.0, 1.0, 1.0, 1.0)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-        obj.mode == 'OBJECT'
-        noise = 0.01
-        mono = True
-        self.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        layer4 = utils.findLayerFromIndex(obj, 4)
-        layer5 = utils.findLayerFromIndex(obj, 5)
-        sxlayers = [layer4, layer5]
-        self.selectMask(objs, sxlayers, inverse)
-
-        color = (0.2, 0.2, 0.2, 1.0)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-        noise = 0.01
-        mono = True
-        self.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        color = (0.0, 0.0, 0.0, 1.0)
-
-        maskLayer = utils.findLayerFromIndex(obj, 6)
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-
-        noise = 0.0
-        mono = True
-        self.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
-
-        # Combine smoothness base mask with custom curvature gradient
-        layer = obj.sxlayers['composite']
-        for obj in objs:
-            obj.sxlayers['composite'].blendMode = 'ALPHA'
-            obj.sxlayers['composite'].alpha = 1.0
-        rampmode = 'CN'
-        scene.ramplist = 'CURVATURESMOOTHNESS'
-        noise = 0.01
-        mono = True
-
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['smoothness'].alpha = 1.0
-            obj.sxlayers['smoothness'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
-
-        # Combine previous mix with directional dust
-        layer = obj.sxlayers['composite']
-        rampmode = 'DIR'
-        scene.ramplist = 'DIRECTIONALDUST'
-        scene.angle = 0.0
-        scene.inclination = 40.0
-        noise = 0.01
-        mono = True
-
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        self.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['smoothness'].alpha = 1.0
-            obj.sxlayers['smoothness'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
-        for obj in objs:
-            obj.sxlayers['smoothness'].blendMode = 'ALPHA'
-
-        # Apply PBR metal based on layer7
-        layer = utils.findLayerFromIndex(obj, 7)
-        overwrite = True
-        obj.mode == 'OBJECT'
-        material = 'Iron'
-        noise = 0.01
-        mono = True
-
-        palette = [
-            bpy.context.scene.sxmaterials[material].color0,
-            bpy.context.scene.sxmaterials[material].color1,
-            bpy.context.scene.sxmaterials[material].color2]
-
-        self.applyColor(objs, layer, palette[0], False, noise, mono)
-        self.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
-        self.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
-
-        # Mix metallic with occlusion (dirt in crevices)
-        self.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
-        for obj in objs:
-            obj.sxlayers['metallic'].alpha = 1.0
-            obj.sxlayers['metallic'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        self.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
-        for obj in objs:
-            obj.sxlayers['metallic'].blendMode = 'ALPHA'
-
-        # Emissives are smooth
-        color = (1.0, 1.0, 1.0, 1.0)
-        layer = obj.sxlayers['emission']
-        self.selectMask(objs, [layer, ], inverse)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-        noise = 0.0
-        mono = True
-        self.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            if len(categoryObjs) > 0:
+                if category == 'DEFAULT':
+                    self.processDefault(categoryObjs)
+                elif category == 'PALETTED':
+                    self.processPaletted(categoryObjs)
+                elif category == 'VEHICLES':
+                    self.processVehicles(categoryObjs)
+                elif category == 'BUILDINGS':
+                    self.processBuildings(categoryObjs)
 
         # Create palette masks
         layers.generateMasks(objs)
@@ -2673,8 +2554,465 @@ class SXTOOLS_tools(object):
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
 
 
+    def processDefault(self, objs):
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        inverse = False
+
+        # Apply occlusion
+        layer = obj.sxlayers['occlusion']
+        rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 200
+
+        mergebbx = scene.rampbbox
+        overwrite = True
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        layer.blendMode = 'OVR'
+        layer.alpha = 0.5
+        rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.01
+        mono = False
+
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = 0.5
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+
+    def processPaletted(self, objs):
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        inverse = False
+
+        # Apply occlusion
+        layer = obj.sxlayers['occlusion']
+        rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 200
+
+        mergebbx = scene.rampbbox
+        overwrite = True
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        layer.blendMode = 'OVR'
+        layer.alpha = 0.5
+        rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.01
+        mono = False
+
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = 0.5
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+
+    def processVehicles(self, objs):
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        inverse = False
+
+        # Apply occlusion
+        layer = obj.sxlayers['occlusion']
+        rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 200
+
+        mergebbx = scene.rampbbox
+        overwrite = True
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        layer.blendMode = 'OVR'
+        layer.alpha = 0.5
+        rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.01
+        mono = False
+
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = 0.5
+
+        # Clear metallic, smoothness, and transmission
+        layers.clearUVs(objs, obj.sxlayers['metallic'])
+        layers.clearUVs(objs, obj.sxlayers['smoothness'])
+        layers.clearUVs(objs, obj.sxlayers['transmission'])
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Construct layer1-7 smoothness base mask
+        color = (1.0, 1.0, 1.0, 1.0)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = True
+        obj.mode == 'OBJECT'
+        noise = 0.01
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        layer4 = utils.findLayerFromIndex(obj, 4)
+        layer5 = utils.findLayerFromIndex(obj, 5)
+        sxlayers = [layer4, layer5]
+        tools.selectMask(objs, sxlayers, inverse)
+
+        color = (0.2, 0.2, 0.2, 1.0)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.01
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        color = (0.0, 0.0, 0.0, 1.0)
+
+        maskLayer = utils.findLayerFromIndex(obj, 6)
+        layer = obj.sxlayers['smoothness']
+        overwrite = True
+
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+
+        # Combine smoothness base mask with custom curvature gradient
+        layer = obj.sxlayers['composite']
+        for obj in objs:
+            obj.sxlayers['composite'].blendMode = 'ALPHA'
+            obj.sxlayers['composite'].alpha = 1.0
+        rampmode = 'CN'
+        scene.ramplist = 'CURVATURESMOOTHNESS'
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+
+        # Combine previous mix with directional dust
+        layer = obj.sxlayers['composite']
+        rampmode = 'DIR'
+        scene.ramplist = 'DIRECTIONALDUST'
+        scene.angle = 0.0
+        scene.inclination = 40.0
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+        for obj in objs:
+            obj.sxlayers['smoothness'].blendMode = 'ALPHA'
+
+        # Apply PBR metal based on layer7
+        layer = utils.findLayerFromIndex(obj, 7)
+        overwrite = True
+        obj.mode == 'OBJECT'
+        material = 'Iron'
+        noise = 0.01
+        mono = True
+
+        palette = [
+            bpy.context.scene.sxmaterials[material].color0,
+            bpy.context.scene.sxmaterials[material].color1,
+            bpy.context.scene.sxmaterials[material].color2]
+
+        tools.applyColor(objs, layer, palette[0], False, noise, mono)
+        tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
+
+        # Mix metallic with occlusion (dirt in crevices)
+        tools.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
+        for obj in objs:
+            obj.sxlayers['metallic'].alpha = 1.0
+            obj.sxlayers['metallic'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
+        for obj in objs:
+            obj.sxlayers['metallic'].blendMode = 'ALPHA'
+
+        # Emissives are smooth
+        color = (1.0, 1.0, 1.0, 1.0)
+        layer = obj.sxlayers['emission']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+
+    def processBuildings(self, objs):
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+        inverse = False
+
+        # Apply occlusion
+        layer = obj.sxlayers['occlusion']
+        rampmode = 'OCC'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 200
+
+        mergebbx = scene.rampbbox
+        overwrite = True
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        layer.blendMode = 'OVR'
+        layer.alpha = 0.5
+        rampmode = 'CN'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.01
+        mono = False
+
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = 0.5
+
+        # Clear metallic, smoothness, and transmission
+        layers.clearUVs(objs, obj.sxlayers['metallic'])
+        layers.clearUVs(objs, obj.sxlayers['smoothness'])
+        layers.clearUVs(objs, obj.sxlayers['transmission'])
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        # Construct layer1-7 smoothness base mask
+        color = (0.1, 0.1, 0.1, 0.1)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = True
+        obj.mode == 'OBJECT'
+        noise = 0.01
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        layer4 = utils.findLayerFromIndex(obj, 4)
+        layer5 = utils.findLayerFromIndex(obj, 5)
+        sxlayers = [layer4, layer5]
+        tools.selectMask(objs, sxlayers, inverse)
+
+        color = (0.3, 0.3, 0.3, 1.0)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.01
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        color = (0.1, 0.1, 0.1, 1.0)
+
+        maskLayer = utils.findLayerFromIndex(obj, 6)
+        layer = obj.sxlayers['smoothness']
+        overwrite = True
+
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+
+        # Combine smoothness base mask with custom curvature gradient
+        layer = obj.sxlayers['composite']
+        for obj in objs:
+            obj.sxlayers['composite'].blendMode = 'ALPHA'
+            obj.sxlayers['composite'].alpha = 1.0
+        rampmode = 'CN'
+        scene.ramplist = 'CURVATURESMOOTHNESS'
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+
+        # Combine previous mix with directional dust
+        layer = obj.sxlayers['composite']
+        rampmode = 'DIR'
+        scene.ramplist = 'DIRECTIONALDUST'
+        scene.angle = 0.0
+        scene.inclination = 40.0
+        noise = 0.01
+        mono = True
+
+        obj.mode == 'OBJECT'
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            obj.sxlayers['smoothness'].alpha = 1.0
+            obj.sxlayers['smoothness'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
+        for obj in objs:
+            obj.sxlayers['smoothness'].blendMode = 'ALPHA'
+
+        # Apply PBR glass based on layer7
+        layer = utils.findLayerFromIndex(obj, 7)
+        overwrite = True
+        obj.mode == 'OBJECT'
+        material = 'Silver'
+        noise = 0.01
+        mono = True
+
+        palette = [
+            bpy.context.scene.sxmaterials[material].color0,
+            bpy.context.scene.sxmaterials[material].color1,
+            bpy.context.scene.sxmaterials[material].color2]
+
+        tools.applyColor(objs, layer, palette[0], False, noise, mono)
+        tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
+
+        # Mix metallic with occlusion (dirt in crevices)
+        tools.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
+        for obj in objs:
+            obj.sxlayers['metallic'].alpha = 1.0
+            obj.sxlayers['metallic'].blendMode = 'MUL'
+            obj.sxlayers['composite'].alpha = 1.0
+        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
+        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
+        for obj in objs:
+            obj.sxlayers['metallic'].blendMode = 'ALPHA'
+
+        # Emissives are smooth
+        color = (1.0, 1.0, 1.0, 1.0)
+        layer = obj.sxlayers['emission']
+        tools.selectMask(objs, [layer, ], inverse)
+
+        layer = obj.sxlayers['smoothness']
+        overwrite = scene.fillalpha
+        if obj.mode == 'EDIT':
+            overwrite = True
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+
+    def removeExports(self):
+        objs = sxglobals.exportObjects
+        bpy.ops.object.delete({"selected_objects": objs})
+
+        for obj in sxglobals.sourceObjects:
+            if obj.name.endswith('_org'):
+                obj.name = obj.name[:-4]
+            if obj.data and obj.data.name.endswith('_org'):
+                obj.data.name = obj.data.name[:-4]
+
+
     def __del__(self):
-        print('SX Tools: Exiting tools')
+        print('SX Tools: Exiting exports')
 
 
 # ------------------------------------------------------------------------
@@ -2686,15 +3024,14 @@ def updateLayers(self, context):
 
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
         alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
         blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
         visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
         for obj in objs:
-            setattr(obj.sxlayers[layer.name], 'alpha', alphaVal)
-            setattr(obj.sxlayers[layer.name], 'blendMode', blendVal)
-            setattr(obj.sxlayers[layer.name], 'visibility', visVal)
+            setattr(obj.sxlayers[idx], 'alpha', alphaVal)
+            setattr(obj.sxlayers[idx], 'blendMode', blendVal)
+            setattr(obj.sxlayers[idx], 'visibility', visVal)
 
             sxglobals.refreshInProgress = True
             setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
@@ -2720,9 +3057,9 @@ def refreshActives(self, context):
             setattr(obj.sxtools, 'selectedlayer', idx)
             if vcols != '':
                 obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
-            alphaVal = getattr(obj.sxlayers[layer.name], 'alpha')
-            blendVal = getattr(obj.sxlayers[layer.name], 'blendMode')
-            visVal = getattr(obj.sxlayers[layer.name], 'visibility')
+            alphaVal = getattr(obj.sxlayers[idx], 'alpha')
+            blendVal = getattr(obj.sxlayers[idx], 'blendMode')
+            visVal = getattr(obj.sxlayers[idx], 'visibility')
 
             setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
             setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
@@ -3887,6 +4224,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                     col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                     col_masks.separator()
+                    col_masks.operator('sxtools.groupobjects', text='Group Objects')
+                    col_masks.separator()
                     col_masks.prop(sxtools, 'staticvertexcolors', text='Export Static Vertex Colors on Selected Objects')
                     col_masks.separator()
                     row2_export = box_export.row(align=True)
@@ -4528,7 +4867,19 @@ class SXTOOLS_OT_removeexports(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        tools.removeExports()
+        export.removeExports()
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_groupobjects(bpy.types.Operator):
+    bl_idname = 'sxtools.groupobjects'
+    bl_label = 'Group Objects'
+    bl_description = 'Groups objects under an empty\nwith pivot placed at the bottom center'
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        tools.groupObjects(objs)
         return {'FINISHED'}
 
 
@@ -4544,7 +4895,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
         loadLibraries(self, context)
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
-        tools.processObjects(objs, context.scene.sxtools.exportmode)
+        export.processObjects(objs, context.scene.sxtools.exportmode)
 
         sxglobals.composite = True
         refreshActives(self, context)
@@ -4565,6 +4916,7 @@ layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
 mesh = SXTOOLS_mesh()
 tools = SXTOOLS_tools()
+export = SXTOOLS_export()
 
 classes = (
     SXTOOLS_objectprops,
@@ -4602,6 +4954,7 @@ classes = (
     SXTOOLS_OT_resetscene,
     SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_removeexports,
+    SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -4660,7 +5013,7 @@ if __name__ == '__main__':
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
 # - High poly bake crash
-# - High poly bake post normal fix
+# - Weighted Normals as last step in high-poly export
 # - Split to multiple python files
 # - Run from direct github zip download
 # - Deleting a ramp preset may error at empty
@@ -4677,6 +5030,5 @@ if __name__ == '__main__':
 # - Automatic groundplane for AO?
 # - Color management vs. palettes vs. color picking
 # - updatelayerpalettes on selection
-# - to_mesh() export
-# - Weighted Normals as last step in high-poly export
 # - Setup Objects to filter non-meshes?
+# - Ask for a group name when creating empties
