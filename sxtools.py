@@ -5072,8 +5072,8 @@ if __name__ == '__main__':
 # - Copy/paste layer to be index-based
 # - Shading activation after scene load broken
 # - Run from direct github zip download
-# - Default path to find libraries in the zip?
 # - Split to multiple python files
+# - Default path to find libraries in the zip?
 # - Deleting a ramp preset may error at empty
 # - mask/adjustment indication
 # - Master palette library save/manage
@@ -5082,9 +5082,8 @@ if __name__ == '__main__':
 # - Submesh support
 # - Tool settings:
 #   - Load/save prefs file
-#   - Layer renaming
 #   - _paletted suffix
-# - Color management vs. palettes vs. color picking
 # - updatelayerpalettes on selection
+# - updatelayerbrightness on selection
 # - Setup Objects to filter non-meshes?
 # - Ask for a group name when creating empties
