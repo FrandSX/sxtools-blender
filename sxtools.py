@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 21, 2),
+    'version': (2, 21, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -14,6 +14,7 @@ import random
 import math
 import bmesh
 import json
+import pathlib
 import statistics
 from collections import defaultdict
 from mathutils import Vector
@@ -230,10 +231,18 @@ class SXTOOLS_files(object):
                 compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
                 layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
 
-            subFolder = selArray[0].sxtools.category.lower() + '\\'
-            if (subFolder == 'default'):
-                subFolder == ''
-            exportPath = str(bpy.context.scene.sxtools.exportfolder + subFolder + group.name + '.' + 'fbx')
+            if (selArray[0].sxtools.category.lower() == 'default'):
+                path = bpy.context.scene.sxtools.exportfolder
+            else:
+                path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
+                pathlib.Path(path).mkdir(exist_ok=True) 
+
+            if '/' in bpy.context.scene.sxtools.exportfolder:
+                slash = '/'
+            elif '\\' in bpy.context.scene.sxtools.exportfolder:
+                slash = '\\'
+
+            exportPath = path + slash + group.name + '.' + 'fbx'
 
             bpy.ops.export_scene.fbx(
                 filepath=exportPath,
@@ -5009,7 +5018,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Export save paths fail on MacOS
 # - High poly bake crash
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
