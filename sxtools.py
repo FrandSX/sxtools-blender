@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 23, 2),
+    'version': (2, 23, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1270,9 +1270,6 @@ class SXTOOLS_layers(object):
 
 
     def updateLayerBrightness(self, objs, layer):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
-
         luminanceDict = mesh.calculateLuminance(objs, layer)
         luminanceList = list()
         for vertDict in luminanceDict.values():
@@ -1284,7 +1281,6 @@ class SXTOOLS_layers(object):
         bpy.context.scene.sxtools.brightnessvalue = brightness
         sxglobals.brightnessUpdate = False
 
-        bpy.ops.object.mode_set(mode=mode)
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -5075,7 +5071,6 @@ if __name__ == '__main__':
 # - High poly bake crash
 # - Copy/paste layer to be index-based
 # - Shading activation after scene load broken
-# - Calculate active selection mean brightness
 # - Run from direct github zip download
 # - Default path to find libraries in the zip?
 # - Split to multiple python files
