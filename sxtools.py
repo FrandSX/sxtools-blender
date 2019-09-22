@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 21, 4),
+    'version': (2, 22, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1356,7 +1356,59 @@ class SXTOOLS_mesh(object):
         return objDirections
 
 
-    def calculateOcclusion(self, objs, rayCount, blend, dist, bias=0.000001):
+    def groundPlane(self, size, pos):
+        vertArray = []
+        faceArray = []
+        size = size * 0.5
+
+        vert = [(-size, -size, 0.0)]
+        vertArray.extend(vert)
+        vert = [(size, -size, 0.0)]
+        vertArray.extend(vert)
+        vert = [(-size, size, 0.0)]
+        vertArray.extend(vert)
+        vert = [(size, size, 0.0)]
+        vertArray.extend(vert)
+
+        face = [(0, 1, 3, 2)]
+        faceArray.extend(face)
+
+        mesh = bpy.data.meshes.new('groundPlane_mesh')
+        groundPlane = bpy.data.objects.new('groundPlane', mesh)
+        bpy.context.scene.collection.objects.link(groundPlane)
+
+        mesh.from_pydata(vertArray, [], faceArray)
+        mesh.update(calc_edges=True)
+
+        groundPlane.location = pos
+
+        return groundPlane
+
+
+    def findRootPivot(self, objs):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        bbx_x = []
+        bbx_y = []
+        bbx_z = []
+        for obj in objs:
+            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            for corner in corners:
+                bbx_x.append(corner[0])
+                bbx_y.append(corner[1])
+                bbx_z.append(corner[2])
+        xmin, xmax = min(bbx_x), max(bbx_x)
+        ymin, ymax = min(bbx_y), max(bbx_y)
+        zmin, zmax = min(bbx_z), max(bbx_z)
+
+        pivot = ((xmax + xmin)*0.5, (ymax + ymin)*0.5, zmin)
+        bpy.ops.object.mode_set(mode=mode)
+
+        return pivot
+
+
+    def calculateOcclusion(self, objs, rayCount, blend, dist, groundPlane, bias=0.000001):
         objDicts = tools.selectionHandler(objs)
         mode = objs[0].mode
         scene = bpy.context.scene
@@ -1381,6 +1433,10 @@ class SXTOOLS_mesh(object):
             vertPosDict = objDicts[obj][1]
             vertWorldPosDict = objDicts[obj][2]
             vertOccDict = {}
+            if groundPlane:
+                pivot = self.findRootPivot([obj, ])
+                pivot = (pivot[0], pivot[1], pivot[2] - 0.5)
+                ground = self.groundPlane(20, pivot)
 
             for vert_idx, loop_indices in vertLoopDict.items():
                 occValue = 1.0
@@ -1430,6 +1486,10 @@ class SXTOOLS_mesh(object):
 
                 for loop_idx in loop_indices:
                     vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
+
+            if groundPlane:
+                bpy.ops.object.delete({"selected_objects": [ground, ]})
+
             objOcclusions[obj] = vertOccDict
 
         for obj in objs:
@@ -1997,6 +2057,7 @@ class SXTOOLS_tools(object):
 
 
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx=True, noise=0.0, mono=False, maskLayer=None):
+        scene = bpy.context.scene.sxtools
         objDicts = self.selectionHandler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
@@ -2013,11 +2074,11 @@ class SXTOOLS_tools(object):
         elif rampmode == 'CN':
             objValues = mesh.calculateCurvature(objs, True)
         elif rampmode == 'OCC':
-            objValues = mesh.calculateOcclusion(objs, bpy.context.scene.sxtools.occlusionrays, bpy.context.scene.sxtools.occlusionblend, bpy.context.scene.sxtools.occlusiondistance)
+            objValues = mesh.calculateOcclusion(objs, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
         elif rampmode == 'LUM':
             objValues = mesh.calculateLuminance(objs, layer)
         elif rampmode == 'THK':
-            objValues = mesh.calculateThickness(objs, bpy.context.scene.sxtools.occlusionrays)
+            objValues = mesh.calculateThickness(objs, scene.occlusionrays)
         elif rampmode == 'DIR':
             inclination = (bpy.context.scene.sxtools.dirInclination - 90.0)* (2*math.pi)/360.0
             angle = (bpy.context.scene.sxtools.dirAngle + 90) * (2*math.pi)/360.0
@@ -2413,26 +2474,13 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        bbx_x = []
-        bbx_y = []
-        bbx_z = []
-        for obj in objs:
-            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-            for corner in corners:
-                bbx_x.append(corner[0])
-                bbx_y.append(corner[1])
-                bbx_z.append(corner[2])
-        xmin, xmax = min(bbx_x), max(bbx_x)
-        ymin, ymax = min(bbx_y), max(bbx_y)
-        zmin, zmax = min(bbx_z), max(bbx_z)
-
-        pos = ((xmax + xmin)*0.5, (ymax + ymin)*0.5, zmin)
+        pivot = mesh.findRootPivot(objs)
 
         group = bpy.data.objects.new('empty', None)
         bpy.context.scene.collection.objects.link(group)
         group.empty_display_size = 2
         group.empty_display_type = 'PLAIN_AXES'   
-        group.location = pos
+        group.location = pivot
 
         for obj in objs:
             obj.parent = group
@@ -3664,6 +3712,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=100.0,
         default=10.0)
 
+    occlusiongroundplane: bpy.props.BoolProperty(
+        name='Ground Plane',
+        description='Enable temporary ground plane for occlusion',
+        default=True)
+
     dirInclination: bpy.props.FloatProperty(
         name='Inclination',
         min=-90.0,
@@ -4128,6 +4181,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             if scene.rampmode == 'OCC':
                                 box_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                                 box_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
+                                box_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
 
                 # Crease Sets ---------------------------------------------------
                 box_crease = layout.box()
