@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 22, 0),
+    'version': (2, 23, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1038,6 +1038,7 @@ class SXTOOLS_layers(object):
     # CopyChannel does not perform translation of layernames to object data sets.
     # Expected input is [obj, ...], vertexcolorsetname, R/G/B/A, uvlayername, U/V, mode
     def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillMode):
+        objDicts = tools.selectionHandler(objs)
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
@@ -1045,24 +1046,26 @@ class SXTOOLS_layers(object):
         for obj in objs:
             vertexColors = obj.data.vertex_colors
             vertexUVs = obj.data.uv_layers
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
 
             # UV to UV
             if fillMode == 0:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
             # RGB luminance to UV
             elif fillMode == 1:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         color = vertexColors[source].data[idx].color
-                        value = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+                        value = mesh.colorToLuminance(color)
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
             # UV to RGB
             elif fillMode == 2:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
                         if value > 0.0:
                             alpha = 1.0
@@ -1071,20 +1074,20 @@ class SXTOOLS_layers(object):
                         vertexColors[target].data[idx].color = [value, value, value, alpha]
             # R/G/B/A to UV
             elif fillMode == 3:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         value = vertexColors[source].data[idx].color[channels[sourceChannel]]
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
             # RGBA to RGBA
             elif fillMode == 4:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         value = vertexColors[source].data[idx].color[:]
                         vertexColors[target].data[idx].color = value
             # UV to R/G/B/A
             elif fillMode == 5:
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
                         vertexColors[target].data[idx].color[channels[targetChannel]] = value
             # UV4 luminance to UV
@@ -1095,13 +1098,13 @@ class SXTOOLS_layers(object):
                 channel0 = channels[obj.sxlayers[source].uvChannel0]
                 channel1 = channels[obj.sxlayers[source].uvChannel1]
                 channel2 = channels[obj.sxlayers[source].uvChannel2]
-                for poly in obj.data.polygons:
-                    for idx in poly.loop_indices:
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for idx in loop_indices:
                         v0 = vertexUVs[set0].data[idx].uv[channel0]
                         v1 = vertexUVs[set1].data[idx].uv[channel1]
                         v2 = vertexUVs[set2].data[idx].uv[channel2]
                         color = [v0, v1, v2, 1.0]
-                        value = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+                        value = mesh.colorToLuminance(color)
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
 
         bpy.ops.object.mode_set(mode=mode)
@@ -1183,8 +1186,6 @@ class SXTOOLS_layers(object):
 
 
     def pasteLayer(self, objs, sourceLayer, targetLayer, fillMode):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
         sourceMode = sourceLayer.layerType
         targetMode = targetLayer.layerType
 
@@ -1208,8 +1209,6 @@ class SXTOOLS_layers(object):
             self.mergeLayers(objs, sourceLayer, targetLayer)
         else:
             tools.layerCopyManager(objs, sourceLayer, targetLayer)
-
-        bpy.ops.object.mode_set(mode=mode)
 
 
     def updateLayerPalette(self, objs, layer):
@@ -1635,24 +1634,14 @@ class SXTOOLS_mesh(object):
                 for loop_idx in loop_indices:
                     if layerType == 'COLOR':
                         fvColor = vertexColors[loop_idx].color
-                        luminance = ((fvColor[0] +
-                                      fvColor[0] +
-                                      fvColor[2] +
-                                      fvColor[1] +
-                                      fvColor[1] +
-                                      fvColor[1]) / float(6.0))
+                        luminance = self.colorToLuminance(fvColor)
                     elif layerType == 'UV4':
                         fvColor = [
                             uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
                             uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
                             uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
                             uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                        luminance = ((fvColor[0] +
-                                      fvColor[0] +
-                                      fvColor[2] +
-                                      fvColor[1] +
-                                      fvColor[1] +
-                                      fvColor[1]) / float(6.0))
+                        luminance = self.colorToLuminance(fvColor)
                     elif layerType == 'UV':
                         luminance = uvValues[loop_idx].uv[selChannel]
                     loopLuminances.append(luminance)
@@ -1661,6 +1650,17 @@ class SXTOOLS_mesh(object):
 
         bpy.ops.object.mode_set(mode=mode)
         return objLuminances
+
+
+    def colorToLuminance(self, color):
+        luminance = ((color[0] +
+                      color[0] +
+                      color[2] +
+                      color[1] +
+                      color[1] +
+                      color[1]) / float(6.0))
+
+        return luminance
 
 
     def calculateCurvature(self, objs, normalize=False):
@@ -1796,7 +1796,7 @@ class SXTOOLS_tools(object):
         fillChannel2 = channels[layer.uvChannel2]
         fillChannel3 = channels[layer.uvChannel3]
 
-        fillValue = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+        fillValue = mesh.colorToLuminance(color)
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1944,7 +1944,7 @@ class SXTOOLS_tools(object):
                                     uvValues3[loop_idx].uv[fillChannel3] = 0.0
                 elif fillMode == 'UV':
                     for vert_idx, loop_indices in vertLoopDict.items():
-                        fillNoise = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+                        fillNoise = mesh.colorToLuminance(color)
                         fillNoise += random.uniform(-fillNoise*noise, fillNoise*noise)
                         for loop_idx in loop_indices:
                             if maskLayer:
@@ -2189,7 +2189,7 @@ class SXTOOLS_tools(object):
                             uvValues2[loop_idx].uv[fillChannel2] = color[2] + noiseColor[2]
                             uvValues3[loop_idx].uv[fillChannel3] = color[3]
                         elif fillMode == 'UV':
-                            fillValue = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+                            fillValue = mesh.colorToLuminance(color)
                             uvValues0[loop_idx].uv[fillChannel0] = fillValue + noiseColor[0]
                     else:
                         if fillMode == 'COLOR':
@@ -2211,7 +2211,7 @@ class SXTOOLS_tools(object):
                         elif fillMode == 'UV':
                             if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
                                 color = ramp.color_ramp.evaluate(ratio[i])
-                                fillValue = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+                                fillValue = mesh.colorToLuminance(color)
                                 uvValues0[loop_idx].uv[fillChannel0] = (fillValue + noiseColor[0])
 
         bpy.ops.object.mode_set(mode=mode)
@@ -5073,12 +5073,13 @@ if __name__ == '__main__':
 
 # TODO:
 # - High poly bake crash
+# - Copy/paste layer to be index-based
 # - Shading activation after scene load broken
 # - Calculate active selection mean brightness
-# - Split to multiple python files
 # - Run from direct github zip download
+# - Default path to find libraries in the zip?
+# - Split to multiple python files
 # - Deleting a ramp preset may error at empty
-# - Copypasting to respect component selections
 # - mask/adjustment indication
 # - Master palette library save/manage
 # - PBR material library save/manage
@@ -5088,7 +5089,6 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - Layer renaming
 #   - _paletted suffix
-# - Automatic groundplane for AO?
 # - Color management vs. palettes vs. color picking
 # - updatelayerpalettes on selection
 # - Setup Objects to filter non-meshes?
