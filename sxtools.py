@@ -827,9 +827,6 @@ class SXTOOLS_layers(object):
 
     def clearUVs(self, objs, targetLayer=None):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1054,9 +1051,6 @@ class SXTOOLS_layers(object):
     # Expected input is [obj, ...], vertexcolorsetname, R/G/B/A, uvlayername, U/V, mode
     def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillMode):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
@@ -1293,6 +1287,8 @@ class SXTOOLS_layers(object):
         for vertDict in luminanceDict.values():
             for valueList in vertDict.values():
                 luminanceList.extend(valueList[1])
+        if len(luminanceList) == 0:
+            luminanceList.extend([0.0, ])
 
         brightness = statistics.mean(luminanceList)
         sxglobals.brightnessUpdate = True
@@ -1348,9 +1344,6 @@ class SXTOOLS_mesh(object):
 
     def calculateDirection(self, objs, directionVector):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         mode = objs[0].mode
         objDirections = {}
 
@@ -1426,9 +1419,6 @@ class SXTOOLS_mesh(object):
 
     def calculateOcclusion(self, objs, rayCount, blend, dist, groundPlane, bias=0.000001):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         mode = objs[0].mode
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
@@ -1523,9 +1513,6 @@ class SXTOOLS_mesh(object):
 
     def calculateThickness(self, objs, rayCount, bias=0.000001):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         mode = objs[0].mode
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
@@ -1627,9 +1614,6 @@ class SXTOOLS_mesh(object):
 
     def calculateLuminance(self, objs, layer):
         objDicts = tools.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         layerType = layer.layerType
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
@@ -1816,9 +1800,6 @@ class SXTOOLS_tools(object):
     # maskLayer assumes color layers only
     def applyColor(self, objs, layer, color, overwrite, noise=0.0, mono=False, maskLayer=None):
         objDicts = self.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
         fillChannel0 = channels[layer.uvChannel0]
@@ -1991,9 +1972,6 @@ class SXTOOLS_tools(object):
 
     def applyBrightness(self, objs, layer, newBrightness):
         objDicts = self.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
         fillChannel0 = channels[layer.uvChannel0]
@@ -2092,9 +2070,6 @@ class SXTOOLS_tools(object):
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx=True, noise=0.0, mono=False, maskLayer=None):
         scene = bpy.context.scene.sxtools
         objDicts = self.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
         fillChannel0 = channels[layer.uvChannel0]
@@ -2259,9 +2234,6 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         objDicts = self.selectionHandler(objs)
-        if len(objDicts) == 0:
-            messageBox('Nothing selected!')
-            return
         channels = {'U': 0, 'V': 1}
 
         for obj in objs:
@@ -5183,4 +5155,3 @@ if __name__ == '__main__':
 # - updatelayerbrightness on selection
 # - Setup Objects to filter non-meshes?
 # - Ask for a group name when creating empties
-# - Errors if in edit mode and no components selected
