@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 25, 1),
+    'version': (2, 25, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4485,12 +4485,15 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
     bl_idname = 'sxtools.delramp'
     bl_label = 'Remove Ramp Preset'
     bl_options = {'UNDO'}
+    bl_description = 'Deletes ramp preset from Gradient Library'
 
 
     def invoke(self, context, event):
+        rampEnum = context.scene.sxtools.ramplist[:]
         rampName = sxglobals.presetLookup[context.scene.sxtools.ramplist]
         del sxglobals.rampDict[rampName]
-        del sxglobals.presetLookup[context.scene.sxtools.ramplist]
+        del sxglobals.presetLookup[rampEnum]
+        files.saveFile('gradients')
         return {'FINISHED'}
 
 
@@ -5139,10 +5142,11 @@ if __name__ == '__main__':
 # TODO:
 # - High poly bake crash
 # - Shading activation after scene load broken
+# - updatelayerpalettes on selection
+# - updatelayerbrightness on selection
 # - Run from direct github zip download
 # - Split to multiple python files
 # - Default path to find libraries in the zip?
-# - Deleting a ramp preset may error at empty
 # - mask/adjustment indication
 # - Master palette library save/manage
 # - PBR material library save/manage
@@ -5151,7 +5155,5 @@ if __name__ == '__main__':
 # - Tool settings:
 #   - Load/save prefs file
 #   - _paletted suffix
-# - updatelayerpalettes on selection
-# - updatelayerbrightness on selection
 # - Setup Objects to filter non-meshes?
 # - Ask for a group name when creating empties
