@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 23, 3),
+    'version': (2, 23, 7),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1483,7 +1483,8 @@ class SXTOOLS_mesh(object):
                     vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
 
             if groundPlane:
-                bpy.ops.object.delete({"selected_objects": [ground, ]})
+                bpy.data.objects.remove(ground, do_unlink=True)
+                # bpy.ops.object.delete({"selected_objects": [ground, ]})
 
             objOcclusions[obj] = vertOccDict
 
@@ -2408,6 +2409,7 @@ class SXTOOLS_tools(object):
 
     def addModifiers(self, objs):
         vis = objs[0].sxtools.modifiervisibility
+        hard = objs[0].sxtools.hardcrease
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
             obj.data.use_auto_smooth = True
@@ -2419,27 +2421,24 @@ class SXTOOLS_tools(object):
         for obj in objs:
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
+                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].show_on_cage = True
-            else:
-                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
-                obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
 
             if 'sxEdgeSplit' not in obj.modifiers.keys():
                 obj.modifiers.new(type='EDGE_SPLIT', name='sxEdgeSplit')
+                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxEdgeSplit'].use_edge_angle = False
                 obj.modifiers['sxEdgeSplit'].show_on_cage = True
-            else:
-                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxEdgeSplit'].use_edge_sharp = hard
+
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
+                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
-                obj.modifiers['sxWeightedNormal'].keep_sharp = True
-
-            else:
-                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxWeightedNormal'].keep_sharp = hard
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -3055,7 +3054,8 @@ class SXTOOLS_export(object):
 
     def removeExports(self):
         objs = sxglobals.exportObjects
-        bpy.ops.object.delete({"selected_objects": objs})
+        # bpy.ops.object.delete({"selected_objects": objs})
+        bpy.data.objects.remove(objs, do_unlink=True)
 
         for obj in sxglobals.sourceObjects:
             if obj.name.endswith('_org'):
@@ -3339,6 +3339,35 @@ def markStaticColors(self, context):
             obj.sxtools.staticvertexcolors = staticCols
 
 
+def updateModifiers(self, context):
+    objs = selectionValidator(self, context)
+    vis = objs[0].sxtools.modifiervisibility
+    hard = objs[0].sxtools.hardcrease
+    subdivLevel = objs[0].sxtools.subdivisionlevel
+    for obj in objs:
+        obj.data.use_auto_smooth = True
+        if obj.sxtools.modifiervisibility != vis:
+            obj.sxtools.modifiervisibility = vis
+        if obj.sxtools.hardcrease != hard:
+            obj.sxtools.hardcrease = hard
+        if obj.sxtools.subdivisionlevel != subdivLevel:
+            obj.sxtools.subdivisionlevel = subdivLevel
+
+    mode = objs[0].mode
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for obj in objs:
+        if 'sxSubdivision' in obj.modifiers.keys():
+            obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+            obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+        if 'sxEdgeSplit' in obj.modifiers.keys():
+            obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
+            obj.modifiers['sxEdgeSplit'].use_edge_sharp = obj.sxtools.hardcrease
+        if 'sxWeightedNormal' in obj.modifiers.keys():
+            obj.modifiers['sxWeightedNormal'].keep_sharp = hard
+            obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+
+    bpy.ops.object.mode_set(mode=mode)
+
 # ------------------------------------------------------------------------
 #    Settings and preferences
 # ------------------------------------------------------------------------
@@ -3378,15 +3407,23 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=True,
         update=updateLayers)
 
+    modifiervisibility: bpy.props.BoolProperty(
+        name='Modifier Visibility',
+        default=True,
+        update=updateModifiers)
+
+    hardcrease: bpy.props.BoolProperty(
+        name='Hard Crease',
+        description='Edges with maximum crease are marked as sharp',
+        default=True,
+        update=updateModifiers)
+
     subdivisionlevel: bpy.props.IntProperty(
         name='Subdivision Level',
         min=0,
         max=6,
-        default=1)
-
-    modifiervisibility: bpy.props.BoolProperty(
-        name='Modifier Visibility',
-        default=True)
+        default=1,
+        update=updateModifiers)
 
     staticvertexcolors: bpy.props.BoolProperty(
         name='Static Vertex Colors Export Flag',
@@ -3761,11 +3798,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('CRS', 'Creasing', ''),
             ('SDS', 'Subdivision', '')],
         default='CRS')
-
-    hardcrease: bpy.props.BoolProperty(
-        name='Hard Crease',
-        description='Edges with maximum crease are marked as sharp',
-        default=True)
 
     expandfill: bpy.props.BoolProperty(
         name='Expand Fill',
@@ -4197,12 +4229,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_sets.operator('sxtools.crease0', text='Uncrease')
                 elif scene.creasemode == 'SDS':
                     if scene.expandcrease:
-                        col_sds = box_crease.column(align=True)
+                        col_sds = box_crease.column(align=False)
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                        col_sds.prop(scene, 'hardcrease', text='Sharp Edges on 100% Creases')
+                        col_sds.prop(sxtools, 'hardcrease', text='Sharp Edges on 100% Creases')
                         col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                        col_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
-                        col_sds.operator('sxtools.modifiers', text='Add/Update Modifiers')
+                        if ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
+                            col_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxEdgeSplit' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
+                            col_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -4394,8 +4428,8 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
 
             pie.prop(scene, 'shadingmode', text='')
 
-            pie.operator('sxtools.copylayer', text='Copy Layer')
-            pie.operator('sxtools.pastelayer', text='Paste Layer')
+            pie.operator('sxtools.copylayer', text='Copy Selection')
+            pie.operator('sxtools.pastelayer', text='Paste Selection')
             pie.operator('sxtools.clear', text='Clear Layer')
 
             pie.operator('sxtools.selmask', text='Select Mask')
@@ -4810,7 +4844,7 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
     bl_idname = 'sxtools.modifiers'
     bl_label = 'Add Modifiers'
     bl_options = {'UNDO'}
-    bl_description = 'Adds Subdivision, Edge Split and Weighted Normals modifiers\nto selected objects\nIf modifiers exist, updates the modifiers to selected values'
+    bl_description = 'Adds Subdivision, Edge Split and Weighted Normals modifiers\nto selected objects'
 
 
     def invoke(self, context, event):
