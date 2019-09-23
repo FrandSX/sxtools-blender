@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 23, 7),
+    'version': (2, 23, 10),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -794,9 +794,9 @@ class SXTOOLS_layers(object):
                 for sxLayer in sxLayers:
                     color = sxLayer.defaultColor
                     tools.applyColor([obj, ], sxLayer, color, True, 0.0)
-                    setattr(obj.sxlayers[sxLayer.name], 'alpha', 1.0)
-                    setattr(obj.sxlayers[sxLayer.name], 'visibility', True)
-                    setattr(obj.sxlayers[sxLayer.name], 'blendMode', 'ALPHA')
+                    setattr(obj.sxlayers[sxLayer.index], 'alpha', 1.0)
+                    setattr(obj.sxlayers[sxLayer.index], 'visibility', True)
+                    setattr(obj.sxlayers[sxLayer.index], 'blendMode', 'ALPHA')
 
             self.clearUVs(objs, None)
 
@@ -806,9 +806,9 @@ class SXTOOLS_layers(object):
                 for obj in objs:
                     color = targetLayer.defaultColor
                     tools.applyColor([obj, ], targetLayer, color, True, 0.0)
-                    setattr(obj.sxlayers[targetLayer.name], 'alpha', 1.0)
-                    setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
-                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
+                    setattr(obj.sxlayers[targetLayer.index], 'alpha', 1.0)
+                    setattr(obj.sxlayers[targetLayer.index], 'visibility', True)
+                    setattr(obj.sxlayers[targetLayer.index], 'blendMode', 'ALPHA')
             elif (fillMode == 'UV') or (fillMode == 'UV4'):
                 self.clearUVs(objs, targetLayer)
 
@@ -868,8 +868,8 @@ class SXTOOLS_layers(object):
             if shadingmode == 'FULL':
                 for obj in objs:
                     layer = utils.findLayerFromIndex(obj, 1)
-                    obj.sxlayers[idx].blendMode = 'ALPHA'
-                    obj.sxlayers[idx].alpha = 1.0
+                    obj.sxlayers[0].blendMode = 'ALPHA'
+                    obj.sxlayers[0].alpha = 1.0
                 self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
             else:
                 self.blendDebug(objs, layer, shadingmode)
@@ -1172,15 +1172,15 @@ class SXTOOLS_layers(object):
             topLayer = sourceLayer
 
         for obj in objs:
-            setattr(obj.sxlayers[sourceLayer.name], 'visibility', True)
-            setattr(obj.sxlayers[targetLayer.name], 'visibility', True)
+            setattr(obj.sxlayers[sourceLayer.index], 'visibility', True)
+            setattr(obj.sxlayers[targetLayer.index], 'visibility', True)
 
         self.blendLayers(objs, [topLayer, ], baseLayer, targetLayer)
         self.clearLayers(objs, sourceLayer)
 
         for obj in objs:
-            setattr(obj.sxlayers[sourceLayer.name], 'blendMode', 'ALPHA')
-            setattr(obj.sxlayers[targetLayer.name], 'blendMode', 'ALPHA')
+            setattr(obj.sxlayers[sourceLayer.index], 'blendMode', 'ALPHA')
+            setattr(obj.sxlayers[targetLayer.index], 'blendMode', 'ALPHA')
 
             obj.sxtools.selectedlayer = targetLayer.index
 
@@ -1191,14 +1191,15 @@ class SXTOOLS_layers(object):
 
         if sourceMode == 'COLOR' and targetMode == 'COLOR':
             for obj in objs:
-                sourceBlend = getattr(obj.sxlayers[sourceLayer.name], 'blendMode')[:]
-                targetBlend = getattr(obj.sxlayers[targetLayer.name], 'blendMode')[:]
+                sourceBlend = getattr(obj.sxlayers[sourceLayer.index], 'blendMode')[:]
+                targetBlend = getattr(obj.sxlayers[targetLayer.index], 'blendMode')[:]
+                print(sourceBlend, targetBlend)
 
                 if fillMode == 'swap':
-                    setattr(obj.sxlayers[sourceLayer.name], 'blendMode', targetBlend)
-                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
+                    setattr(obj.sxlayers[sourceLayer.index], 'blendMode', targetBlend)
+                    setattr(obj.sxlayers[targetLayer.index], 'blendMode', sourceBlend)
                 else:
-                    setattr(obj.sxlayers[targetLayer.name], 'blendMode', sourceBlend)
+                    setattr(obj.sxlayers[targetLayer.index], 'blendMode', sourceBlend)
 
         if fillMode == 'swap':
             tempLayer = objs[0].sxlayers['composite']
@@ -3087,9 +3088,11 @@ def updateLayers(self, context):
             setattr(obj.sxlayers[idx], 'visibility', visVal)
 
             sxglobals.refreshInProgress = True
+            setattr(obj.sxtools, 'selectedlayer', idx)
             setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
             setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
             setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+
             sxglobals.refreshInProgress = False
 
         setup.setupGeometry(objs)
@@ -3100,6 +3103,7 @@ def updateLayers(self, context):
 def refreshActives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
+
         mode = context.scene.sxtools.shadingmode
         objs = selectionValidator(self, context)
         idx = objs[0].sxtools.selectedlayer
