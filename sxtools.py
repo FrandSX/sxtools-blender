@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 23, 10),
+    'version': (2, 25, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -155,9 +155,11 @@ class SXTOOLS_files(object):
                     tempDict = sxglobals.rampDict
                     json.dump(tempDict, output, indent=4)
                 output.close()
-            print('SX Tools: ' + mode + ' saved')
+            messageBox(mode + ' saved')
+            # print('SX Tools: ' + mode + ' saved')
         else:
-            print('SX Tools Warning: ' + mode + ' file location not set!')
+            messageBox(mode + ' file location not set!', 'SX Tools Error', 'ERROR')
+            # print('SX Tools Warning: ' + mode + ' file location not set!')
 
 
     def loadPalettes(self):
@@ -215,6 +217,7 @@ class SXTOOLS_files(object):
     # not composited to VertexColor0 as that will be
     # done by the shader on the game engine side 
     def exportFiles(self, groups):
+        groupNames = []
         for group in groups:
             bpy.context.view_layer.objects.active = group
             bpy.ops.object.select_all(action='DESELECT')
@@ -251,8 +254,11 @@ class SXTOOLS_files(object):
                 add_leaf_bones=False,
                 object_types={'ARMATURE', 'EMPTY', 'MESH'},
                 use_custom_props=True)
-            print('SX Tools: Exported ', group.name)
+
+            groupNames.append(group.name)
             group.location = org_loc
+
+        messageBox('Exported ' + str(', ').join(groupNames))
 
 
 # ------------------------------------------------------------------------
@@ -1193,7 +1199,6 @@ class SXTOOLS_layers(object):
             for obj in objs:
                 sourceBlend = getattr(obj.sxlayers[sourceLayer.index], 'blendMode')[:]
                 targetBlend = getattr(obj.sxlayers[targetLayer.index], 'blendMode')[:]
-                print(sourceBlend, targetBlend)
 
                 if fillMode == 'swap':
                     setattr(obj.sxlayers[sourceLayer.index], 'blendMode', targetBlend)
@@ -3317,9 +3322,9 @@ def loadLibraries(self, context):
     status4 = files.loadFile('categories')
 
     if status1 and status2 and status3 and status4:
-        context.scene.sxtools.librarystatus = 'Libraries loaded successfully'
+        messageBox('Libraries loaded successfully')
     else:
-        context.scene.sxtools.librarystatus = 'Error loading libraries!'
+        messageBox('Error loading libraries!', 'SX Tools Error', 'ERROR')
 
 
 def adjustBrightness(self, context):
@@ -3371,6 +3376,15 @@ def updateModifiers(self, context):
             obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
     bpy.ops.object.mode_set(mode=mode)
+
+
+def messageBox(message='', title='SX Tools', icon='INFO'):
+
+    def draw(self, context):
+        self.layout.label(text=message)
+
+    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+
 
 # ------------------------------------------------------------------------
 #    Settings and preferences
@@ -3843,11 +3857,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         subtype='DIR_PATH',
         update=loadLibraries)
 
-    librarystatus: bpy.props.StringProperty(
-        name='Library Status',
-        description='Indication of successful data loading',
-        default='Libraries not loaded!')
-
     exportfolder: bpy.props.StringProperty(
         name='Export Folder',
         description='Folder to export FBX files to',
@@ -4092,6 +4101,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             
             if 'VertexColor0' not in mesh.vertex_colors.keys():
                 col = self.layout.column(align=True)
+                col.label(text='Set Scene Configuration:')
                 col.prop(scene, 'numlayers', text='Vertex Color Layers')
                 col.prop(scene, 'numalphas', text='Alpha Overlays (UV)')
                 col.prop(scene, 'numoverlays', text='RGBA Overlays (UV)')
@@ -4113,8 +4123,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if layer is None:
                     sel_idx = 1
                     layer = utils.findLayerFromIndex(obj, sel_idx)
-                    print('SX Tools: Error, invalid layer selected!')
+                    messageBox('Invalid layer selected!', 'SX Tools Error', 'ERROR')
+                    # print('SX Tools: Error, invalid layer selected!')
 
+                if (len(sxglobals.masterPaletteArray) == 0) and (len(sxglobals.materialArray) == 0) and (len(sxglobals.rampDict) == 0) and (len(sxglobals.categoryDict) == 0):
+                    messageBox('Libraries not loaded!')
                 row = layout.row(align=True)
                 row.prop(sxtools, 'category', text='Category')
 
@@ -4344,8 +4357,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 col.separator()
             col.label(text='Set Library Data Folder:')
             col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
-            #col.operator('sxtools.loadlibraries', text='Load Palettes and Materials')
-            col.label(text=bpy.context.scene.sxtools.librarystatus)
+            col.operator('sxtools.loadlibraries', text='Load Libraries')
             col.separator()
             col.label(text='Select a mesh to continue')
 
@@ -4649,10 +4661,10 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
             mode = False
 
         if sourceLayer == None:
-            print('SX Tools: Nothing to paste!')
+            messageBox('Nothing to paste!')
             return {'FINISHED'}
-        elif (targetLayer.layerType != 'COLOR') and (mode == 'Merge'):
-            print('SX Tools: Merging only supported with color layers')
+        elif (targetLayer.layerType != 'COLOR') and (mode == 'merge'):
+            messageBox('Merging only supported with color layers')
             return {'FINISHED'}
         else:
             layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
@@ -4980,6 +4992,17 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
+    bl_idname = 'sxtools.loadlibraries'
+    bl_label = 'Load Libraries'
+    bl_description = 'Loads SX Tools libraries of\npalettes, materials, gradients and categories'
+
+
+    def invoke(self, context, event):
+        loadLibraries(self, context)
+        return {'FINISHED'}    
+
+
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
@@ -4988,7 +5011,6 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        loadLibraries(self, context)
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         export.processObjects(objs, context.scene.sxtools.exportmode)
@@ -5051,6 +5073,7 @@ classes = (
     SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_removeexports,
     SXTOOLS_OT_groupobjects,
+    SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -5107,7 +5130,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - High poly bake crash
-# - Copy/paste layer to be index-based
 # - Shading activation after scene load broken
 # - Run from direct github zip download
 # - Split to multiple python files
