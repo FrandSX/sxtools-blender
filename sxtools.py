@@ -4099,7 +4099,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
             
-            if 'VertexColor0' not in mesh.vertex_colors.keys():
+            if len(obj.sxlayers) == 0:
                 col = self.layout.column(align=True)
                 col.label(text='Set Scene Configuration:')
                 col.prop(scene, 'numlayers', text='Vertex Color Layers')
@@ -4799,7 +4799,7 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         group = 'CreaseSet4'
-        hard = context.scene.sxtools.hardcrease
+        hard = objs[0].sxtools.hardcrease
         if event.shift:
             tools.selectCrease(objs, group)
         else:
