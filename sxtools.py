@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 25, 3),
+    'version': (2, 25, 10),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -16,6 +16,7 @@ import bmesh
 import json
 import pathlib
 import statistics
+from bpy.app.handlers import persistent
 from collections import defaultdict
 from mathutils import Vector
 
@@ -27,11 +28,12 @@ class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.refreshInProgress = False
         self.brightnessUpdate = False
+        self.modalStatus = False
         self.composite = False
         self.copyLayer = None
         self.listItems = []
         self.listIndices = {}
-        self.prevMode = None
+        self.prevMode = 'FULL'
 
         self.rampDict = {}
         self.categoryDict = {}
@@ -85,7 +87,7 @@ class SXTOOLS_files(object):
 
 
     def __del__(self):
-        print('SX Tools: Exiting tools')
+        print('SX Tools: Exiting files')
 
 
     # Loads palettes.json and materials.json
@@ -396,6 +398,11 @@ class SXTOOLS_utils(object):
 class SXTOOLS_setup(object):
     def __init__(self):
         return None
+
+
+    def startModal(self):
+        bpy.ops.sxtools.selectionmonitor('INVOKE_DEFAULT')
+        sxglobals.modalStatus = True
 
 
     def updateInitArray(self):
@@ -765,7 +772,7 @@ class SXTOOLS_setup(object):
         sxglobals.copyLayer = None
         sxglobals.listItems = []
         sxglobals.listIndices = {}
-        sxglobals.prevMode = None
+        sxglobals.prevMode = 'FULL'
         sxglobals.composite = False
         sxglobals.paletteDict = {}
         sxglobals.masterPaletteArray = []
@@ -1297,7 +1304,7 @@ class SXTOOLS_layers(object):
 
 
     def __del__(self):
-        print('SX Tools: Exiting tools')
+        print('SX Tools: Exiting layers')
 
 
 # ------------------------------------------------------------------------
@@ -3143,6 +3150,9 @@ def refreshActives(self, context):
         layers.updateLayerPalette(objs, layer)
         layers.updateLayerBrightness(objs, layer)
 
+        if not sxglobals.modalStatus:
+            setup.startModal()
+
 
 # Clicking a palette color would ideally set it in fillcolor, TBD
 def updateColorSwatches(self, context):
@@ -3392,6 +3402,12 @@ def messageBox(message='', title='SX Tools', icon='INFO'):
         self.layout.label(text=message)
 
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+
+
+@persistent
+def sceneLoadHandler(dummy):
+    sxglobals.prevMode = 'FULL'
+    setup.startModal()
 
 
 # ------------------------------------------------------------------------
@@ -4459,6 +4475,36 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
             pie.operator('sxtools.selmask', text='Select Mask')
 
 
+class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
+    bl_idname = 'sxtools.selectionmonitor'
+    bl_label = 'Selection Monitor'
+
+    prevSelection: None
+
+    @classmethod
+    def poll(cls, context):
+        return context.active_object is not None
+
+    def modal(self, context, event):
+        selection = context.object
+
+        if selection is not self.prevSelection:
+            self.prevSelection = context.object
+            if len(selection.sxlayers) > 0:
+                refreshActives(self, context)
+            return {'PASS_THROUGH'}
+        else:
+            return {'PASS_THROUGH'}
+
+        return {'RUNNING_MODAL'}
+
+    def invoke(self, context, event):
+        self.prevSelection = context.object
+        context.window_manager.modal_handler_add(self)
+        print('SX Tools: Starting selection monitor')
+        return {'RUNNING_MODAL'}
+
+
 class SXTOOLS_OT_addramp(bpy.types.Operator):
     bl_idname = 'sxtools.addramp'
     bl_label = 'Add Ramp Preset'
@@ -5057,6 +5103,7 @@ classes = (
     SXTOOLS_PT_panel,
     SXTOOLS_UL_layerlist,
     SXTOOLS_MT_piemenu,
+    SXTOOLS_OT_selectionmonitor,
     SXTOOLS_OT_scenesetup,
     SXTOOLS_OT_applycolor,
     SXTOOLS_OT_applyramp,
@@ -5101,6 +5148,8 @@ def register():
     bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type=SXTOOLS_masterpalette)
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_material)
 
+    bpy.app.handlers.load_post.append(sceneLoadHandler)
+
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
         km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
@@ -5122,6 +5171,8 @@ def unregister():
     # del tools
     # del sxglobals
 
+    bpy.app.handlers.load_post.remove(sceneLoadHandler)
+
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
@@ -5141,9 +5192,7 @@ if __name__ == '__main__':
 
 # TODO:
 # - High poly bake crash
-# - Shading activation after scene load broken
-# - updatelayerpalettes on selection
-# - updatelayerbrightness on selection
+# - "Libraries loaded successfully" even if empty librarypath
 # - Run from direct github zip download
 # - Split to multiple python files
 # - Default path to find libraries in the zip?
