@@ -141,7 +141,20 @@ Allows for quick editing of edge creases, particularly useful with a subdivision
 
 ## Exporting to Game Engines
 
-The package contains example shader graphs for Unreal4, and both HDRP and LWRP renderers in Unity 2019.
+![Pipeline Overview](/images/sxtools-pipeline.png)
+
+The basic flow for using SX Tools in game development is as follows:
+1) Model your assets as low-poly control cages for subdivision
+2) Define the categories needed for your objects in your game
+3) Set up project in SX Tools, enable the needed features
+4) Assign objects to categories
+5) Color the objects according to category-specific layer definitions
+6) Batch-process the objects for export, leave as much work for automation as possible. Take a look at the existing batch functions and adapt to your project needs.
+7) Export to your game engine as FBX
+8) Run the assets using a the provided custom material (or make your own)
+
+The package contains simple example shader graphs for Unreal4, and both HDRP and LWRP renderers in Unity 2019. Dynamic palette changes in the game engine are not facilitated by the example shader graphs, but they do fully support driving PBR material channels with UV data.
+
 Currently the export channels are set in the following way:
 
 Channel | Function
