@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 25, 10),
+    'version': (2, 25, 11),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3405,7 +3405,7 @@ def messageBox(message='', title='SX Tools', icon='INFO'):
 
 
 @persistent
-def sceneLoadHandler(dummy):
+def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
     setup.startModal()
 
@@ -5148,7 +5148,7 @@ def register():
     bpy.types.Scene.sxpalettes = bpy.props.CollectionProperty(type=SXTOOLS_masterpalette)
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_material)
 
-    bpy.app.handlers.load_post.append(sceneLoadHandler)
+    bpy.app.handlers.load_post.append(load_post_handler)
 
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
@@ -5171,7 +5171,7 @@ def unregister():
     # del tools
     # del sxglobals
 
-    bpy.app.handlers.load_post.remove(sceneLoadHandler)
+    bpy.app.handlers.load_post.remove(load_post_handler)
 
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
@@ -5192,6 +5192,7 @@ if __name__ == '__main__':
 
 # TODO:
 # - High poly bake crash
+# - High poly bake folder swap on remove
 # - "Libraries loaded successfully" even if empty librarypath
 # - Run from direct github zip download
 # - Split to multiple python files
@@ -5204,5 +5205,4 @@ if __name__ == '__main__':
 # - Tool settings:
 #   - Load/save prefs file
 #   - _paletted suffix
-# - Setup Objects to filter non-meshes?
 # - Ask for a group name when creating empties
