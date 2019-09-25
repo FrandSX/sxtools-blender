@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 25, 11),
+    'version': (2, 25, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4490,7 +4490,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
 
         if selection is not self.prevSelection:
             self.prevSelection = context.object
-            if len(selection.sxlayers) > 0:
+            if (selection is not None) and len(selection.sxlayers) > 0:
                 refreshActives(self, context)
             return {'PASS_THROUGH'}
         else:
@@ -5194,6 +5194,8 @@ if __name__ == '__main__':
 # - High poly bake crash
 # - High poly bake folder swap on remove
 # - "Libraries loaded successfully" even if empty librarypath
+# - Absolute path check
+# - Trees category
 # - Run from direct github zip download
 # - Split to multiple python files
 # - Default path to find libraries in the zip?
