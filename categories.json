@@ -34,5 +34,14 @@
         "layer5 - Secondary Detail",
         "layer6 - Static Colors",
         "layer7 - Glass"
+    ],
+    "Trees": [
+        "layer1 - Foliage (Primary)",
+        "layer2 - Foliage (Secondary)",
+        "layer3 - Foliage (Tertiary)",
+        "layer4 - Trunk 1",
+        "layer5 - Trunk 2",
+        "layer6 - Static Colors",
+        "layer7 - Fruit, Flowers"
     ]
 }
