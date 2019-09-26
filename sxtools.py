@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 26, 1),
+    'version': (2, 26, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3291,6 +3291,22 @@ class SXTOOLS_export(object):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
+        # Apply thickness
+        layer = obj.sxlayers['transmission']
+        rampmode = 'THK'
+        scene.ramplist = 'BLACKANDWHITE'
+        noise = 0.0
+        mono = True
+        scene.occlusionrays = 200
+
+        overwrite = True
+        obj.mode == 'OBJECT'
+
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
@@ -3330,35 +3346,12 @@ class SXTOOLS_export(object):
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
-        # Combine smoothness base mask with custom curvature gradient
-        layer = obj.sxlayers['composite']
-        for obj in objs:
-            obj.sxlayers['composite'].blendMode = 'ALPHA'
-            obj.sxlayers['composite'].alpha = 1.0
-        rampmode = 'CN'
-        scene.ramplist = 'CURVATURESMOOTHNESS'
-        noise = 0.01
-        mono = True
-
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['smoothness'].alpha = 1.0
-            obj.sxlayers['smoothness'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
-
         # Combine previous mix with directional dust
         layer = obj.sxlayers['composite']
         rampmode = 'DIR'
         scene.ramplist = 'DIRECTIONALDUST'
         scene.angle = 0.0
-        scene.inclination = 40.0
+        scene.inclination = 90.0
         noise = 0.01
         mono = True
 
@@ -3377,46 +3370,18 @@ class SXTOOLS_export(object):
         for obj in objs:
             obj.sxlayers['smoothness'].blendMode = 'ALPHA'
 
-        # Apply PBR metal based on layer7
-        layer = utils.findLayerFromIndex(obj, 7)
+        # Clear layer4-5 mask from transmission
+        color = (0.0, 0.0, 0.0, 1.0)
+
+        maskLayer = utils.findLayerFromIndex(obj, 4)
+        layer = obj.sxlayers['transmission']
         overwrite = True
-        obj.mode == 'OBJECT'
-        material = 'Iron'
-        noise = 0.01
-        mono = True
 
-        palette = [
-            bpy.context.scene.sxmaterials[material].color0,
-            bpy.context.scene.sxmaterials[material].color1,
-            bpy.context.scene.sxmaterials[material].color2]
-
-        tools.applyColor(objs, layer, palette[0], False, noise, mono)
-        tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
-        tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
-
-        # Mix metallic with occlusion (dirt in crevices)
-        tools.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
-        for obj in objs:
-            obj.sxlayers['metallic'].alpha = 1.0
-            obj.sxlayers['metallic'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
-        for obj in objs:
-            obj.sxlayers['metallic'].blendMode = 'ALPHA'
-
-        # Emissives are smooth
-        color = (1.0, 1.0, 1.0, 1.0)
-        layer = obj.sxlayers['emission']
-        tools.selectMask(objs, [layer, ], inverse)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+        maskLayer = utils.findLayerFromIndex(obj, 5)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
