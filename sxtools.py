@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 25, 12),
+    'version': (2, 26, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -236,11 +236,8 @@ class SXTOOLS_files(object):
                 compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
                 layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
 
-            if (selArray[0].sxtools.category.lower() == 'default'):
-                path = bpy.context.scene.sxtools.exportfolder
-            else:
-                path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
-                pathlib.Path(path).mkdir(exist_ok=True) 
+            path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
+            pathlib.Path(path).mkdir(exist_ok=True) 
 
             if '/' in bpy.context.scene.sxtools.exportfolder:
                 slash = '/'
@@ -2764,7 +2761,7 @@ class SXTOOLS_export(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Construct layer1-7 smoothness base mask
-        color = (1.0, 1.0, 1.0, 1.0)
+        color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
@@ -2778,7 +2775,7 @@ class SXTOOLS_export(object):
         sxlayers = [layer4, layer5]
         tools.selectMask(objs, sxlayers, inverse)
 
-        color = (0.2, 0.2, 0.2, 1.0)
+        color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = scene.fillalpha
@@ -2943,7 +2940,7 @@ class SXTOOLS_export(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Construct layer1-7 smoothness base mask
-        color = (0.1, 0.1, 0.1, 0.1)
+        color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
@@ -2957,7 +2954,7 @@ class SXTOOLS_export(object):
         sxlayers = [layer4, layer5]
         tools.selectMask(objs, sxlayers, inverse)
 
-        color = (0.3, 0.3, 0.3, 1.0)
+        color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = scene.fillalpha
@@ -3396,6 +3393,17 @@ def updateModifiers(self, context):
     bpy.ops.object.mode_set(mode=mode)
 
 
+def updateSmoothness(self, context):
+    objs = selectionValidator(self, context)
+    sm1 = objs[0].sxtools.smoothness1
+    sm2 = objs[0].sxtools.smoothness2
+    for obj in objs:
+        if obj.sxtools.smoothness1 != sm1:
+            obj.sxtools.smoothness1 = sm1
+        if obj.sxtools.smoothness2 != sm2:
+            obj.sxtools.smoothness2 = sm2
+
+
 def messageBox(message='', title='SX Tools', icon='INFO'):
 
     def draw(self, context):
@@ -3472,6 +3480,20 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         description='Disable to use dynamic palettes in a game engine\nWhen paletted, overlays are not composited to VertexColor0',
         default=True,
         update=markStaticColors)
+
+    smoothness1: bpy.props.FloatProperty(
+        name='Layer 1-3 Base Smoothness',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+        update=updateSmoothness)
+
+    smoothness2: bpy.props.FloatProperty(
+        name='Layer 4-5 Base Smoothness',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+        update=updateSmoothness)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -4361,6 +4383,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_masks.operator('sxtools.groupobjects', text='Group Objects')
                     col_masks.separator()
                     col_masks.prop(sxtools, 'staticvertexcolors', text='Export Static Vertex Colors on Selected Objects')
+                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-Layer3 Base Smoothness')
+                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-Layer5 Base Smoothness')
                     col_masks.separator()
                     row2_export = box_export.row(align=True)
                     row2_export.prop(scene, 'exportmode', expand=True)
@@ -5191,6 +5215,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Category change to update defaultsmoothnesses?
 # - High poly bake crash
 # - High poly bake folder swap on remove
 # - "Libraries loaded successfully" even if empty librarypath
