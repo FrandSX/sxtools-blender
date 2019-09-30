@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 26, 2),
+    'version': (2, 26, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2431,6 +2431,7 @@ class SXTOOLS_tools(object):
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
             obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
             obj.sxtools.modifiervisibility = vis
             obj.sxtools.subdivisionlevel = subdivLevel
 
@@ -2530,6 +2531,7 @@ class SXTOOLS_export(object):
         # Make sure auto-smooth is on
         for obj in objs:
             obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
 
@@ -3687,6 +3689,7 @@ def updateModifiers(self, context):
     subdivLevel = objs[0].sxtools.subdivisionlevel
     for obj in objs:
         obj.data.use_auto_smooth = True
+        obj.data.auto_smooth_angle = 3.14159
         if obj.sxtools.modifiervisibility != vis:
             obj.sxtools.modifiervisibility = vis
         if obj.sxtools.hardcrease != hard:
