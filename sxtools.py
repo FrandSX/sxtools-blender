@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 26, 3),
+    'version': (2, 26, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -708,8 +708,8 @@ class SXTOOLS_setup(object):
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-            sxmaterial.node_tree.links.new(input, output)
+            # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+            # sxmaterial.node_tree.links.new(input, output)
 
         if emission:
             # Y to emission multiplier
@@ -3296,10 +3296,10 @@ class SXTOOLS_export(object):
         # Apply thickness
         layer = obj.sxlayers['transmission']
         rampmode = 'THK'
-        scene.ramplist = 'BLACKANDWHITE'
+        scene.ramplist = 'FOLIAGERAMP'
         noise = 0.0
         mono = True
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
 
         overwrite = True
         obj.mode == 'OBJECT'
@@ -3530,8 +3530,8 @@ def shadingMode(self, context):
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-            sxmaterial.node_tree.links.new(input, output)
+            # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+            # sxmaterial.node_tree.links.new(input, output)
 
         if emission:
             # Reconnect emission
@@ -3571,8 +3571,8 @@ def shadingMode(self, context):
                 attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
             if transmission:
-                attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
-                sxmaterial.node_tree.links.remove(attrLink)
+                # attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                # sxmaterial.node_tree.links.remove(attrLink)
                 attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
 
@@ -5535,12 +5535,14 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Category change to update defaultsmoothnesses?
+# - Create and re-index UV0 if not present in processing
+# - Auto-place pivots during processing?
+# - Polling to check if objtype mesh
+# - Category change to update defaultsmoothnesses and static/paletted?
 # - High poly bake crash
 # - High poly bake folder swap on remove
 # - "Libraries loaded successfully" even if empty librarypath
 # - Absolute path check
-# - Trees category
 # - Run from direct github zip download
 # - Split to multiple python files
 # - Default path to find libraries in the zip?
