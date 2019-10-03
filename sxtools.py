@@ -510,7 +510,7 @@ class SXTOOLS_setup(object):
 
                 clearSets = []
                 for uvSet in uvSets:
-                    uvmap = mesh.uv_layers.new(name=uvSet)
+                    mesh.uv_layers.new(name=uvSet)
                     clearSets.append(uvSet)
                     changed = True
 
@@ -5535,6 +5535,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Per-object prop for overlay strength
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
 # - Polling to check if objtype mesh
