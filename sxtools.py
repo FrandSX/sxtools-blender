@@ -5535,6 +5535,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Add alpha support to debug mode
+# - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
+# - If vehicle and _wheel in name, only local AO
 # - Per-object prop for overlay strength
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
