@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 26, 4),
+    'version': (2, 27, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2654,8 +2654,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -2666,15 +2664,13 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -2685,7 +2681,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -2783,8 +2779,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -2795,7 +2789,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -2869,8 +2863,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -2881,7 +2873,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -2913,8 +2905,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -2925,7 +2915,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -3092,8 +3082,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -3104,7 +3092,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -3271,8 +3259,6 @@ class SXTOOLS_export(object):
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
-        layer.blendMode = 'OVR'
-        layer.alpha = 0.5
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
@@ -3283,7 +3269,7 @@ class SXTOOLS_export(object):
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = 0.5
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -3713,15 +3699,18 @@ def updateModifiers(self, context):
     bpy.ops.object.mode_set(mode=mode)
 
 
-def updateSmoothness(self, context):
+def updateCustomProps(self, context):
     objs = selectionValidator(self, context)
     sm1 = objs[0].sxtools.smoothness1
     sm2 = objs[0].sxtools.smoothness2
+    ovr = objs[0].sxtools.overlaystrength
     for obj in objs:
         if obj.sxtools.smoothness1 != sm1:
             obj.sxtools.smoothness1 = sm1
         if obj.sxtools.smoothness2 != sm2:
             obj.sxtools.smoothness2 = sm2
+        if obj.sxtools.overlaystrength != ovr:
+            obj.sxtools.overlaystrength = ovr
 
 
 def messageBox(message='', title='SX Tools', icon='INFO'):
@@ -3806,15 +3795,21 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=0.0,
-        update=updateSmoothness)
+        update=updateCustomProps)
 
     smoothness2: bpy.props.FloatProperty(
         name='Layer 4-5 Base Smoothness',
         min=0.0,
         max=1.0,
         default=0.0,
-        update=updateSmoothness)
+        update=updateCustomProps)
 
+    overlaystrength: bpy.props.FloatProperty(
+        name='RGBA Overlay Strength',
+        min=0.0,
+        max=1.0,
+        default=0.5,
+        update=updateCustomProps)
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -4696,15 +4691,18 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_export.label(text='Export Tools')
                 if scene.expandexport:
                     col_masks = box_export.column(align=True)
-                    col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
-                    col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
-                    col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
-                    col_masks.separator()
+                    # col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
+                    # col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
+                    # col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
+                    # col_masks.separator()
+                    col_masks.operator('sxtools.setpivots', text='Set Pivots')
                     col_masks.operator('sxtools.groupobjects', text='Group Objects')
                     col_masks.separator()
-                    col_masks.prop(sxtools, 'staticvertexcolors', text='Export Static Vertex Colors on Selected Objects')
-                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-Layer3 Base Smoothness')
-                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-Layer5 Base Smoothness')
+                    col_masks.label(text='Object Export Properties:')
+                    col_masks.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
+                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-Layer3 Base Smoothness', slider=True)
+                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-Layer5 Base Smoothness', slider=True)
+                    col_masks.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                     col_masks.separator()
                     row2_export = box_export.row(align=True)
                     row2_export.prop(scene, 'exportmode', expand=True)
@@ -5381,6 +5379,27 @@ class SXTOOLS_OT_removeexports(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_setpivots(bpy.types.Operator):
+    bl_idname = 'sxtools.setpivots'
+    bl_label = 'Set Pivots'
+    bl_options = {'UNDO'}
+    bl_description = 'Set pivot to center of mass on selected objects\nShift-click to set pivot to center of bounding box'
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        active = context.active_object
+        for obj in objs:
+            bpy.context.view_layer.objects.active = obj
+            if event.shift:
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+            else:
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+
+        bpy.context.view_layer.objects.active = active
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_groupobjects(bpy.types.Operator):
     bl_idname = 'sxtools.groupobjects'
     bl_label = 'Group Objects'
@@ -5474,6 +5493,7 @@ classes = (
     SXTOOLS_OT_resetscene,
     SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_removeexports,
+    SXTOOLS_OT_setpivots,
     SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_macro)
@@ -5535,7 +5555,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Per-object prop for overlay strength
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
 # - Polling to check if objtype mesh
