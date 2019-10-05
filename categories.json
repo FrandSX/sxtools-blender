@@ -6,7 +6,12 @@
         "layer4",
         "layer5",
         "layer6",
-        "layer7"
+        "layer7",
+        1,
+        0.0,
+        0.0,
+        0.5,
+        "OPAQUE"
     ],
     "Paletted": [
         "layer1 - Palette Color 1",
@@ -15,7 +20,12 @@
         "layer4 - Palette Color 4",
         "layer5 - Palette Color 5",
         "layer6 - Static Colors",
-        "layer7 - Metallic"
+        "layer7 - Metallic",
+        0,
+        0.0,
+        0.0,
+        0.5,
+        "OPAQUE"
     ],
     "Vehicles": [
         "layer1 - Paint (Primary)",
@@ -24,7 +34,12 @@
         "layer4 - Seats",
         "layer5 - Inside Panels",
         "layer6 - Static Colors",
-        "layer7 - Metallic"
+        "layer7 - Metallic",
+        0,
+        1.0,
+        0.3,
+        0.5,
+        "OPAQUE"
     ],
     "Buildings": [
         "layer1 - Walls (Primary)",
@@ -33,7 +48,12 @@
         "layer4 - Ground Floor",
         "layer5 - Secondary Detail",
         "layer6 - Static Colors",
-        "layer7 - Glass"
+        "layer7 - Glass",
+        0,
+        0.0,
+        0.0,
+        0.5,
+        "OPAQUE"
     ],
     "Trees": [
         "layer1 - Foliage (Primary)",
@@ -42,6 +62,25 @@
         "layer4 - Trunk 1",
         "layer5 - Trunk 2",
         "layer6 - Static Colors",
-        "layer7 - Fruit, Flowers"
+        "layer7 - Fruit, Flowers",
+        0,
+        0.0,
+        0.0,
+        0.5,
+        "OPAQUE"
+    ],
+    "Transparent": [
+        "layer1",
+        "layer2",
+        "layer3",
+        "layer4",
+        "layer5",
+        "layer6",
+        "layer7",
+        1,
+        0.0,
+        0.0,
+        0.5,
+        "BLEND"
     ]
 }

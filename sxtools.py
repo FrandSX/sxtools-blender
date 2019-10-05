@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 27, 1),
+    'version': (2, 29, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -50,7 +50,7 @@ class SXTOOLS_sxglobals(object):
         # uvLayer0, uvChannel0, uvLayer1, uvChannel1,
         # uvLayer2, uvChannel2, uvLayer3, uvChannel3
         self.layerInitArray = [
-            ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U'],
+            ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U'],
             ['layer1', False, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U'],
             ['layer2', False, 2, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U'],
             ['layer3', False, 3, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U'],
@@ -237,7 +237,9 @@ class SXTOOLS_files(object):
                     sel['staticVertexColors'] = True
 
                 compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
-                layers.blendLayers([sel, ], compLayers, sel.sxlayers['composite'], sel.sxlayers['composite'])
+                layer0 = utils.findLayerFromIndex(sel, 0)
+                layer1 = utils.findLayerFromIndex(sel, 1)
+                layers.blendLayers([sel, ], compLayers, layer1, layer0)
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
             pathlib.Path(path).mkdir(exist_ok=True) 
@@ -368,7 +370,7 @@ class SXTOOLS_utils(object):
     def findCompLayers(self, obj, staticExport=True):
         compLayers = []
         for sxLayer in obj.sxlayers:
-            if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled == True):
+            if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled == True) and (sxLayer.index != 1):
                 compLayers.append(sxLayer)
         compLayers.sort(key=lambda x: x.index)
         if staticExport:
@@ -584,6 +586,12 @@ class SXTOOLS_setup(object):
             pCol.name = 'PaletteColor' + str(i)
             sxmaterial.node_tree.nodes[pCol.name].location = (-900, -200*i)
 
+        # Vertex alpha source
+        if (2, 81, 0) < bpy.app.version:
+            sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+            sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
+            sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 0)
+
         # Vertex color source
         sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
         sxmaterial.node_tree.nodes['Attribute'].attribute_name = compositeUVSet
@@ -655,11 +663,16 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes['GradientXYZ'].location = (-300, -600)
 
         # Node connections
+        # Vertex alpha to shader alpha
+        if (2, 81, 0) < bpy.app.version:
+            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Alpha']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Alpha']
+            sxmaterial.node_tree.links.new(input, output)
+
         # Vertex color to mixer
         output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
         input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
         sxmaterial.node_tree.links.new(input, output)
-
 
         if occlusion:
             # Split occlusion from UV1
@@ -885,11 +898,9 @@ class SXTOOLS_layers(object):
             layer = utils.findLayerFromIndex(objs[0], idx)
 
             if shadingmode == 'FULL':
-                for obj in objs:
-                    layer = utils.findLayerFromIndex(obj, 1)
-                    obj.sxlayers[0].blendMode = 'ALPHA'
-                    obj.sxlayers[0].alpha = 1.0
-                self.blendLayers(objs, compLayers, objs[0].sxlayers['composite'], objs[0].sxlayers['composite'])
+                layer0 = utils.findLayerFromIndex(objs[0], 0)
+                layer1 = utils.findLayerFromIndex(objs[0], 1)
+                self.blendLayers(objs, compLayers, layer1, layer0)
             else:
                 self.blendDebug(objs, layer, shadingmode)
 
@@ -964,6 +975,7 @@ class SXTOOLS_layers(object):
             uvValues = obj.data.uv_layers
             resultColors = vertexColors[resultLayer.vertexColorLayer].data
             baseColors = vertexColors[baseLayer.vertexColorLayer].data
+            baseAlpha = getattr(baseLayer, 'alpha')
 
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
@@ -1019,14 +1031,14 @@ class SXTOOLS_layers(object):
                             if blend == 'ALPHA':
                                 for j in range(3):
                                     base[j] = (top[j] * (top[3] * alpha) + base[j] * (1 - (top[3] * alpha)))
-                                base[3] += top[3]
+                                base[3] += top[3] * alpha
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
                             elif blend == 'ADD':
                                 for j in range(3):
                                     base[j] += top[j] * (top[3] * alpha)
-                                base[3] += top[3]
+                                base[3] += top[3] * alpha
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
@@ -1045,11 +1057,11 @@ class SXTOOLS_layers(object):
                                         over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
                                     over[3] += top[3]
                                     base[j] = (over[j] * (over[3] * alpha) + base[j] * (1.0 - (over[3] * alpha)))
-                                base[3] += top[3]
+                                base[3] += top[3] * alpha
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
-                    resultColors[idx].color = base[:]
+                    resultColors[idx].color = [base[0], base[1], base[2], base[3] * baseAlpha] # base[:]
         bpy.ops.object.mode_set(mode=mode)
 
 
@@ -2611,6 +2623,10 @@ class SXTOOLS_export(object):
                     self.processBuildings(categoryObjs)
                 elif category == 'TREES':
                     self.processTrees(categoryObjs)
+                elif category == 'TRANSPARENT':
+                    self.processDefault(categoryObjs)
+                else:
+                    self.processDefault(categoryObjs)
 
         # Create palette masks
         layers.generateMasks(objs)
@@ -3608,17 +3624,28 @@ def categoryLister(self, context):
 
 def loadCategory(self, context):
     objs = selectionValidator(self, context)
-    categoryNames = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
+    categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
     for i in range(7):
         layer = utils.findLayerFromIndex(objs[0], i+1)
-        layer.name = categoryNames[i]
+        layer.name = categoryData[i]
 
     for obj in objs:
         if obj.sxtools.category != objs[0].sxtools.category:
             obj.sxtools.category = objs[0].sxtools.category
             for i in range(7):
                 layer = utils.findLayerFromIndex(obj, i+1)
-                layer.name = categoryNames[i]
+                layer.name = categoryData[i]
+
+        obj.sxtools.staticvertexcolors = bool(categoryData[7])
+        obj.sxtools.smoothness1 = categoryData[8]
+        obj.sxtools.smoothness2 = categoryData[9]
+        obj.sxtools.overlaystrength = categoryData[10]
+
+    bpy.data.materials['SXMaterial'].blend_method = categoryData[11]
+    if categoryData[11] == 'BLEND':
+        bpy.data.materials['SXMaterial'].use_backface_culling = True
+    else:
+        bpy.data.materials['SXMaterial'].use_backface_culling = False
 
 
 def loadRamp(self, context):
@@ -3667,15 +3694,6 @@ def adjustBrightness(self, context):
         refreshActives(self, context)
 
 
-def markStaticColors(self, context):
-    objs = selectionValidator(self, context)
-    staticCols = objs[0].sxtools.staticvertexcolors
-    for obj in objs:
-        obj['staticVertexColors'] = staticCols
-        if obj.sxtools.staticvertexcolors != staticCols:
-            obj.sxtools.staticvertexcolors = staticCols
-
-
 def updateModifiers(self, context):
     objs = selectionValidator(self, context)
     vis = objs[0].sxtools.modifiervisibility
@@ -3709,10 +3727,14 @@ def updateModifiers(self, context):
 
 def updateCustomProps(self, context):
     objs = selectionValidator(self, context)
+    stc = objs[0].sxtools.staticvertexcolors
     sm1 = objs[0].sxtools.smoothness1
     sm2 = objs[0].sxtools.smoothness2
     ovr = objs[0].sxtools.overlaystrength
     for obj in objs:
+        obj['staticVertexColors'] = stc
+        if obj.sxtools.staticvertexcolors != stc:
+            obj.sxtools.staticvertexcolors = stc
         if obj.sxtools.smoothness1 != sm1:
             obj.sxtools.smoothness1 = sm1
         if obj.sxtools.smoothness2 != sm2:
@@ -3796,7 +3818,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Static Vertex Colors Export Flag',
         description='Disable to use dynamic palettes in a game engine\nWhen paletted, overlays are not composited to VertexColor0',
         default=True,
-        update=markStaticColors)
+        update=updateCustomProps)
 
     smoothness1: bpy.props.FloatProperty(
         name='Layer 1-3 Base Smoothness',
@@ -4708,8 +4730,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col_masks.separator()
                     col_masks.label(text='Object Export Properties:')
                     col_masks.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
-                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-Layer3 Base Smoothness', slider=True)
-                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-Layer5 Base Smoothness', slider=True)
+                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
+                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
                     col_masks.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                     col_masks.separator()
                     row2_export = box_export.row(align=True)
@@ -5564,6 +5586,7 @@ if __name__ == '__main__':
 
 # TODO:
 # - Add alpha support to debug mode
+# - Add workflow for alpha-blended objects
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
