@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 27, 0),
+    'version': (2, 27, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -122,10 +122,13 @@ class SXTOOLS_files(object):
             except ValueError:
                 print('SX Tools Error: Invalid ' + mode + ' file.')
                 bpy.context.scene.sxtools.libraryfolder = ''
+                return False
             except IOError:
                 print('SX Tools Error: ' + mode + ' file not found!')
+                return False
         else:
             print('SX Tools: No ' + mode + ' file found')
+            return False
 
         if mode == 'palettes':
             self.loadPalettes()
@@ -2898,7 +2901,12 @@ class SXTOOLS_export(object):
         overwrite = True
         obj.mode == 'OBJECT'
 
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        for obj in objs:
+            if 'wheel' in obj.name:
+                scene.occlusionblend = 0.0
+            else:
+                scene.occlusionblend = 0.5
+            tools.applyRamp([obj, ], layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -5557,14 +5565,12 @@ if __name__ == '__main__':
 # TODO:
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
-# - If vehicle and _wheel in name, only local AO
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
 # - Polling to check if objtype mesh
 # - Category change to update defaultsmoothnesses and static/paletted?
 # - High poly bake crash
 # - High poly bake folder swap on remove
-# - "Libraries loaded successfully" even if empty librarypath
 # - Absolute path check
 # - Run from direct github zip download
 # - Split to multiple python files
