@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 30, 1),
+    'version': (2, 30, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2450,7 +2450,7 @@ class SXTOOLS_tools(object):
 
     def addModifiers(self, objs):
         vis = objs[0].sxtools.modifiervisibility
-        hard = objs[0].sxtools.hardcrease
+        hardmode = objs[0].sxtools.hardmode
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
             obj.data.use_auto_smooth = True
@@ -2461,43 +2461,53 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
         for obj in objs:
+            if 'sxBevel' not in  obj.modifiers.keys():
+                obj.modifiers.new(type='BEVEL', name='sxBevel')
+                if hardmode == 'BEVEL' or obj.sxtools.modifiervisibility:
+                    obj.modifiers['sxBevel'].show_viewport = True
+                else:
+                    obj.modifiers['sxBevel'].show_viewport = False
+                obj.modifiers['sxBevel'].width = 0.02
+                obj.modifiers['sxBevel'].segments = 2
+                obj.modifiers['sxBevel'].mark_sharp = True
+                obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
+                obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].show_on_cage = True
-            if 'sxBevel' not in  obj.modifiers.keys():
-                obj.modifiers.new(type='BEVEL', name='sxBevel')
-                obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
-                obj.modifiers['sxBevel'].width = 0.02
-                obj.modifiers['sxBevel'].segments = 2
-                obj.modifiers['sxBevel'].mark_sharp = True
-                obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
-                obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxEdgeSplit' not in obj.modifiers.keys():
                 obj.modifiers.new(type='EDGE_SPLIT', name='sxEdgeSplit')
                 obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxEdgeSplit'].use_edge_angle = False
                 obj.modifiers['sxEdgeSplit'].show_on_cage = True
-                obj.modifiers['sxEdgeSplit'].use_edge_sharp = hard
+                if hardmode == 'SHARP':
+                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
+                else:
+                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
-                obj.modifiers['sxWeightedNormal'].keep_sharp = hard
+                if hardmode == 'SHARP':
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
+                else:
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = False
 
+        bpy.ops.object.shade_smooth()
         bpy.ops.object.mode_set(mode=mode)
 
 
     def applyModifiers(self, objs):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
-            if 'sxSubdivision' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
+            if 'sxSubdivision' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
@@ -2507,10 +2517,10 @@ class SXTOOLS_tools(object):
     def removeModifiers(self, objs):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
-            if 'sxSubdivision' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxBevel')
+            if 'sxSubdivision' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxSubdivision')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
@@ -3728,29 +3738,40 @@ def adjustBrightness(self, context):
 def updateModifiers(self, context):
     objs = selectionValidator(self, context)
     vis = objs[0].sxtools.modifiervisibility
-    hard = objs[0].sxtools.hardcrease
+    hardmode = objs[0].sxtools.hardmode
     subdivLevel = objs[0].sxtools.subdivisionlevel
     for obj in objs:
         obj.data.use_auto_smooth = True
         obj.data.auto_smooth_angle = 3.14159
         if obj.sxtools.modifiervisibility != vis:
             obj.sxtools.modifiervisibility = vis
-        if obj.sxtools.hardcrease != hard:
-            obj.sxtools.hardcrease = hard
+        if obj.sxtools.hardmode != hardmode:
+            obj.sxtools.hardmode = hardmode
         if obj.sxtools.subdivisionlevel != subdivLevel:
             obj.sxtools.subdivisionlevel = subdivLevel
 
     mode = objs[0].mode
     bpy.ops.object.mode_set(mode='OBJECT')
     for obj in objs:
+        if 'sxBevel' in obj.modifiers.keys():
+            if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
+                obj.modifiers['sxBevel'].show_viewport = True
+            else:
+                obj.modifiers['sxBevel'].show_viewport = False
         if 'sxSubdivision' in obj.modifiers.keys():
             obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
             obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
         if 'sxEdgeSplit' in obj.modifiers.keys():
             obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
-            obj.modifiers['sxEdgeSplit'].use_edge_sharp = obj.sxtools.hardcrease
+            if hardmode == 'SHARP':
+                obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
+            else:
+                obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
         if 'sxWeightedNormal' in obj.modifiers.keys():
-            obj.modifiers['sxWeightedNormal'].keep_sharp = hard
+            if hardmode == 'SHARP':
+                obj.modifiers['sxWeightedNormal'].keep_sharp = True
+            else:
+                obj.modifiers['sxWeightedNormal'].keep_sharp = False
             obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
     bpy.ops.object.mode_set(mode=mode)
@@ -3832,10 +3853,14 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=True,
         update=updateModifiers)
 
-    hardcrease: bpy.props.BoolProperty(
-        name='Hard Crease',
-        description='Edges with maximum crease are marked as sharp',
-        default=True,
+    hardmode: bpy.props.EnumProperty(
+        name='Max Crease Mode',
+        description='Mode for processing edges with maximum crease',
+        items=[
+            ('SMOOTH', 'Smooth', ''),
+            ('SHARP', 'Sharp', ''),
+            ('BEVEL', 'Beveled', '')],
+        default='SHARP',
         update=updateModifiers)
 
     subdivisionlevel: bpy.props.IntProperty(
@@ -3871,6 +3896,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         max=1.0,
         default=0.5,
         update=updateCustomProps)
+
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -4670,12 +4696,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandcrease:
                         col_sds = box_crease.column(align=False)
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                        col_sds.prop(sxtools, 'hardcrease', text='Sharp Edges on 100% Creases')
-                        col_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
+                        col_sds.label(text='100% Creases Are:')
+                        row_sds = box_crease.row()
+                        row_sds.prop(sxtools, 'hardmode', expand=True)
+                        col2_sds = box_crease.column(align=True)
+                        col2_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                         if ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
-                            col_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                            col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
                         if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxEdgeSplit' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
-                            col_sds.operator('sxtools.modifiers', text='Add Modifiers')
+                            col2_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -5259,7 +5288,10 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         group = 'CreaseSet4'
-        hard = objs[0].sxtools.hardcrease
+        hardmode = objs[0].sxtools.hardmode
+        hard = False
+        if hardmode == 'SHARP':
+            hard = True
         if event.shift:
             tools.selectCrease(objs, group)
         else:
@@ -5605,6 +5637,7 @@ def unregister():
             km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
+
 if __name__ == '__main__':
     try:
         unregister()
@@ -5616,7 +5649,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Investigate auto-beveling sharp edges
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
@@ -5637,3 +5669,4 @@ if __name__ == '__main__':
 #   - Load/save prefs file
 #   - _paletted suffix
 # - Ask for a group name when creating empties
+# - User option for enabling SSS with transmission, enable relevant material features
