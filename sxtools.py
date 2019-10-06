@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 29, 1),
+    'version': (2, 29, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3468,14 +3468,27 @@ def refreshActives(self, context):
             setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
             setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
+        # Update VertexColor0 to reflect latest layer changes
         if mode != 'FULL':
             sxglobals.composite = True
         layers.compositeLayers(objs)
-
         sxglobals.refreshInProgress = False
+
+        # Refresh SX Tools UI to latest selection
         layers.updateLayerPalette(objs, layer)
         layers.updateLayerBrightness(objs, layer)
 
+        # Update SX Material to latest selection
+        if objs[0].sxtools.category == 'TRANSPARENT':
+            if bpy.data.materials['SXMaterial'].blend_method != 'BLEND':
+                bpy.data.materials['SXMaterial'].blend_method = 'BLEND'
+                bpy.data.materials['SXMaterial'].use_backface_culling = True
+        else:
+            if bpy.data.materials['SXMaterial'].blend_method != 'OPAQUE':
+                bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
+                bpy.data.materials['SXMaterial'].use_backface_culling = False
+
+        # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
             setup.startModal()
 
@@ -5586,7 +5599,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Add alpha support to debug mode
-# - Add workflow for alpha-blended objects
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
