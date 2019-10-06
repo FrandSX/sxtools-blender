@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 29, 3),
+    'version': (2, 30, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2324,6 +2324,12 @@ class SXTOOLS_tools(object):
                 creaseLayer = bm.edges.layers.crease['SubSurfCrease']
             else:
                 creaseLayer = bm.edges.layers.crease.new('SubSurfCrease')
+
+            if 'BevelWeight' in bm.edges.layers.bevel_weight.keys():
+                bevelWeightLayer = bm.edges.layers.bevel_weight['BevelWeight']
+            else:
+                bevelWeightLayer = bm.edges.layers.bevel_weight.new('BevelWeight')
+
             selectedEdges = [edge for edge in bm.edges if edge.select]
             for edge in selectedEdges:
                 edge[creaseLayer] = weight
@@ -2331,9 +2337,11 @@ class SXTOOLS_tools(object):
                 if weight == 1.0 and hard:
                     edge.smooth = False
                     mesh.edges[edge.index].use_edge_sharp = True
+                    edge[bevelWeightLayer] = weight
                 else:
                     edge.smooth = True
                     mesh.edges[edge.index].use_edge_sharp = False
+                    edge[bevelWeightLayer] = -1.0
 
             bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode=mode)
@@ -2459,14 +2467,20 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].show_on_cage = True
-
+            if 'sxBevel' not in  obj.modifiers.keys():
+                obj.modifiers.new(type='BEVEL', name='sxBevel')
+                obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxBevel'].width = 0.02
+                obj.modifiers['sxBevel'].segments = 2
+                obj.modifiers['sxBevel'].mark_sharp = True
+                obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
+                obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxEdgeSplit' not in obj.modifiers.keys():
                 obj.modifiers.new(type='EDGE_SPLIT', name='sxEdgeSplit')
                 obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxEdgeSplit'].use_edge_angle = False
                 obj.modifiers['sxEdgeSplit'].show_on_cage = True
                 obj.modifiers['sxEdgeSplit'].use_edge_sharp = hard
-
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
@@ -2482,6 +2496,8 @@ class SXTOOLS_tools(object):
             bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
+            if 'sxBevel' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
@@ -2493,6 +2509,8 @@ class SXTOOLS_tools(object):
             bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxSubdivision')
+            if 'sxBevel' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxBevel')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
@@ -5598,12 +5616,12 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate auto-beveling sharp edges
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
 # - Polling to check if objtype mesh
-# - Category change to update defaultsmoothnesses and static/paletted?
 # - High poly bake crash
 # - High poly bake folder swap on remove
 # - Absolute path check
