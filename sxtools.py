@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 31, 3),
+    'version': (2, 31, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2470,6 +2470,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+                obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
                 obj.modifiers['sxSubdivision'].show_on_cage = True
             if 'sxBevel' not in  obj.modifiers.keys():
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
@@ -2478,9 +2479,13 @@ class SXTOOLS_tools(object):
                 else:
                     obj.modifiers['sxBevel'].show_viewport = False
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
+                obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
-                obj.modifiers['sxBevel'].mark_sharp = True
-                obj.modifiers['sxBevel'].offset_type = 'WIDTH'
+                obj.modifiers['sxBevel'].use_clamp_overlap = False
+                obj.modifiers['sxBevel'].loop_slide = False
+                obj.modifiers['sxBevel'].mark_sharp = False
+                obj.modifiers["sxBevel"].harden_normals = True
+                obj.modifiers['sxBevel'].offset_type = 'PERCENT' # 'WIDTH'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxEdgeSplit' not in obj.modifiers.keys():
@@ -3772,6 +3777,7 @@ def updateModifiers(self, context):
             else:
                 obj.modifiers['sxBevel'].show_viewport = False
             obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
+            obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
             obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
         if 'sxEdgeSplit' in obj.modifiers.keys():
             obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
@@ -3872,7 +3878,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('SMOOTH', 'Smooth', ''),
             ('SHARP', 'Sharp', ''),
             ('BEVEL', 'Beveled', '')],
-        default='SHARP',
+        default='BEVEL',
         update=updateModifiers)
 
     subdivisionlevel: bpy.props.IntProperty(
@@ -3885,13 +3891,13 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     bevelwidth: bpy.props.FloatProperty(
         name='Bevel Width',
         min=0.0,
-        max=1.0,
-        default=0.02,
+        max=100.0,
+        default=15.0,
         update=updateModifiers)
 
     bevelsegments: bpy.props.IntProperty(
         name='Bevel Segments',
-        min=0,
+        min=1,
         max=10,
         default=2,
         update=updateModifiers)
