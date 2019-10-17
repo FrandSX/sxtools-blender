@@ -5684,6 +5684,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Add function to revert to control cage
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
