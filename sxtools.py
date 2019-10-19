@@ -5684,6 +5684,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate having settings in add-ons window
+# - Improve automatic library loading
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
