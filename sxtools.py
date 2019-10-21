@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 31, 8),
+    'version': (2, 31, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4816,10 +4816,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_export.label(text='Export Tools')
                 if scene.expandexport:
                     col_masks = box_export.column(align=True)
-                    # col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
+                    col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
                     # col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                     # col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
-                    # col_masks.separator()
+                    col_masks.separator()
                     col_masks.operator('sxtools.setpivots', text='Set Pivots')
                     col_masks.operator('sxtools.groupobjects', text='Group Objects')
                     col_masks.separator()
