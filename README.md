@@ -49,15 +49,17 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 
 4) Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary.
 
-5) Click on *Set Up Object*. SX Tools will now generate the needed layers, UV sets, variables and a custom material
+5) Choose "Erase Existing UV Sets" if you are creating a new mesh object. If you are working with an object with existing UV data, uncheck this option and SX Tools will attempt to preserve existing UV sets if there are enough slots available for the selected options.
+
+6) Click on *Set Up Object*. SX Tools will now generate the needed layers, UV sets, variables and a custom material
 
 ![Step Three](/images/sxtools-03.png)
 
-6) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool.
+7) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool.
 
 ![Step Four](/images/sxtools-04.png)
 
-7) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
+8) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
 
 ## The Interface
 ### Shading Modes
@@ -135,8 +137,13 @@ Clicking Apply will replace colors in layers 1-5 with the colors of the palette 
 ### PBR Materials
 Clicking Apply on a material will fill the current layer with the material color, and fill the Metallic and Smoothness/Roughness UV channels with the respective values.
 
-### Crease Edges
-Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier.
+### Creasing
+Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier. Shift-click on any of the crease buttons to select the edges of respective crease level.
+
+### Modifiers
+Contains settings for SX Tools default modifier stack. Max creases can be selected to be Smooth/Sharp/Beveled, with the default being Beveled. Currently beveling is applied after subdivision, but this is likely to change.
+
+Other functions include quick optoins to hide/show modifiers, or add/remove the entire stack.
 
 
 ## Exporting to Game Engines
