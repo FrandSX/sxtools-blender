@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 34, 0),
+    'version': (2, 34, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2471,6 +2471,7 @@ class SXTOOLS_tools(object):
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT')
+
         for obj in objs:
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
@@ -3136,7 +3137,7 @@ class SXTOOLS_export(object):
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.0
         mono = True
-        scene.occlusionblend = 0.5
+        scene.occlusionblend = 0.0
         scene.occlusionrays = 200
 
         mergebbx = scene.rampbbox
@@ -3152,7 +3153,7 @@ class SXTOOLS_export(object):
         layer = obj.sxlayers['overlay']
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.01
+        noise = 0.0
         mono = False
 
         obj.mode == 'OBJECT'
@@ -3176,7 +3177,7 @@ class SXTOOLS_export(object):
         layer = obj.sxlayers['smoothness']
         overwrite = True
         obj.mode == 'OBJECT'
-        noise = 0.01
+        noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
@@ -3191,7 +3192,7 @@ class SXTOOLS_export(object):
         overwrite = scene.fillalpha
         if obj.mode == 'EDIT':
             overwrite = True
-        noise = 0.01
+        noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
@@ -3216,7 +3217,7 @@ class SXTOOLS_export(object):
             obj.sxlayers['composite'].alpha = 1.0
         rampmode = 'CN'
         scene.ramplist = 'CURVATURESMOOTHNESS'
-        noise = 0.01
+        noise = 0.0
         mono = True
 
         obj.mode == 'OBJECT'
@@ -3238,7 +3239,7 @@ class SXTOOLS_export(object):
         scene.ramplist = 'DIRECTIONALDUST'
         scene.angle = 0.0
         scene.inclination = 40.0
-        noise = 0.01
+        noise = 0.0
         mono = True
 
         obj.mode == 'OBJECT'
@@ -4764,6 +4765,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if obj.sxtools.hardmode == 'BEVEL':
                             col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
                             col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
+                        col2_sds.separator()
                         if ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
                         if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxEdgeSplit' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
