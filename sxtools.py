@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 34, 2),
+    'version': (2, 34, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -801,13 +801,14 @@ class SXTOOLS_setup(object):
             value[1] = False
 
         scene.numlayers = 7
-        scene.numalphas = 0
-        scene.numoverlays = 0
+        scene.numalphas = 2
+        scene.numoverlays = 1
         scene.enableocclusion = True
         scene.enablemetallic = True
         scene.enablesmoothness = True
         scene.enabletransmission = True
         scene.enableemission = True
+        scene.eraseuvs = True
 
         sxglobals.refreshInProgress = False
 
@@ -2489,11 +2490,11 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
-                obj.modifiers['sxBevel'].use_clamp_overlap = False
-                obj.modifiers['sxBevel'].loop_slide = False
+                obj.modifiers['sxBevel'].use_clamp_overlap = True
+                obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
                 obj.modifiers["sxBevel"].harden_normals = True
-                obj.modifiers['sxBevel'].offset_type = 'PERCENT' # 'WIDTH'
+                obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxEdgeSplit' not in obj.modifiers.keys():
@@ -2554,8 +2555,9 @@ class SXTOOLS_tools(object):
         group = bpy.data.objects.new('empty', None)
         bpy.context.scene.collection.objects.link(group)
         group.empty_display_size = 2
-        group.empty_display_type = 'PLAIN_AXES'   
+        group.empty_display_type = 'PLAIN_AXES'
         group.location = pivot
+        group.name = objs[0].name + '_root'
 
         for obj in objs:
             obj.parent = group
@@ -3922,7 +3924,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Bevel Width',
         min=0.0,
         max=100.0,
-        default=15.0,
+        default=0.05,
         update=updateModifiers)
 
     bevelsegments: bpy.props.IntProperty(
@@ -4326,10 +4328,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     creasemode: bpy.props.EnumProperty(
         name='Creasing Mode',
-        description='Display creasing tools or subdivision modifier settings',
+        description='Display creasing tools or modifier settings',
         items=[
             ('CRS', 'Creasing', ''),
-            ('SDS', 'Subdivision', '')],
+            ('SDS', 'Modifiers', '')],
         default='CRS')
 
     expandfill: bpy.props.BoolProperty(
