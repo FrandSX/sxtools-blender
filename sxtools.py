@@ -5726,6 +5726,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Cannot apply subdivision modifier if subdivision set to 0?
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
