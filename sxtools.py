@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 34, 4),
+    'version': (2, 34, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3742,8 +3742,6 @@ def loadLibraries(self, context):
     if status1 and status2 and status3 and status4:
         messageBox('Libraries loaded successfully')
         sxglobals.librariesLoaded = True
-    else:
-        messageBox('Error loading libraries!', 'SX Tools Error', 'ERROR')
 
 
 def adjustBrightness(self, context):
@@ -3838,6 +3836,7 @@ def messageBox(message='', title='SX Tools', icon='INFO'):
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
+    sxglobals.librariesLoaded = False
     setup.startModal()
 
 
@@ -4598,7 +4597,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
     def draw(self, context):
         objs = selectionValidator(self, context)
-        if (len(objs) > 0) and (objs[0].sxtools.category != ''):
+        if (len(objs) > 0) and (len(objs[0].sxtools.category) > 0) and sxglobals.librariesLoaded:
             obj = objs[0]
 
             layout = self.layout
@@ -4637,8 +4636,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     messageBox('Invalid layer selected!', 'SX Tools Error', 'ERROR')
                     # print('SX Tools: Error, invalid layer selected!')
 
-                if not sxglobals.librariesLoaded:
-                    messageBox('Libraries not loaded!')
                 row = layout.row(align=True)
                 row.prop(sxtools, 'category', text='Category')
 
@@ -4882,7 +4879,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             # col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
             # col.operator('sxtools.loadlibraries', text='Load Libraries')
             # col.separator()
-            col.label(text='Select a mesh to continue')
+            if sxglobals.librariesLoaded:
+                col.label(text='Select a mesh to continue')
+            else:
+                col.label(text='Libraries not loaded')
+                col.label(text='Check Add-on Preferences')
 
 
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
