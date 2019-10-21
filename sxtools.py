@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 31, 9),
+    'version': (2, 34, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -26,6 +26,7 @@ from mathutils import Vector
 # ------------------------------------------------------------------------
 class SXTOOLS_sxglobals(object):
     def __init__(self):
+        self.librariesLoaded = False
         self.refreshInProgress = False
         self.brightnessUpdate = False
         self.modalStatus = False
@@ -92,8 +93,10 @@ class SXTOOLS_files(object):
 
     # Loads palettes.json and materials.json
     def loadFile(self, mode):
-        directory = bpy.context.scene.sxtools.libraryfolder
-        filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
+        prefs = bpy.context.preferences
+        directory = prefs.addons['sxtools'].preferences.libraryfolder
+        # directory = bpy.context.scene.sxtools.libraryfolder
+        filePath = directory + mode + '.json'
 
         if len(directory) > 0:
             try:
@@ -461,32 +464,32 @@ class SXTOOLS_setup(object):
 
 
     def setupGeometry(self, objs):
-        if 'SXMaterial' not in bpy.data.materials.keys():
-            self.createSXMaterial()
-
         changed = False
+        overwrite = bpy.context.scene.sxtools.eraseuvs
+
+        # Build arrays of needed vertex color and UV sets,
+        # VertexColor0 needed for compositing if even one
+        # color layer is enabled
+        # UVSet0 needed in game engine for textures and proper
+        # indexing of data
+        uvArray = ['UVSet0', ]
+        colorArray = utils.findColorLayers(objs[0])
+        for layer in objs[0].sxlayers:
+            if layer.enabled:
+                if layer.uvLayer0 != '':
+                    uvArray.append(layer.uvLayer0)
+                if layer.uvLayer1 != '':
+                    uvArray.append(layer.uvLayer1)
+                if layer.uvLayer2 != '':
+                    uvArray.append(layer.uvLayer2)
+                if layer.uvLayer3 != '':
+                    uvArray.append(layer.uvLayer3)
+        nameSet = set(uvArray)
+        uvSets = sorted(nameSet)
 
         for obj in objs:
             mesh = obj.data
-
-            # Build arrays of needed vertex color and UV sets,
-            # VertexColor0 needed for compositing if even one
-            # color layer is enabled
-            uvArray = []
-            colorArray = utils.findColorLayers(objs[0])
-
-            for layer in obj.sxlayers:
-                if layer.enabled:
-                    if layer.uvLayer0 != '':
-                        uvArray.append(layer.uvLayer0)
-                    if layer.uvLayer1 != '':
-                        uvArray.append(layer.uvLayer1)
-                    if layer.uvLayer2 != '':
-                        uvArray.append(layer.uvLayer2)
-                    if layer.uvLayer3 != '':
-                        uvArray.append(layer.uvLayer3)
-            nameSet = set(uvArray)
-            uvSets = sorted(nameSet)
+            uvs = uvSets[:]
 
             # Check if vertex color layers exist,
             # and delete if legacy data is found
@@ -500,21 +503,25 @@ class SXTOOLS_setup(object):
                     layers.clearLayers([obj, ], sxLayer)
                     changed = True
 
-            if len(uvSets) > 0:
-                # Delete old UV sets if necessary for material channels
-                slotsNeeded = len(uvSets)
-                slotsAvailable = 8 - len(mesh.uv_layers.keys())
-                for uvLayer in mesh.uv_layers.keys():
-                    if uvLayer in uvSets:
-                        slotsNeeded -= 1
-                        uvSets.remove(uvLayer)
+            if len(uvs) > 0:
+                if overwrite:
+                    for i in range(len(mesh.uv_layers.keys())):
+                        mesh.uv_layers.remove(mesh.uv_layers[0])
+                else:
+                    # Delete old UV sets if necessary for material channels
+                    slotsNeeded = len(uvs)
+                    slotsAvailable = 8 - len(mesh.uv_layers.keys())
+                    for uvLayer in mesh.uv_layers.keys():
+                        if uvLayer in uvs:
+                            slotsNeeded -= 1
+                            uvs.remove(uvLayer)
 
-                while slotsNeeded > slotsAvailable:
-                    mesh.uv_layers.remove(mesh.uv_layers[0])
-                    slotsNeeded -= 1
+                    while slotsNeeded > slotsAvailable:
+                        mesh.uv_layers.remove(mesh.uv_layers[0])
+                        slotsNeeded -= 1
 
                 clearSets = []
-                for uvSet in uvSets:
+                for uvSet in uvs:
                     mesh.uv_layers.new(name=uvSet)
                     clearSets.append(uvSet)
                     changed = True
@@ -3478,7 +3485,10 @@ def updateLayers(self, context):
 
             sxglobals.refreshInProgress = False
 
-        setup.setupGeometry(objs)
+        if 'SXMaterial' not in bpy.data.materials.keys():
+            setup.createSXMaterial()
+
+        # setup.setupGeometry(objs)
         sxglobals.composite = True
         layers.compositeLayers(objs)
 
@@ -3728,6 +3738,7 @@ def loadLibraries(self, context):
 
     if status1 and status2 and status3 and status4:
         messageBox('Libraries loaded successfully')
+        sxglobals.librariesLoaded = True
     else:
         messageBox('Error loading libraries!', 'SX Tools Error', 'ERROR')
 
@@ -3830,6 +3841,24 @@ def load_post_handler(dummy):
 # ------------------------------------------------------------------------
 #    Settings and preferences
 # ------------------------------------------------------------------------
+class SXTOOLS_preferences(bpy.types.AddonPreferences):
+    bl_idname = __name__
+
+    libraryfolder: bpy.props.StringProperty(
+        name='Library Folder',
+        description='Folder containing Materials and Palettes files',
+        default='',
+        maxlen=1024,
+        subtype='DIR_PATH',
+        update=loadLibraries)
+
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text='Select the folder containing SX Tools data files (materials.json, palettes.json, gradients.json)')
+        layout.prop(self, 'libraryfolder')
+
+
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     category: bpy.props.EnumProperty(
         name='Category Presets',
@@ -3943,14 +3972,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         description='The number of UV alpha overlays to use\nOnly useful with a game engine with a limited number of vertex color layers',
         min=0,
         max=2,
-        default=0)
+        default=2)
 
     numoverlays: bpy.props.IntProperty(
         name='RGBA Overlay Layer Count',
         description='The number of UV RGBA overlays to use\nOnly useful with a game engine with limited number of vertex color layers',
         min=0,
         max=1,
-        default=0)
+        default=1)
 
     enableocclusion: bpy.props.BoolProperty(
         name='Enable Occlusion',
@@ -3975,6 +4004,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     enableemission: bpy.props.BoolProperty(
         name='Enable Emission',
         description='Use per-vertex emission values',
+        default=True)
+
+    eraseuvs: bpy.props.BoolProperty(
+        name='Erase Existing UV Sets',
+        description='Remove all UV Sets from objects and replace with new ones',
         default=True)
 
     shadingmode: bpy.props.EnumProperty(
@@ -4329,14 +4363,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('HI', 'High-detail', '')],
         default='LO')
 
-    libraryfolder: bpy.props.StringProperty(
-        name='Library Folder',
-        description='Folder containing Materials and Palettes files',
-        default='',
-        maxlen=1024,
-        subtype='DIR_PATH',
-        update=loadLibraries)
-
     exportfolder: bpy.props.StringProperty(
         name='Export Folder',
         description='Folder to export FBX files to',
@@ -4569,7 +4595,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
     def draw(self, context):
         objs = selectionValidator(self, context)
-        if len(objs) > 0:
+        if (len(objs) > 0) and (objs[0].sxtools.category != ''):
             obj = objs[0]
 
             layout = self.layout
@@ -4590,6 +4616,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 col.prop(scene, 'enablesmoothness', text='Smoothness (UV)')
                 col.prop(scene, 'enabletransmission', text='Transmission (UV)')
                 col.prop(scene, 'enableemission', text='Emission (UV)')
+                col.separator()
+                col.prop(scene, 'eraseuvs', text='Erase Existing UV Sets')
                 if 'SXMaterial' in bpy.data.materials.keys():
                     col.enabled = False
                 col2 = self.layout.column(align=True)
@@ -4606,7 +4634,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     messageBox('Invalid layer selected!', 'SX Tools Error', 'ERROR')
                     # print('SX Tools: Error, invalid layer selected!')
 
-                if (len(sxglobals.masterPaletteArray) == 0) and (len(sxglobals.materialArray) == 0) and (len(sxglobals.rampDict) == 0) and (len(sxglobals.categoryDict) == 0):
+                if not sxglobals.librariesLoaded:
                     messageBox('Libraries not loaded!')
                 row = layout.row(align=True)
                 row.prop(sxtools, 'category', text='Category')
@@ -4846,10 +4874,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             if 'SXMaterial' in bpy.data.materials.keys():
                 col.operator('sxtools.resetscene', text='Reset scene')
                 col.separator()
-            col.label(text='Set Library Data Folder:')
-            col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
-            col.operator('sxtools.loadlibraries', text='Load Libraries')
-            col.separator()
+            # col.label(text='Set Library Data Folder:')
+            # col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
+            # col.operator('sxtools.loadlibraries', text='Load Libraries')
+            # col.separator()
             col.label(text='Select a mesh to continue')
 
 
@@ -4955,6 +4983,12 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
     def modal(self, context, event):
         selection = context.object
 
+        if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
+            sxglobals.librariesLoaded = False
+
+        if not sxglobals.librariesLoaded:
+            loadLibraries(self, context)
+
         if selection is not self.prevSelection:
             self.prevSelection = context.object
             if (selection is not None) and len(selection.sxlayers) > 0:
@@ -5021,6 +5055,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
         objs = selectionValidator(self, context)
         setup.updateInitArray()
         setup.setupLayers(objs)
+        setup.createSXMaterial()
         setup.setupGeometry(objs)
 
         refreshActives(self, context)
@@ -5465,6 +5500,7 @@ class SXTOOLS_OT_enableall(bpy.types.Operator):
 
         setup.updateInitArray()
         setup.setupLayers(objs)
+        setup.createSXMaterial()
         setup.setupGeometry(objs)
 
         refreshActives(self, context)
@@ -5585,6 +5621,7 @@ tools = SXTOOLS_tools()
 export = SXTOOLS_export()
 
 classes = (
+    SXTOOLS_preferences,
     SXTOOLS_objectprops,
     SXTOOLS_sceneprops,
     SXTOOLS_masterpalette,
@@ -5684,8 +5721,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Investigate having settings in add-ons window
-# - Improve automatic library loading
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
