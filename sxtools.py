@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 34, 9),
+    'version': (2, 35, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -294,6 +294,15 @@ class SXTOOLS_utils(object):
                 groups.append(obj.parent)
 
         return set(groups)
+
+
+    def findChildren(self, group, objs):
+        children = list()
+        for obj in objs:
+            if obj.parent == group:
+                children.append(obj)
+
+        return children
 
 
     def findListIndex(self, obj, layer):
@@ -2257,6 +2266,7 @@ class SXTOOLS_tools(object):
 
     def selectMask(self, objs, layers, inverse):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
@@ -2295,7 +2305,6 @@ class SXTOOLS_tools(object):
                                     obj.data.vertices[vert_idx].select = True
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
 
 
     def selectCrease(self, objs, group):
@@ -2304,6 +2313,9 @@ class SXTOOLS_tools(object):
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
             'CreaseSet4': 1.0}
         weight = creaseDict[group]
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
         bpy.ops.object.mode_set(mode='OBJECT')
 
         for obj in objs:
@@ -2312,7 +2324,6 @@ class SXTOOLS_tools(object):
                     edge.select = True
 
         bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
 
 
     def assignCrease(self, objs, group, hard):
@@ -2586,8 +2597,6 @@ class SXTOOLS_export(object):
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
         then = time.time()
-        # depsgraph = bpy.context.evaluated_depsgraph_get()
-        scene = bpy.context.scene.sxtools
         obj = objs[0]
         orgObjNames = {}
 
@@ -2652,6 +2661,10 @@ class SXTOOLS_export(object):
             if obj.sxtools.category == '':
                 obj.sxtools.category == 'DEFAULT'
 
+        # for obj in bpy.context.scene.objects:
+        #     if obj.type == 'MESH':
+        #         obj.hide_viewport = True
+
         categories = list(sxglobals.presetLookup.keys())
         for category in categories:
             categoryObjs = []
@@ -2660,20 +2673,35 @@ class SXTOOLS_export(object):
                     categoryObjs.append(obj)
 
             if len(categoryObjs) > 0:
-                if category == 'DEFAULT':
-                    self.processDefault(categoryObjs)
-                elif category == 'PALETTED':
-                    self.processPaletted(categoryObjs)
-                elif category == 'VEHICLES':
-                    self.processVehicles(categoryObjs)
-                elif category == 'BUILDINGS':
-                    self.processBuildings(categoryObjs)
-                elif category == 'TREES':
-                    self.processTrees(categoryObjs)
-                elif category == 'TRANSPARENT':
-                    self.processDefault(categoryObjs)
-                else:
-                    self.processDefault(categoryObjs)
+                groupList = utils.findGroups(categoryObjs)
+                for group in groupList:
+                    groupObjs = utils.findChildren(group, categoryObjs)
+                    # print (groupObjs)
+
+                    # for obj in groupObjs:
+                    #    obj.hide_viewport = False
+
+                    if category == 'DEFAULT':
+                        self.processDefault(groupObjs)
+                    elif category == 'PALETTED':
+                        self.processPaletted(groupObjs)
+                    elif category == 'VEHICLES':
+                        self.processVehicles(groupObjs)
+                    elif category == 'BUILDINGS':
+                        self.processBuildings(groupObjs)
+                    elif category == 'TREES':
+                        self.processTrees(groupObjs)
+                    elif category == 'TRANSPARENT':
+                        self.processDefault(groupObjs)
+                    else:
+                        self.processDefault(groupObjs)
+
+                    # for obj in groupObjs:
+                    #     obj.hide_viewport = True
+
+        # for obj in bpy.context.scene.objects:
+        #     if obj.type == 'MESH':
+        #         obj.hide_viewport = False
 
         # Create palette masks
         layers.generateMasks(objs)
@@ -3470,30 +3498,31 @@ def updateLayers(self, context):
         shadingMode(self, context)
 
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
-        blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
-        visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
+            blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
+            visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
-        for obj in objs:
-            setattr(obj.sxlayers[idx], 'alpha', alphaVal)
-            setattr(obj.sxlayers[idx], 'blendMode', blendVal)
-            setattr(obj.sxlayers[idx], 'visibility', visVal)
+            for obj in objs:
+                setattr(obj.sxlayers[idx], 'alpha', alphaVal)
+                setattr(obj.sxlayers[idx], 'blendMode', blendVal)
+                setattr(obj.sxlayers[idx], 'visibility', visVal)
 
-            sxglobals.refreshInProgress = True
-            setattr(obj.sxtools, 'selectedlayer', idx)
-            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
-            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+                sxglobals.refreshInProgress = True
+                setattr(obj.sxtools, 'selectedlayer', idx)
+                setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+                setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-            sxglobals.refreshInProgress = False
+                sxglobals.refreshInProgress = False
 
-        if 'SXMaterial' not in bpy.data.materials.keys():
-            setup.createSXMaterial()
+            if 'SXMaterial' not in bpy.data.materials.keys():
+                setup.createSXMaterial()
 
-        # setup.setupGeometry(objs)
-        sxglobals.composite = True
-        layers.compositeLayers(objs)
+            # setup.setupGeometry(objs)
+            sxglobals.composite = True
+            layers.compositeLayers(objs)
 
 
 def refreshActives(self, context):
@@ -3502,41 +3531,42 @@ def refreshActives(self, context):
 
         mode = context.scene.sxtools.shadingmode
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
-        vcols = layer.vertexColorLayer
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            vcols = layer.vertexColorLayer
 
-        for obj in objs:
-            setattr(obj.sxtools, 'selectedlayer', idx)
-            if vcols != '':
-                obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
-            alphaVal = getattr(obj.sxlayers[idx], 'alpha')
-            blendVal = getattr(obj.sxlayers[idx], 'blendMode')
-            visVal = getattr(obj.sxlayers[idx], 'visibility')
+            for obj in objs:
+                setattr(obj.sxtools, 'selectedlayer', idx)
+                if vcols != '':
+                    obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
+                alphaVal = getattr(obj.sxlayers[idx], 'alpha')
+                blendVal = getattr(obj.sxlayers[idx], 'blendMode')
+                visVal = getattr(obj.sxlayers[idx], 'visibility')
 
-            setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
-            setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-            setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+                setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
+                setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
+                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-        # Update VertexColor0 to reflect latest layer changes
-        if mode != 'FULL':
-            sxglobals.composite = True
-        layers.compositeLayers(objs)
-        sxglobals.refreshInProgress = False
+            # Update VertexColor0 to reflect latest layer changes
+            if mode != 'FULL':
+                sxglobals.composite = True
+            layers.compositeLayers(objs)
+            sxglobals.refreshInProgress = False
 
-        # Refresh SX Tools UI to latest selection
-        layers.updateLayerPalette(objs, layer)
-        layers.updateLayerBrightness(objs, layer)
+            # Refresh SX Tools UI to latest selection
+            layers.updateLayerPalette(objs, layer)
+            layers.updateLayerBrightness(objs, layer)
 
-        # Update SX Material to latest selection
-        if objs[0].sxtools.category == 'TRANSPARENT':
-            if bpy.data.materials['SXMaterial'].blend_method != 'BLEND':
-                bpy.data.materials['SXMaterial'].blend_method = 'BLEND'
-                bpy.data.materials['SXMaterial'].use_backface_culling = True
-        else:
-            if bpy.data.materials['SXMaterial'].blend_method != 'OPAQUE':
-                bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
-                bpy.data.materials['SXMaterial'].use_backface_culling = False
+            # Update SX Material to latest selection
+            if objs[0].sxtools.category == 'TRANSPARENT':
+                if bpy.data.materials['SXMaterial'].blend_method != 'BLEND':
+                    bpy.data.materials['SXMaterial'].blend_method = 'BLEND'
+                    bpy.data.materials['SXMaterial'].use_backface_culling = True
+            else:
+                if bpy.data.materials['SXMaterial'].blend_method != 'OPAQUE':
+                    bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
+                    bpy.data.materials['SXMaterial'].use_backface_culling = False
 
         # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
@@ -3551,116 +3581,117 @@ def updateColorSwatches(self, context):
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
-    sxmaterial = bpy.data.materials['SXMaterial']
+    if len(objs) > 0:
+        sxmaterial = bpy.data.materials['SXMaterial']
 
-    occlusion = objs[0].sxlayers['occlusion'].enabled
-    metallic = objs[0].sxlayers['metallic'].enabled
-    smoothness = objs[0].sxlayers['smoothness'].enabled
-    transmission = objs[0].sxlayers['transmission'].enabled
-    emission = objs[0].sxlayers['emission'].enabled
+        occlusion = objs[0].sxlayers['occlusion'].enabled
+        metallic = objs[0].sxlayers['metallic'].enabled
+        smoothness = objs[0].sxlayers['smoothness'].enabled
+        transmission = objs[0].sxlayers['transmission'].enabled
+        emission = objs[0].sxlayers['emission'].enabled
 
-    if mode == 'FULL':
-        if emission:
-            context.scene.eevee.use_bloom = True
-        areas = bpy.context.workspace.screens[0].areas
-        shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
-        for area in areas:
-            for space in area.spaces:
-                if space.type == 'VIEW_3D':
-                    if ((space.shading.type == 'WIREFRAME') or
-                       (space.shading.type == 'SOLID')):
+        if mode == 'FULL':
+            if emission:
+                context.scene.eevee.use_bloom = True
+            areas = bpy.context.workspace.screens[0].areas
+            shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+            for area in areas:
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        if ((space.shading.type == 'WIREFRAME') or
+                           (space.shading.type == 'SOLID')):
+                            space.shading.type = shading
+
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
+
+            # Disconnect vertex color output from emission
+            attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
+
+            # Reconnect vertex color to mixer
+            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Reconnect mixer to base color
+            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+            sxmaterial.node_tree.links.new(input, output)
+
+            if metallic:
+                # Reconnect metallic and roughness
+                output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
+                sxmaterial.node_tree.links.new(input, output)
+
+            if smoothness:
+                output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
+                sxmaterial.node_tree.links.new(input, output)
+
+            if transmission:
+                # Reconnect transmission
+                output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+                sxmaterial.node_tree.links.new(input, output)
+                # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+                # sxmaterial.node_tree.links.new(input, output)
+
+            if emission:
+                # Reconnect emission
+                output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
+                sxmaterial.node_tree.links.new(input, output)
+
+                # Reconnect base mix
+                output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+                sxmaterial.node_tree.links.new(input, output)
+
+        else:
+            if emission:
+                context.scene.eevee.use_bloom = False
+            areas = bpy.context.workspace.screens[0].areas
+            shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+            for area in areas:
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
                         space.shading.type = shading
 
-        sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
+            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
 
-        # Disconnect vertex color output from emission
-        attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        sxmaterial.node_tree.links.remove(attrLink)
+            # Disconnect base color, metallic and roughness
+            attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
+            sxmaterial.node_tree.links.remove(attrLink)
 
-        # Reconnect vertex color to mixer
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
-        input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
-        sxmaterial.node_tree.links.new(input, output)
+            # Check if already debug
+            if sxglobals.prevMode == 'FULL':
+                attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
+                sxmaterial.node_tree.links.remove(attrLink)
+                if metallic:
+                    attrLink = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs[0].links[0]
+                    sxmaterial.node_tree.links.remove(attrLink)
+                if smoothness:
+                    attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
+                    sxmaterial.node_tree.links.remove(attrLink)
+                if transmission:
+                    # attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                    # sxmaterial.node_tree.links.remove(attrLink)
+                    attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
+                    sxmaterial.node_tree.links.remove(attrLink)
 
-        # Reconnect mixer to base color
-        output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
-        sxmaterial.node_tree.links.new(input, output)
-
-        if metallic:
-            # Reconnect metallic and roughness
-            output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
-            sxmaterial.node_tree.links.new(input, output)
-
-        if smoothness:
-            output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
-            sxmaterial.node_tree.links.new(input, output)
-
-        if transmission:
-            # Reconnect transmission
-            output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
-            sxmaterial.node_tree.links.new(input, output)
-            # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-            # sxmaterial.node_tree.links.new(input, output)
-
-        if emission:
-            # Reconnect emission
-            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+            # Connect vertex color source to emission
+            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
-            # Reconnect base mix
-            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
-            sxmaterial.node_tree.links.new(input, output)
-
-    else:
-        if emission:
-            context.scene.eevee.use_bloom = False
-        areas = bpy.context.workspace.screens[0].areas
-        shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
-        for area in areas:
-            for space in area.spaces:
-                if space.type == 'VIEW_3D':
-                    space.shading.type = shading
-
-        sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
-
-        # Disconnect base color, metallic and roughness
-        attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
-        sxmaterial.node_tree.links.remove(attrLink)
-
-        # Check if already debug
-        if sxglobals.prevMode == 'FULL':
-            attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
-            sxmaterial.node_tree.links.remove(attrLink)
-            if metallic:
-                attrLink = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs[0].links[0]
-                sxmaterial.node_tree.links.remove(attrLink)
-            if smoothness:
-                attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
-                sxmaterial.node_tree.links.remove(attrLink)
-            if transmission:
-                # attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
-                # sxmaterial.node_tree.links.remove(attrLink)
-                attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
-                sxmaterial.node_tree.links.remove(attrLink)
-
-        # Connect vertex color source to emission
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
-        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-        sxmaterial.node_tree.links.new(input, output)
-
-    sxglobals.prevMode = mode
+        sxglobals.prevMode = mode
 
 
 def selectionValidator(self, context):
     selObjs = []
     for obj in context.view_layer.objects.selected:
-        if obj.type == 'MESH':
+        if obj.type == 'MESH' and obj.hide_viewport == False:
             selObjs.append(obj)
     return selObjs
 
@@ -3687,28 +3718,29 @@ def categoryLister(self, context):
 
 def loadCategory(self, context):
     objs = selectionValidator(self, context)
-    categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
-    for i in range(7):
-        layer = utils.findLayerFromIndex(objs[0], i+1)
-        layer.name = categoryData[i]
+    if len(objs) > 0:
+        categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
+        for i in range(7):
+            layer = utils.findLayerFromIndex(objs[0], i+1)
+            layer.name = categoryData[i]
 
-    for obj in objs:
-        if obj.sxtools.category != objs[0].sxtools.category:
-            obj.sxtools.category = objs[0].sxtools.category
-            for i in range(7):
-                layer = utils.findLayerFromIndex(obj, i+1)
-                layer.name = categoryData[i]
+        for obj in objs:
+            if obj.sxtools.category != objs[0].sxtools.category:
+                obj.sxtools.category = objs[0].sxtools.category
+                for i in range(7):
+                    layer = utils.findLayerFromIndex(obj, i+1)
+                    layer.name = categoryData[i]
 
-        obj.sxtools.staticvertexcolors = bool(categoryData[7])
-        obj.sxtools.smoothness1 = categoryData[8]
-        obj.sxtools.smoothness2 = categoryData[9]
-        obj.sxtools.overlaystrength = categoryData[10]
+            obj.sxtools.staticvertexcolors = bool(categoryData[7])
+            obj.sxtools.smoothness1 = categoryData[8]
+            obj.sxtools.smoothness2 = categoryData[9]
+            obj.sxtools.overlaystrength = categoryData[10]
 
-    bpy.data.materials['SXMaterial'].blend_method = categoryData[11]
-    if categoryData[11] == 'BLEND':
-        bpy.data.materials['SXMaterial'].use_backface_culling = True
-    else:
-        bpy.data.materials['SXMaterial'].use_backface_culling = False
+        bpy.data.materials['SXMaterial'].blend_method = categoryData[11]
+        if categoryData[11] == 'BLEND':
+            bpy.data.materials['SXMaterial'].use_backface_culling = True
+        else:
+            bpy.data.materials['SXMaterial'].use_backface_culling = False
 
 
 def loadRamp(self, context):
@@ -3747,82 +3779,85 @@ def loadLibraries(self, context):
 def adjustBrightness(self, context):
     if not sxglobals.brightnessUpdate:
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
 
-        tools.applyBrightness(objs, layer, context.scene.sxtools.brightnessvalue)
+            tools.applyBrightness(objs, layer, context.scene.sxtools.brightnessvalue)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
 
 
 def updateModifiers(self, context):
     objs = selectionValidator(self, context)
-    vis = objs[0].sxtools.modifiervisibility
-    hardmode = objs[0].sxtools.hardmode
-    subdivLevel = objs[0].sxtools.subdivisionlevel
-    bevelWidth = objs[0].sxtools.bevelwidth
-    bevelSegments = objs[0].sxtools.bevelsegments
-    for obj in objs:
-        obj.data.use_auto_smooth = True
-        obj.data.auto_smooth_angle = 3.14159
-        if obj.sxtools.modifiervisibility != vis:
-            obj.sxtools.modifiervisibility = vis
-        if obj.sxtools.hardmode != hardmode:
-            obj.sxtools.hardmode = hardmode
-        if obj.sxtools.subdivisionlevel != subdivLevel:
-            obj.sxtools.subdivisionlevel = subdivLevel
-        if obj.sxtools.bevelwidth != bevelWidth:
-            obj.sxtools.bevelwidth = bevelWidth
-        if obj.sxtools.bevelsegments != bevelSegments:
-            obj.sxtools.bevelsegments = bevelSegments
+    if len(objs) > 0:
+        vis = objs[0].sxtools.modifiervisibility
+        hardmode = objs[0].sxtools.hardmode
+        subdivLevel = objs[0].sxtools.subdivisionlevel
+        bevelWidth = objs[0].sxtools.bevelwidth
+        bevelSegments = objs[0].sxtools.bevelsegments
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.modifiervisibility != vis:
+                obj.sxtools.modifiervisibility = vis
+            if obj.sxtools.hardmode != hardmode:
+                obj.sxtools.hardmode = hardmode
+            if obj.sxtools.subdivisionlevel != subdivLevel:
+                obj.sxtools.subdivisionlevel = subdivLevel
+            if obj.sxtools.bevelwidth != bevelWidth:
+                obj.sxtools.bevelwidth = bevelWidth
+            if obj.sxtools.bevelsegments != bevelSegments:
+                obj.sxtools.bevelsegments = bevelSegments
 
-    mode = objs[0].mode
-    bpy.ops.object.mode_set(mode='OBJECT')
-    for obj in objs:
-        if 'sxSubdivision' in obj.modifiers.keys():
-            obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
-            obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
-        if 'sxBevel' in obj.modifiers.keys():
-            if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
-                obj.modifiers['sxBevel'].show_viewport = True
-            else:
-                obj.modifiers['sxBevel'].show_viewport = False
-            obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
-            obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
-            obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
-        if 'sxEdgeSplit' in obj.modifiers.keys():
-            obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
-            if hardmode == 'SHARP':
-                obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
-            else:
-                obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
-        if 'sxWeightedNormal' in obj.modifiers.keys():
-            if hardmode == 'SHARP':
-                obj.modifiers['sxWeightedNormal'].keep_sharp = True
-            else:
-                obj.modifiers['sxWeightedNormal'].keep_sharp = False
-            obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxSubdivision' in obj.modifiers.keys():
+                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+            if 'sxBevel' in obj.modifiers.keys():
+                if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
+                    obj.modifiers['sxBevel'].show_viewport = True
+                else:
+                    obj.modifiers['sxBevel'].show_viewport = False
+                obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
+                obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
+                obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
+            if 'sxEdgeSplit' in obj.modifiers.keys():
+                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
+                if hardmode == 'SHARP':
+                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
+                else:
+                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
+            if 'sxWeightedNormal' in obj.modifiers.keys():
+                if hardmode == 'SHARP':
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
+                else:
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = False
+                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
-    bpy.ops.object.mode_set(mode=mode)
+        bpy.ops.object.mode_set(mode=mode)
 
 
 def updateCustomProps(self, context):
     objs = selectionValidator(self, context)
-    stc = objs[0].sxtools.staticvertexcolors
-    sm1 = objs[0].sxtools.smoothness1
-    sm2 = objs[0].sxtools.smoothness2
-    ovr = objs[0].sxtools.overlaystrength
-    for obj in objs:
-        obj['staticVertexColors'] = stc
-        if obj.sxtools.staticvertexcolors != stc:
-            obj.sxtools.staticvertexcolors = stc
-        if obj.sxtools.smoothness1 != sm1:
-            obj.sxtools.smoothness1 = sm1
-        if obj.sxtools.smoothness2 != sm2:
-            obj.sxtools.smoothness2 = sm2
-        if obj.sxtools.overlaystrength != ovr:
-            obj.sxtools.overlaystrength = ovr
+    if len(objs) > 0:
+        stc = objs[0].sxtools.staticvertexcolors
+        sm1 = objs[0].sxtools.smoothness1
+        sm2 = objs[0].sxtools.smoothness2
+        ovr = objs[0].sxtools.overlaystrength
+        for obj in objs:
+            obj['staticVertexColors'] = stc
+            if obj.sxtools.staticvertexcolors != stc:
+                obj.sxtools.staticvertexcolors = stc
+            if obj.sxtools.smoothness1 != sm1:
+                obj.sxtools.smoothness1 = sm1
+            if obj.sxtools.smoothness2 != sm2:
+                obj.sxtools.smoothness2 = sm2
+            if obj.sxtools.overlaystrength != ovr:
+                obj.sxtools.overlaystrength = ovr
 
 
 def messageBox(message='', title='SX Tools', icon='INFO'):
@@ -4914,28 +4949,29 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
 
     def filter_items(self, context, data, propname):
         objs = selectionValidator(self, context)
-        flt_flags = []
-        flt_neworder = []
-        sxLayerArray = []
-        sxglobals.listItems.clear()
-        sxglobals.listIndices.clear()
+        if len(objs) > 0:
+            flt_flags = []
+            flt_neworder = []
+            sxLayerArray = []
+            sxglobals.listItems.clear()
+            sxglobals.listIndices.clear()
 
-        for sxLayer in objs[0].sxlayers:
-            sxLayerArray.append(sxLayer)
-            flt_neworder.append(sxLayer.index)
+            for sxLayer in objs[0].sxlayers:
+                sxLayerArray.append(sxLayer)
+                flt_neworder.append(sxLayer.index)
 
-        flt_flags = [self.bitflag_filter_item] * len(sxLayerArray)
+            flt_flags = [self.bitflag_filter_item] * len(sxLayerArray)
 
-        for idx, layer in enumerate(sxLayerArray):
-            if not layer.enabled:
-                flt_flags[idx] |= ~self.bitflag_filter_item
-            else:
-                sxglobals.listItems.append(layer.index)
+            for idx, layer in enumerate(sxLayerArray):
+                if not layer.enabled:
+                    flt_flags[idx] |= ~self.bitflag_filter_item
+                else:
+                    sxglobals.listItems.append(layer.index)
 
-        for i, idx in enumerate(sxglobals.listItems):
-            sxglobals.listIndices[idx] = i
+            for i, idx in enumerate(sxglobals.listItems):
+                sxglobals.listIndices[idx] = i
 
-        return flt_flags, flt_neworder
+            return flt_flags, flt_neworder
 
 
 class SXTOOLS_MT_piemenu(bpy.types.Menu):
@@ -5058,12 +5094,13 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        setup.updateInitArray()
-        setup.setupLayers(objs)
-        setup.createSXMaterial()
-        setup.setupGeometry(objs)
+        if len(objs) > 0:
+            setup.updateInitArray()
+            setup.setupLayers(objs)
+            setup.createSXMaterial()
+            setup.setupGeometry(objs)
 
-        refreshActives(self, context)
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5076,19 +5113,20 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
-        color = context.scene.sxtools.fillcolor
-        overwrite = context.scene.sxtools.fillalpha
-        if objs[0].mode == 'EDIT':
-            overwrite = True
-        noise = context.scene.sxtools.fillnoise
-        mono = context.scene.sxtools.fillmono
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
-        tools.updateRecentColors(color)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            color = context.scene.sxtools.fillcolor
+            overwrite = context.scene.sxtools.fillalpha
+            if objs[0].mode == 'EDIT':
+                overwrite = True
+            noise = context.scene.sxtools.fillnoise
+            mono = context.scene.sxtools.fillmono
+            tools.applyColor(objs, layer, color, overwrite, noise, mono)
+            tools.updateRecentColors(color)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5101,20 +5139,21 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
-        rampmode = context.scene.sxtools.rampmode
-        mergebbx = context.scene.sxtools.rampbbox
-        overwrite = context.scene.sxtools.rampalpha
-        noise = context.scene.sxtools.rampnoise
-        mono = context.scene.sxtools.rampmono
-        if objs[0].mode == 'EDIT':
-            overwrite = True
-        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            rampmode = context.scene.sxtools.rampmode
+            mergebbx = context.scene.sxtools.rampbbox
+            overwrite = context.scene.sxtools.rampalpha
+            noise = context.scene.sxtools.rampnoise
+            mono = context.scene.sxtools.rampmono
+            if objs[0].mode == 'EDIT':
+                overwrite = True
+            ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
+            tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5129,8 +5168,13 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
     def poll(cls, context):
         enabled = False
         objs = context.view_layer.objects.selected
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
+        meshObjs = list()
+        for obj in objs:
+            if obj.type == 'MESH':
+                meshObjs.append(obj)
+
+        idx = meshObjs[0].sxtools.selectedlayer
+        layer = utils.findLayerFromIndex(meshObjs[0], idx)
         if (layer.layerType == 'COLOR') and (sxglobals.listIndices[idx] != 0):
             enabled = True
         return enabled
@@ -5138,14 +5182,15 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        sourceLayer = utils.findLayerFromIndex(objs[0], idx)
-        listIndex = utils.findListIndex(objs[0], sourceLayer)
-        targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex - 1])
-        layers.mergeLayers(objs, sourceLayer, targetLayer)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            sourceLayer = utils.findLayerFromIndex(objs[0], idx)
+            listIndex = utils.findListIndex(objs[0], sourceLayer)
+            targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex - 1])
+            layers.mergeLayers(objs, sourceLayer, targetLayer)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5159,14 +5204,19 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         enabled = False
-        obj = context.view_layer.objects.selected[0]
-        idx = obj.sxtools.selectedlayer
+        objs = context.view_layer.objects.selected
+        meshObjs = list()
+        for obj in objs:
+            if obj.type == 'MESH':
+                meshObjs.append(obj)
+
+        idx = meshObjs[0].sxtools.selectedlayer
         listIdx = sxglobals.listIndices[idx]
-        layer = utils.findLayerFromIndex(obj, idx)
+        layer = utils.findLayerFromIndex(meshObjs[0], idx)
 
         if listIdx != (len(sxglobals.listIndices) - 1):
             nextIdx = sxglobals.listItems[listIdx + 1]
-            nextLayer = utils.findLayerFromIndex(obj, nextIdx)
+            nextLayer = utils.findLayerFromIndex(meshObjs[0], nextIdx)
 
             if nextLayer.layerType != 'COLOR':
                 return False
@@ -5178,14 +5228,15 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        sourceLayer = utils.findLayerFromIndex(objs[0], idx)
-        listIndex = utils.findListIndex(objs[0], sourceLayer)
-        targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex + 1])
-        layers.mergeLayers(objs, sourceLayer, targetLayer)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            sourceLayer = utils.findLayerFromIndex(objs[0], idx)
+            listIndex = utils.findListIndex(objs[0], sourceLayer)
+            targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex + 1])
+            layers.mergeLayers(objs, sourceLayer, targetLayer)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5198,9 +5249,10 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
-        sxglobals.copyLayer = layer
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            sxglobals.copyLayer = layer
         return {'FINISHED'}
 
 
@@ -5213,29 +5265,31 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        idx = objs[0].sxtools.selectedlayer
-        sourceLayer = sxglobals.copyLayer
-        targetLayer = utils.findLayerFromIndex(objs[0], idx)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            sourceLayer = sxglobals.copyLayer
+            targetLayer = utils.findLayerFromIndex(objs[0], idx)
 
-        if event.shift:
-            mode = 'swap'
-        elif event.alt:
-            mode = 'merge'
-        else:
-            mode = False
+            if event.shift:
+                mode = 'swap'
+            elif event.alt:
+                mode = 'merge'
+            else:
+                mode = False
 
-        if sourceLayer == None:
-            messageBox('Nothing to paste!')
-            return {'FINISHED'}
-        elif (targetLayer.layerType != 'COLOR') and (mode == 'merge'):
-            messageBox('Merging only supported with color layers')
-            return {'FINISHED'}
-        else:
-            layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
+            if sourceLayer == None:
+                messageBox('Nothing to paste!')
+                return {'FINISHED'}
+            elif (targetLayer.layerType != 'COLOR') and (mode == 'merge'):
+                messageBox('Merging only supported with color layers')
+                return {'FINISHED'}
+            else:
+                layers.pasteLayer(objs, sourceLayer, targetLayer, mode)
 
-            sxglobals.composite = True
-            refreshActives(self, context)
-            return {'FINISHED'}
+                sxglobals.composite = True
+                refreshActives(self, context)
+                return {'FINISHED'}
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
@@ -5247,16 +5301,17 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        if event.shift:
-            layer = None
-        else:
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.findLayerFromIndex(objs[0], idx)
+        if len(objs) > 0:
+            if event.shift:
+                layer = None
+            else:
+                idx = objs[0].sxtools.selectedlayer
+                layer = utils.findLayerFromIndex(objs[0], idx)
 
-        layers.clearLayers(objs, layer)
+            layers.clearLayers(objs, layer)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5269,15 +5324,16 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        if event.shift:
-            inverse = True
-        else:
-            inverse = False
+        if len(objs) > 0:
+            if event.shift:
+                inverse = True
+            else:
+                inverse = False
 
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
 
-        tools.selectMask(objs, [layer, ], inverse)
+            tools.selectMask(objs, [layer, ], inverse)
         return {'FINISHED'}
 
 
@@ -5290,12 +5346,13 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        group = 'CreaseSet0'
-        hard = False
-        if event.shift:
-            tools.selectCrease(objs, group)
-        else:
-            tools.assignCrease(objs, group, hard)
+        if len(objs) > 0:
+            group = 'CreaseSet0'
+            hard = False
+            if event.shift:
+                tools.selectCrease(objs, group)
+            else:
+                tools.assignCrease(objs, group, hard)
         return {'FINISHED'}
 
 
@@ -5308,12 +5365,13 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        group = 'CreaseSet1'
-        hard = False
-        if event.shift:
-            tools.selectCrease(objs, group)
-        else:
-            tools.assignCrease(objs, group, hard)
+        if len(objs) > 0:
+            group = 'CreaseSet1'
+            hard = False
+            if event.shift:
+                tools.selectCrease(objs, group)
+            else:
+                tools.assignCrease(objs, group, hard)
         return {'FINISHED'}
 
 
@@ -5326,12 +5384,13 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        group = 'CreaseSet2'
-        hard = False
-        if event.shift:
-            tools.selectCrease(objs, group)
-        else:
-            tools.assignCrease(objs, group, hard)
+        if len(objs) > 0:
+            group = 'CreaseSet2'
+            hard = False
+            if event.shift:
+                tools.selectCrease(objs, group)
+            else:
+                tools.assignCrease(objs, group, hard)
         return {'FINISHED'}
 
 
@@ -5344,12 +5403,13 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        group = 'CreaseSet3'
-        hard = False
-        if event.shift:
-            tools.selectCrease(objs, group)
-        else:
-            tools.assignCrease(objs, group, hard)
+        if len(objs) > 0:
+            group = 'CreaseSet3'
+            hard = False
+            if event.shift:
+                tools.selectCrease(objs, group)
+            else:
+                tools.assignCrease(objs, group, hard)
         return {'FINISHED'}
 
 
@@ -5362,15 +5422,16 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        group = 'CreaseSet4'
-        hardmode = objs[0].sxtools.hardmode
-        hard = False
-        if hardmode == 'SHARP':
-            hard = True
-        if event.shift:
-            tools.selectCrease(objs, group)
-        else:
-            tools.assignCrease(objs, group, hard)
+        if len(objs) > 0:
+            group = 'CreaseSet4'
+            hardmode = objs[0].sxtools.hardmode
+            hard = False
+            if hardmode == 'SHARP':
+                hard = True
+            if event.shift:
+                tools.selectCrease(objs, group)
+            else:
+                tools.assignCrease(objs, group, hard)
         return {'FINISHED'}
 
 
@@ -5385,14 +5446,15 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        palette = self.label
-        noise = context.scene.sxtools.palettenoise
-        mono = context.scene.sxtools.palettemono
+        if len(objs) > 0:
+            palette = self.label
+            noise = context.scene.sxtools.palettenoise
+            mono = context.scene.sxtools.palettemono
 
-        tools.applyPalette(objs, palette, noise, mono)
+            tools.applyPalette(objs, palette, noise, mono)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5407,19 +5469,20 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        material = self.label
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.findLayerFromIndex(objs[0], idx)
-        overwrite = context.scene.sxtools.materialalpha
-        if objs[0].mode == 'EDIT':
-            overwrite = True
-        noise = context.scene.sxtools.materialnoise
-        mono = context.scene.sxtools.materialmono
+        if len(objs) > 0:
+            material = self.label
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.findLayerFromIndex(objs[0], idx)
+            overwrite = context.scene.sxtools.materialalpha
+            if objs[0].mode == 'EDIT':
+                overwrite = True
+            noise = context.scene.sxtools.materialnoise
+            mono = context.scene.sxtools.materialmono
 
-        tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
+            tools.applyMaterial(objs, layer, material, overwrite, noise, mono)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5432,7 +5495,8 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        tools.addModifiers(objs)
+        if len(objs) > 0:
+            tools.addModifiers(objs)
         return {'FINISHED'}
 
 
@@ -5445,7 +5509,8 @@ class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        tools.applyModifiers(objs)
+        if len(objs) > 0:
+            tools.applyModifiers(objs)
         return {'FINISHED'}
 
 
@@ -5458,7 +5523,8 @@ class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        tools.removeModifiers(objs)
+        if len(objs) > 0:
+            tools.removeModifiers(objs)
         return {'FINISHED'}
 
 
@@ -5471,8 +5537,9 @@ class SXTOOLS_OT_generatemasks(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        layers.generateMasks(objs)
-        layers.flattenAlphas(objs)
+        if len(objs) > 0:
+            layers.generateMasks(objs)
+            layers.flattenAlphas(objs)
         return {'FINISHED'}
 
 
@@ -5486,29 +5553,29 @@ class SXTOOLS_OT_enableall(bpy.types.Operator):
     def invoke(self, context, event):
         scn = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            for obj in objs:
+                for layer in obj.sxlayers:
+                    if (layer.name != 'composite') and (layer.name != 'masks') and (layer.name != 'texture'):
+                        layer.enabled = True
 
-        for obj in objs:
-            for layer in obj.sxlayers:
-                if (layer.name != 'composite') and (layer.name != 'masks') and (layer.name != 'texture'):
-                    layer.enabled = True
+            bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
 
-        bpy.data.materials.remove(bpy.data.materials['SXMaterial'])
+            scn.numlayers = 7
+            scn.numalphas = 2
+            scn.numoverlays = 1
+            scn.enableocclusion = True
+            scn.enabletransmission = True
+            scn.enableemission = True
+            scn.enablemetallic = True
+            scn.enablesmoothness = True
 
-        scn.numlayers = 7
-        scn.numalphas = 2
-        scn.numoverlays = 1
-        scn.enableocclusion = True
-        scn.enabletransmission = True
-        scn.enableemission = True
-        scn.enablemetallic = True
-        scn.enablesmoothness = True
+            setup.updateInitArray()
+            setup.setupLayers(objs)
+            setup.createSXMaterial()
+            setup.setupGeometry(objs)
 
-        setup.updateInitArray()
-        setup.setupLayers(objs)
-        setup.createSXMaterial()
-        setup.setupGeometry(objs)
-
-        refreshActives(self, context)
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -5557,15 +5624,16 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        active = context.active_object
-        for obj in objs:
-            bpy.context.view_layer.objects.active = obj
-            if event.shift:
-                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-            else:
-                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+        if len(objs) > 0:
+            active = context.active_object
+            for obj in objs:
+                bpy.context.view_layer.objects.active = obj
+                if event.shift:
+                    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                else:
+                    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
 
-        bpy.context.view_layer.objects.active = active
+            bpy.context.view_layer.objects.active = active
         return {'FINISHED'}
 
 
@@ -5577,7 +5645,8 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
-        tools.groupObjects(objs)
+        if len(objs) > 0:
+            tools.groupObjects(objs)
         return {'FINISHED'}
 
 
@@ -5602,14 +5671,15 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
     def invoke(self, context, event):
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
-        export.processObjects(objs, context.scene.sxtools.exportmode)
+        if len(objs) > 0:
+            export.processObjects(objs, context.scene.sxtools.exportmode)
 
-        sxglobals.composite = True
-        refreshActives(self, context)
+            sxglobals.composite = True
+            refreshActives(self, context)
 
-        scene.shadingmode = 'FULL'
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.shade_smooth()
+            scene.shadingmode = 'FULL'
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.shade_smooth()
         return {'FINISHED'}
 
 
@@ -5726,6 +5796,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Auto-process hard edges on hard mode change
+# - Optimize AO to run global pass only on meshes under the same parent
 # - Cannot apply subdivision modifier if subdivision set to 0?
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
