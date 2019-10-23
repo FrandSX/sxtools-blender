@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 36, 1),
+    'version': (2, 36, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -583,6 +583,10 @@ class SXTOOLS_setup(object):
                 gradient2UVSet = values[10]
                 gradient2 = values[1]
 
+        prefs = bpy.context.preferences
+        materialsubsurface = prefs.addons['sxtools'].preferences.materialsubsurface
+        materialtransmission = prefs.addons['sxtools'].preferences.materialtransmission
+
         sxmaterial = bpy.data.materials.new(name='SXMaterial')
         sxmaterial.use_nodes = True
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
@@ -735,13 +739,17 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['EmissionXYZ'].inputs['Vector']
             sxmaterial.node_tree.links.new(input, output)
 
-        if transmission:
+        if materialtransmission:
             # X to transmission
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
-            # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-            # sxmaterial.node_tree.links.new(input, output)
+
+        if materialsubsurface:
+            # X to subsurface
+            output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+            sxmaterial.node_tree.links.new(input, output)
 
         if emission:
             # Y to emission multiplier
@@ -3596,6 +3604,10 @@ def shadingMode(self, context):
         transmission = objs[0].sxlayers['transmission'].enabled
         emission = objs[0].sxlayers['emission'].enabled
 
+        prefs = bpy.context.preferences
+        materialsubsurface = prefs.addons['sxtools'].preferences.materialsubsurface
+        materialtransmission = prefs.addons['sxtools'].preferences.materialtransmission
+
         if mode == 'FULL':
             if emission:
                 context.scene.eevee.use_bloom = True
@@ -3636,12 +3648,16 @@ def shadingMode(self, context):
                 sxmaterial.node_tree.links.new(input, output)
 
             if transmission:
-                # Reconnect transmission
-                output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
-                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
-                sxmaterial.node_tree.links.new(input, output)
-                # input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-                # sxmaterial.node_tree.links.new(input, output)
+                if materialtransmission:
+                    # Reconnect transmission
+                    output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+                    sxmaterial.node_tree.links.new(input, output)
+
+                if materialsubsurface:
+                    output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+                    sxmaterial.node_tree.links.new(input, output)
 
             if emission:
                 # Reconnect emission
@@ -3681,10 +3697,12 @@ def shadingMode(self, context):
                     attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
                     sxmaterial.node_tree.links.remove(attrLink)
                 if transmission:
-                    # attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
-                    # sxmaterial.node_tree.links.remove(attrLink)
-                    attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
-                    sxmaterial.node_tree.links.remove(attrLink)
+                    if materialtransmission and materialsubsurface:
+                        attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                        sxmaterial.node_tree.links.remove(attrLink)
+                    if materialtransmission or materialsubsurface:
+                        attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
+                        sxmaterial.node_tree.links.remove(attrLink)
 
             # Connect vertex color source to emission
             output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
@@ -3889,9 +3907,22 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         subtype='DIR_PATH',
         update=loadLibraries)
 
+    materialsubsurface: bpy.props.BoolProperty(
+        name='Subsurface Scattering',
+        description='Connect Transmission Layer to SXMaterial Subsurface Scattering',
+        default=False)
+
+    materialtransmission: bpy.props.BoolProperty(
+        name='Transmission',
+        description='Connect Transmission Layer to SXMaterial Transmission',
+        default=True)
 
     def draw(self, context):
         layout = self.layout
+        layout.label(text='Material Preferences')
+        layout.prop(self, 'materialsubsurface')
+        layout.prop(self, 'materialtransmission')
+        layout.separator()
         layout.label(text='Select the folder containing SX Tools data files (materials.json, palettes.json, gradients.json)')
         layout.prop(self, 'libraryfolder')
 
@@ -5809,4 +5840,3 @@ if __name__ == '__main__':
 # - Tool settings:
 #   - Load/save prefs file
 #   - _paletted suffix
-# - User option for enabling SSS with transmission, enable relevant material features
