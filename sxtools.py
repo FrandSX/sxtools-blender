@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 36, 4),
+    'version': (2, 36, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1467,7 +1467,7 @@ class SXTOOLS_mesh(object):
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
-        bias = 1e-5
+        bias = 0.01
 
         objOcclusions = {}
 
@@ -1719,14 +1719,11 @@ class SXTOOLS_mesh(object):
 
 
     def calculateCurvature(self, objs, normalize=False):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='EDIT')
-
         objCurvatures = {}
-
         for obj in objs:
             vtxCurvatures = {}
-            bm = bmesh.from_edit_mesh(obj.data)
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
             for vert in bm.verts:
                 numConnected = len(vert.link_edges)
                 edgeWeights = []
@@ -1773,7 +1770,6 @@ class SXTOOLS_mesh(object):
                 for vert, vtxCurvature in vtxCurvatures.items():
                     vtxCurvatures[vert] = (vtxCurvature + 0.5)
 
-        bpy.ops.object.mode_set(mode=mode)
         return objCurvatures
 
 
@@ -2591,7 +2587,6 @@ class SXTOOLS_export(object):
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
         then = time.time()
-        obj = objs[0]
         orgObjNames = {}
 
         # Make sure auto-smooth is on
@@ -2605,11 +2600,6 @@ class SXTOOLS_export(object):
         for sel in bpy.context.view_layer.objects.selected:
             if sel.type != 'MESH':
                 sel.select_set(False)
-
-        bpy.context.view_layer.objects.active = obj
-
-        # Create modifiers
-        tools.addModifiers(objs)
 
         # Create high-poly bake meshes
         if mode == 'HI':
@@ -2645,10 +2635,15 @@ class SXTOOLS_export(object):
                 obj.parent = bpy.context.view_layer.objects[obj.parent.name + '_org']
                 obj.hide_viewport = True
 
-            tools.applyModifiers(newObjs)
-
             objs = newObjs
-            bpy.context.view_layer.objects.active = objs[0]
+
+        bpy.context.view_layer.objects.active = objs[0]
+
+        # Create modifiers
+        tools.addModifiers(objs)
+
+        if mode == 'HI':
+            tools.applyModifiers(newObjs)
 
         # Begin category-specific compositing operations
         for obj in objs:
@@ -2657,14 +2652,14 @@ class SXTOOLS_export(object):
 
         for obj in bpy.context.view_layer.objects:
             if obj.type == 'MESH' and obj.hide_viewport == False:
-                obj.hide_render = True
                 obj.hide_viewport = True
 
+        # Mandatory to update visibility?
         viewlayer = bpy.context.view_layer
         viewlayer.update()
 
-        now = time.time()
-        print('hide objects duration: ', now-then, ' seconds')
+        # now = time.time()
+        # print('hide objects duration: ', now-then, ' seconds')
 
         categories = list(sxglobals.presetLookup.keys())
         for category in categories:
@@ -2677,11 +2672,10 @@ class SXTOOLS_export(object):
                 groupList = utils.findGroups(categoryObjs)
                 for group in groupList:
                     groupObjs = utils.findChildren(group, categoryObjs)
-                    bpy.context.view_layer.objects.active =groupObjs[0]
+                    bpy.context.view_layer.objects.active = groupObjs[0]
                     for obj in groupObjs:
                         obj.hide_viewport = False
                         obj.select_set(True)
-                        print(obj.name, obj.sxtools.subdivisionlevel)
 
                     if category == 'DEFAULT':
                         self.processDefault(groupObjs)
@@ -2703,7 +2697,7 @@ class SXTOOLS_export(object):
                         obj.hide_viewport = True
 
             now = time.time()
-            print(category + ' duration: ', now-then, ' seconds')
+            print('SX Tools: ', category + ' duration: ', now-then, ' seconds')
 
         for obj in bpy.context.view_layer.objects:
             if obj.type == 'MESH':
@@ -2716,27 +2710,25 @@ class SXTOOLS_export(object):
         layers.generateMasks(objs)
         layers.flattenAlphas(objs)
 
-        now = time.time()
-        print('masks and alphas duration: ', now-then, ' seconds')
+        # now = time.time()
+        # print('masks and alphas duration: ', now-then, ' seconds')
 
         if mode == 'HI':
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             for obj in objs:
-                obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
-                obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
-                obj.modifiers['sxWeightedNormal'].weight = 95
-                obj.modifiers['sxWeightedNormal'].keep_sharp = True
+                if obj.sxtools.hardmode != 'BEVEL':
+                    obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
+                    obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
+                    obj.modifiers['sxWeightedNormal'].weight = 95
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
 
             # self.applyModifiers(objs)
-        for obj in objs:
-            print(obj.name, obj.sxtools.subdivisionlevel)
 
         now = time.time()
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
 
 
     def processDefault(self, objs):
+        print('SX Tools: Processing Default')
         then = time.time()
 
         scene = bpy.context.scene.sxtools
@@ -2782,23 +2774,16 @@ class SXTOOLS_export(object):
         now = time.time()
         print('Overlay duration: ', now-then, ' seconds')
 
-        # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
         layers.clearUVs(objs, obj.sxlayers['smoothness'])
         layers.clearUVs(objs, obj.sxlayers['transmission'])
-
-        # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
-        # obj.mode == 'OBJECT'
         noise = 0.01
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
@@ -2845,11 +2830,6 @@ class SXTOOLS_export(object):
         noise = 0.01
         mono = True
 
-        # obj.mode == 'OBJECT'
-
-        # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -2863,6 +2843,7 @@ class SXTOOLS_export(object):
 
 
     def processPaletted(self, objs):
+        print('SX Tools: Processing Paletted')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
@@ -2879,12 +2860,8 @@ class SXTOOLS_export(object):
 
         mergebbx = scene.rampbbox
         overwrite = True
-        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
@@ -2892,8 +2869,6 @@ class SXTOOLS_export(object):
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
         mono = False
-
-        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
@@ -2905,15 +2880,11 @@ class SXTOOLS_export(object):
         layers.clearUVs(objs, obj.sxlayers['smoothness'])
         layers.clearUVs(objs, obj.sxlayers['transmission'])
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
-        obj.mode == 'OBJECT'
         noise = 0.01
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
@@ -2957,11 +2928,6 @@ class SXTOOLS_export(object):
         noise = 0.01
         mono = True
 
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -2970,25 +2936,9 @@ class SXTOOLS_export(object):
         layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
         tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
 
-        # Apply custom overlay
-        layer = obj.sxlayers['overlay']
-        rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.01
-        mono = False
-
-        obj.mode == 'OBJECT'
-
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
 
     def processVehicles(self, objs):
+        print('SX Tools: Processing Vehicles')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
@@ -3005,7 +2955,6 @@ class SXTOOLS_export(object):
 
         mergebbx = scene.rampbbox
         overwrite = True
-        obj.mode == 'OBJECT'
 
         for obj in objs:
             if 'wheel' in obj.name:
@@ -3014,17 +2963,12 @@ class SXTOOLS_export(object):
                 scene.occlusionblend = 0.5
             tools.applyRamp([obj, ], layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
         rampmode = 'CN'
         scene.ramplist = 'BLACKANDWHITE'
         noise = 0.01
         mono = False
-
-        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
@@ -3036,15 +2980,11 @@ class SXTOOLS_export(object):
         layers.clearUVs(objs, obj.sxlayers['smoothness'])
         layers.clearUVs(objs, obj.sxlayers['transmission'])
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
-        obj.mode == 'OBJECT'
         noise = 0.01
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
@@ -3088,11 +3028,6 @@ class SXTOOLS_export(object):
         noise = 0.01
         mono = True
 
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -3110,11 +3045,6 @@ class SXTOOLS_export(object):
         noise = 0.01
         mono = True
 
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -3128,7 +3058,6 @@ class SXTOOLS_export(object):
         # Apply PBR metal based on layer7
         layer = utils.findLayerFromIndex(obj, 7)
         overwrite = True
-        obj.mode == 'OBJECT'
         material = 'Iron'
         noise = 0.01
         mono = True
@@ -3166,11 +3095,11 @@ class SXTOOLS_export(object):
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
 
     def processBuildings(self, objs):
+        print('SX Tools: Processing Buildings')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
@@ -3348,6 +3277,7 @@ class SXTOOLS_export(object):
 
 
     def processTrees(self, objs):
+        print('SX Tools: Processing Trees')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
@@ -5826,7 +5756,6 @@ if __name__ == '__main__':
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
-# - High poly bake crash
 # - High poly bake folder swap on remove
 # - Absolute path check
 # - Run from direct github zip download
