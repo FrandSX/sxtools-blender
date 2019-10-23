@@ -5788,14 +5788,11 @@ if __name__ == '__main__':
 # TODO:
 # - Categoryprocessing uses lookup that contains ramp preset names
 # - Investigate SXMaterial auto-regeneration issues
-# - Auto-process hard edges on hard mode change
-# - Cannot apply subdivision modifier if subdivision set to 0?
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
-# - Polling to check if objtype mesh
 # - High poly bake crash
 # - High poly bake folder swap on remove
 # - Absolute path check
@@ -5810,5 +5807,4 @@ if __name__ == '__main__':
 # - Tool settings:
 #   - Load/save prefs file
 #   - _paletted suffix
-# - Ask for a group name when creating empties
 # - User option for enabling SSS with transmission, enable relevant material features
