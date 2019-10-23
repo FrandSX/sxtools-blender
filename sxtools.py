@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 35, 17),
+    'version': (2, 36, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2326,7 +2326,7 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='EDIT')
 
 
-    def assignCrease(self, objs, group, hard):
+    def assignCrease(self, objs, group):
         mode = objs[0].mode
         creaseDict = {
             'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
@@ -2354,12 +2354,8 @@ class SXTOOLS_tools(object):
                 edge[creaseLayer] = weight
                 mesh.edges[edge.index].crease = weight
                 if weight == 1.0:
-                    if hard:
-                        edge.smooth = False
-                        mesh.edges[edge.index].use_edge_sharp = True
-                    else:
-                        edge.smooth = True
-                        mesh.edges[edge.index].use_edge_sharp = False
+                    edge.smooth = False
+                    mesh.edges[edge.index].use_edge_sharp = True
                     edge[bevelWeightLayer] = weight
                 else:
                     edge.smooth = True
@@ -2504,15 +2500,6 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
-            if 'sxEdgeSplit' not in obj.modifiers.keys():
-                obj.modifiers.new(type='EDGE_SPLIT', name='sxEdgeSplit')
-                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
-                obj.modifiers['sxEdgeSplit'].use_edge_angle = False
-                obj.modifiers['sxEdgeSplit'].show_on_cage = True
-                if hardmode == 'SHARP':
-                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
-                else:
-                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
@@ -2531,11 +2518,12 @@ class SXTOOLS_tools(object):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
+                if obj.modifiers['sxSubdivision'].levels == 0:
+                    bpy.ops.object.modifier_remove(modifier='sxSubdivision')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
-            if 'sxEdgeSplit' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
@@ -3841,12 +3829,6 @@ def updateModifiers(self, context):
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
-            if 'sxEdgeSplit' in obj.modifiers.keys():
-                obj.modifiers['sxEdgeSplit'].show_viewport = obj.sxtools.modifiervisibility
-                if hardmode == 'SHARP':
-                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = True
-                else:
-                    obj.modifiers['sxEdgeSplit'].use_edge_sharp = False
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 if hardmode == 'SHARP':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = True
@@ -4816,9 +4798,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
                             col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
                         col2_sds.separator()
-                        if ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
+                        if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
-                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxEdgeSplit' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
+                        if ('sxBevel' not in obj.modifiers.keys()) or ('sxSubdivision' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
                 # Master Palette ---------------------------------------------------
@@ -5364,11 +5346,10 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             group = 'CreaseSet0'
-            hard = False
             if event.shift:
                 tools.selectCrease(objs, group)
             else:
-                tools.assignCrease(objs, group, hard)
+                tools.assignCrease(objs, group)
         return {'FINISHED'}
 
 
@@ -5383,11 +5364,10 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             group = 'CreaseSet1'
-            hard = False
             if event.shift:
                 tools.selectCrease(objs, group)
             else:
-                tools.assignCrease(objs, group, hard)
+                tools.assignCrease(objs, group)
         return {'FINISHED'}
 
 
@@ -5402,11 +5382,10 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             group = 'CreaseSet2'
-            hard = False
             if event.shift:
                 tools.selectCrease(objs, group)
             else:
-                tools.assignCrease(objs, group, hard)
+                tools.assignCrease(objs, group)
         return {'FINISHED'}
 
 
@@ -5421,11 +5400,10 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             group = 'CreaseSet3'
-            hard = False
             if event.shift:
                 tools.selectCrease(objs, group)
             else:
-                tools.assignCrease(objs, group, hard)
+                tools.assignCrease(objs, group)
         return {'FINISHED'}
 
 
@@ -5440,14 +5418,10 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             group = 'CreaseSet4'
-            hardmode = objs[0].sxtools.hardmode
-            hard = False
-            if hardmode == 'SHARP':
-                hard = True
             if event.shift:
                 tools.selectCrease(objs, group)
             else:
-                tools.assignCrease(objs, group, hard)
+                tools.assignCrease(objs, group)
         return {'FINISHED'}
 
 
@@ -5813,10 +5787,8 @@ if __name__ == '__main__':
 
 # TODO:
 # - Categoryprocessing uses lookup that contains ramp preset names
-# - After processing, unwanted subdivision level gets updated to active selection
 # - Investigate SXMaterial auto-regeneration issues
 # - Auto-process hard edges on hard mode change
-# - Optimize AO to run global pass only on meshes under the same parent
 # - Cannot apply subdivision modifier if subdivision set to 0?
 # - Add function to revert to control cage
 # - Add alpha support to debug mode
