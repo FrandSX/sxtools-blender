@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 36, 12),
+    'version': (2, 37, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2661,7 +2661,10 @@ class SXTOOLS_export(object):
         # now = time.time()
         # print('hide objects duration: ', now-then, ' seconds')
 
-        categories = list(sxglobals.presetLookup.keys())
+        categoryList = list(sxglobals.categoryDict.keys())
+        categories = list()
+        for category in categoryList:
+            categories.append(category.replace(" ", "_").upper())
         for category in categories:
             categoryObjs = []
             for obj in objs:
@@ -2669,7 +2672,15 @@ class SXTOOLS_export(object):
                     categoryObjs.append(obj)
 
             if len(categoryObjs) > 0:
+                for obj in categoryObjs:
+                    if obj.parent == None:
+                        obj.hide_viewport = False
+                        bpy.context.view_layer.objects.active = obj
+                        tools.groupObjects([obj, ])
+                    obj.hide_viewport = True
+
                 groupList = utils.findGroups(categoryObjs)
+
                 for group in groupList:
                     groupObjs = utils.findChildren(group, categoryObjs)
                     bpy.context.view_layer.objects.active = groupObjs[0]
@@ -2696,8 +2707,8 @@ class SXTOOLS_export(object):
                         obj.select_set(False)
                         obj.hide_viewport = True
 
-            now = time.time()
-            print('SX Tools: ', category + ' duration: ', now-then, ' seconds')
+                now = time.time()
+                print('SX Tools: ', category, ' / ', len(groupList), ' groups duration: ', now-then, ' seconds')
 
         for obj in bpy.context.view_layer.objects:
             if obj.type == 'MESH':
@@ -5766,6 +5777,3 @@ if __name__ == '__main__':
 # - PBR material library save/manage
 # - Skinning support?
 # - Submesh support
-# - Tool settings:
-#   - Load/save prefs file
-#   - _paletted suffix
