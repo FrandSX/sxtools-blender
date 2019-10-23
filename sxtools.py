@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 36, 0),
+    'version': (2, 36, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2313,6 +2313,8 @@ class SXTOOLS_tools(object):
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
             'CreaseSet4': 1.0}
         weight = creaseDict[group]
+
+        bpy.context.view_layer.objects.active = objs[0]
 
         bpy.ops.object.mode_set(mode='EDIT')
         bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
