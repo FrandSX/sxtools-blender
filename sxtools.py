@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 38, 8),
+    'version': (2, 38, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2478,9 +2478,6 @@ class SXTOOLS_tools(object):
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = 3.14159
 
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
-
         for obj in objs:
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
@@ -2514,9 +2511,6 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxWeightedNormal'].keep_sharp = True
                 else:
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
-
-        bpy.ops.object.shade_smooth()
-        bpy.ops.object.mode_set(mode=mode)
 
 
     def applyModifiers(self, objs):
@@ -2569,10 +2563,6 @@ class SXTOOLS_tools(object):
 
 
     def revertObjects(self, objs):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
-        bpy.ops.object.shade_flat()
-
         self.removeModifiers(objs)
 
         layers.clearUVs(objs, objs[0].sxlayers['overlay'])
@@ -2580,8 +2570,6 @@ class SXTOOLS_tools(object):
         layers.clearUVs(objs, objs[0].sxlayers['metallic'])
         layers.clearUVs(objs, objs[0].sxlayers['smoothness'])
         layers.clearUVs(objs, objs[0].sxlayers['transmission'])
-
-        bpy.ops.object.mode_set(mode=mode)
 
 
     def __del__(self):
@@ -2630,6 +2618,7 @@ class SXTOOLS_export(object):
                 orgGroup.name = group.name + '_org'
                 orgGroup.hide_viewport = True
                 sxglobals.sourceObjects.append(orgGroup)
+                sxglobals.exportObjects.append(group)
 
             for obj in objs:
                 sxglobals.sourceObjects.append(obj)
@@ -2648,7 +2637,6 @@ class SXTOOLS_export(object):
                 sxglobals.exportObjects.append(newObj)
 
                 obj.parent = bpy.context.view_layer.objects[obj.parent.name + '_org']
-                obj.hide_viewport = True
 
             objs = newObjs
 
@@ -2656,9 +2644,8 @@ class SXTOOLS_export(object):
 
         # Create modifiers
         tools.addModifiers(objs)
-
         if mode == 'HI':
-            tools.applyModifiers(newObjs)
+            tools.applyModifiers(objs)
 
         # Begin category-specific compositing operations
         for obj in objs:
@@ -2726,7 +2713,9 @@ class SXTOOLS_export(object):
                 print('SX Tools: ', category, ' / ', len(groupList), ' groups duration: ', now-then, ' seconds')
 
         for obj in bpy.context.view_layer.objects:
-            if obj.type == 'MESH':
+            if (mode == 'HI') and ('_org' in obj.name):
+                obj.hide_viewport = True
+            elif obj.type == 'MESH':
                 obj.hide_viewport = False
 
         for obj in objs:
@@ -3449,13 +3438,18 @@ class SXTOOLS_export(object):
     def removeExports(self):
         objs = sxglobals.exportObjects
         # bpy.ops.object.delete({"selected_objects": objs})
-        bpy.data.objects.remove(objs, do_unlink=True)
+        for obj in objs:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        sxglobals.exportObjects = []
 
         for obj in sxglobals.sourceObjects:
             if obj.name.endswith('_org'):
                 obj.name = obj.name[:-4]
             if obj.data and obj.data.name.endswith('_org'):
                 obj.data.name = obj.data.name[:-4]
+            obj.hide_viewport = False
+
+        sxglobals.sourceObjects = []
 
 
     def __del__(self):
@@ -5492,6 +5486,9 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             tools.addModifiers(objs)
+
+            if objs[0].mode == 'OBJECT':
+                bpy.ops.object.shade_smooth()
         return {'FINISHED'}
 
 
@@ -5602,12 +5599,16 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 class SXTOOLS_OT_removeexports(bpy.types.Operator):
     bl_idname = 'sxtools.removeexports'
     bl_label = 'Remove Exports'
-    bl_description = 'Deletes generated high-poly objects\nReturns the original object to its regular state'
+    bl_description = 'Deletes generated high-poly objects\nReturns the source object to its original state'
     bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
+        scene = bpy.context.scene.sxtools
         export.removeExports()
+
+        scene.shadingmode = 'FULL'
+        bpy.ops.object.shade_flat()
         return {'FINISHED'}
 
 
@@ -5655,12 +5656,17 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             tools.revertObjects(objs)
 
             sxglobals.composite = True
             refreshActives(self, context)
+
+            scene.shadingmode = 'FULL'
+            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.shade_flat()
         return {'FINISHED'}
 
 
@@ -5811,15 +5817,12 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - ProcessBuildings: windows need hard normals
-# - ProcessObjects - category-specific ray biases (0.01 vehicles, 0.05 buildings...)
-# - Check removeExports
+# - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
-# - High poly bake folder swap on remove
 # - Absolute path check
 # - Run from direct github zip download
 #   - Split to multiple python files
