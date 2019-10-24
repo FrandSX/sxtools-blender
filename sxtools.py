@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 38, 12),
+    'version': (2, 39, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2485,6 +2485,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
+                obj.modifiers['sxSubdivision'].show_only_control_edges = True
                 obj.modifiers['sxSubdivision'].show_on_cage = True
             if 'sxBevel' not in  obj.modifiers.keys():
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
@@ -2498,10 +2499,17 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].use_clamp_overlap = True
                 obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
-                obj.modifiers["sxBevel"].harden_normals = True
+                obj.modifiers['sxBevel'].harden_normals = True
                 obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
+            if 'sxDecimate' not in obj.modifiers.keys():
+                obj.modifiers.new(type='DECIMATE', name='sxDecimate')
+                obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
+                obj.modifiers['sxDecimate'].angle_limit = 0.0349066
+                obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
+                obj.modifiers['sxDecimate'].delimit = {'UV'}
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
@@ -2523,6 +2531,8 @@ class SXTOOLS_tools(object):
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
+            if 'sxDecimate' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
@@ -2536,6 +2546,8 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_remove(modifier='sxBevel')
             if 'sxEdgeSplit' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
+            if 'sxDecimate' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxDecimate')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
 
@@ -5817,6 +5829,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Enable decimation only when subdivision >= 1
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
