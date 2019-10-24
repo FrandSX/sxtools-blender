@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 38, 1),
+    'version': (2, 38, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -95,7 +95,6 @@ class SXTOOLS_files(object):
     def loadFile(self, mode):
         prefs = bpy.context.preferences
         directory = prefs.addons['sxtools'].preferences.libraryfolder
-        # directory = bpy.context.scene.sxtools.libraryfolder
         filePath = directory + mode + '.json'
 
         if len(directory) > 0:
@@ -124,7 +123,7 @@ class SXTOOLS_files(object):
                 print('SX Tools: ' + mode + ' loaded from ' + filePath)
             except ValueError:
                 print('SX Tools Error: Invalid ' + mode + ' file.')
-                bpy.context.scene.sxtools.libraryfolder = ''
+                prefs.addons['sxtools'].preferences.libraryfolder = ''
                 return False
             except IOError:
                 print('SX Tools Error: ' + mode + ' file not found!')
@@ -144,8 +143,9 @@ class SXTOOLS_files(object):
 
 
     def saveFile(self, mode):
-        directory = bpy.context.scene.sxtools.libraryfolder
-        filePath = bpy.context.scene.sxtools.libraryfolder + mode + '.json'
+        prefs = bpy.context.preferences
+        directory = prefs.addons['sxtools'].preferences.libraryfolder
+        filePath = directory + mode + '.json'
         # Palettes.json Materials.json
 
         if len(directory) > 0:
@@ -1461,13 +1461,12 @@ class SXTOOLS_mesh(object):
         return pivot
 
 
-    def calculateOcclusion(self, objs, rayCount, blend, dist, groundPlane, bias=0.000001):
+    def calculateOcclusion(self, objs, rayCount, blend, dist, groundPlane, bias=0.01):
         objDicts = tools.selectionHandler(objs)
         mode = objs[0].mode
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
         hemiSphere = [None] * rayCount
-        bias = 0.01
 
         objOcclusions = {}
 
@@ -2125,11 +2124,11 @@ class SXTOOLS_tools(object):
         elif rampmode == 'CN':
             objValues = mesh.calculateCurvature(objs, True)
         elif rampmode == 'OCC':
-            objValues = mesh.calculateOcclusion(objs, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
+            objValues = mesh.calculateOcclusion(objs, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
         elif rampmode == 'LUM':
             objValues = mesh.calculateLuminance(objs, layer)
         elif rampmode == 'THK':
-            objValues = mesh.calculateThickness(objs, scene.occlusionrays)
+            objValues = mesh.calculateThickness(objs, scene.occlusionrays, scene.occlusionbias)
         elif rampmode == 'DIR':
             inclination = (bpy.context.scene.sxtools.dirInclination - 90.0)* (2*math.pi)/360.0
             angle = (bpy.context.scene.sxtools.dirAngle + 90) * (2*math.pi)/360.0
@@ -2979,6 +2978,7 @@ class SXTOOLS_export(object):
         mono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
+        scene.occlusionbias = 0.01
 
         mergebbx = scene.rampbbox
         overwrite = True
@@ -3140,15 +3140,13 @@ class SXTOOLS_export(object):
         mono = True
         scene.occlusionblend = 0.0
         scene.occlusionrays = 200
+        scene.occlusionbias = 0.05
 
         mergebbx = scene.rampbbox
         overwrite = True
         obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
@@ -3163,6 +3161,19 @@ class SXTOOLS_export(object):
         for obj in objs:
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+
+        # Windows are not occluded
+        color = (1.0, 1.0, 1.0, 1.0)
+        maskLayer = utils.findLayerFromIndex(obj, 7)
+        layer = obj.sxlayers['occlusion']
+        overwrite = True
+
+        noise = 0.0
+        mono = True
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+        color = (0.5, 0.5, 0.5, 0.5)
+        layer = obj.sxlayers['overlay']
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         # Clear metallic, smoothness, and transmission
         layers.clearUVs(objs, obj.sxlayers['metallic'])
@@ -3274,17 +3285,6 @@ class SXTOOLS_export(object):
         tools.applyColor(objs, layer, palette[0], False, noise, mono)
         tools.applyColor(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
         tools.applyColor(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
-
-        # Mix metallic with occlusion (dirt in crevices)
-        tools.layerCopyManager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
-        for obj in objs:
-            obj.sxlayers['metallic'].alpha = 1.0
-            obj.sxlayers['metallic'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['metallic'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['metallic'])
-        for obj in objs:
-            obj.sxlayers['metallic'].blendMode = 'ALPHA'
 
         # Emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
@@ -4302,6 +4302,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=100.0,
         default=10.0)
 
+    occlusionbias: bpy.props.FloatProperty(
+        name='Bias',
+        description='Offset ray start position to prevent artifacts',
+        min=0.0,
+        max=1.0,
+        default=0.01)
+
     occlusiongroundplane: bpy.props.BoolProperty(
         name='Ground Plane',
         description='Enable temporary ground plane for occlusion',
@@ -4382,6 +4389,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     exportmode: bpy.props.EnumProperty(
         name='Export Mode',
+        description='Display utils or export settings',
+        items=[
+            ('UTILS', 'Utilities', ''),
+            ('EXPORT', 'Export', '')],
+        default='UTILS')
+
+    exportquality: bpy.props.EnumProperty(
+        name='Export Quality',
         description='Low-detail mode uses base mesh for baking\nHigh-detail mode bakes after applying modifiers',
         items=[
             ('LO', 'Low-detail', ''),
@@ -4577,7 +4592,6 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
             ('V', 'V', '')],
         default='U')
 
-
     enabled: bpy.props.BoolProperty(
         name='Enabled',
         default=False)
@@ -4747,17 +4761,19 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         box_fill.prop(scene, 'rampmono', text='Monochromatic')
                         box_fill.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
 
+                        col_fill = box_fill.column(align=True)
                         if mode == 'OBJECT':
-                            box_fill.prop(scene, 'rampalpha')
+                            col_fill.prop(scene, 'rampalpha')
                         if scene.rampmode == 'DIR':
-                            box_fill.prop(scene, 'dirInclination', slider=True, text='Inclination')
-                            box_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
+                            col_fill.prop(scene, 'dirInclination', slider=True, text='Inclination')
+                            col_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
                         elif scene.rampmode == 'OCC' or scene.rampmode == 'THK':
-                            box_fill.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
+                            col_fill.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
+                            col_fill.prop(scene, 'occlusionbias', slider=True, text='Bias')
                             if scene.rampmode == 'OCC':
-                                box_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
-                                box_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
-                                box_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
+                                col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
+                                col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
+                                col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
 
                 # Crease Sets ---------------------------------------------------
                 box_crease = layout.box()
@@ -4800,7 +4816,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     icon='TRIA_DOWN' if scene.expandpalette else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_palette.prop(scene, 'palettemode', expand=True)
-                #row_palette.label(text='Master Palettes')
                 if scene.palettemode == 'PAL':
                     palettes = context.scene.sxpalettes
 
@@ -4864,34 +4879,37 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_export.prop(scene, 'expandexport',
                     icon='TRIA_DOWN' if scene.expandexport else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
+                row_export.prop(scene, 'exportmode', expand=True)
+                if scene.exportmode == 'UTILS':
+                    if scene.expandexport:
+                        col_masks = box_export.column(align=True)
+                        col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
+                        col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
+                        col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
+                        col_masks.separator()
+                        col_masks.operator('sxtools.revertobjects', text='Revert to Control Cages')
+                        col_masks.operator('sxtools.setpivots', text='Set Pivots')
+                        col_masks.operator('sxtools.groupobjects', text='Group Selected Objects')
 
-                row_export.label(text='Export Tools')
-                if scene.expandexport:
-                    col_masks = box_export.column(align=True)
-                    col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
-                    # col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
-                    # col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
-                    col_masks.separator()
-                    col_masks.operator('sxtools.revertobjects', text='Revert to Control Cages')
-                    col_masks.operator('sxtools.setpivots', text='Set Pivots')
-                    col_masks.operator('sxtools.groupobjects', text='Group Objects')
-                    col_masks.separator()
-                    col_masks.label(text='Object Export Properties:')
-                    col_masks.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
-                    col_masks.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
-                    col_masks.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
-                    col_masks.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
-                    col_masks.separator()
-                    row2_export = box_export.row(align=True)
-                    row2_export.prop(scene, 'exportmode', expand=True)
-                    col_export = box_export.column(align=True)
-                    col_export.operator('sxtools.macro', text='Process Exports')
-                    if len(sxglobals.exportObjects) > 0:
-                        col_export.operator('sxtools.removeexports', text='Remove Exports')
-                    col_export.separator()
-                    col_export.label(text='Set Export Folder:')
-                    col_export.prop(scene, 'exportfolder', text='')
-                    col_export.operator('sxtools.exportfiles', text='Export Selected')
+                elif scene.exportmode == 'EXPORT':
+                    if scene.expandexport:
+                        col_export = box_export.column(align=True)
+                        col_export.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
+                        col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
+                        col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
+                        col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
+                        col_export.label(text='Note: Check Subdivision and Bevel settings')
+                        col_export.separator()
+                        row2_export = box_export.row(align=True)
+                        row2_export.prop(scene, 'exportquality', expand=True)
+                        col2_export = box_export.column(align=True)
+                        col2_export.operator('sxtools.macro', text='Magic Button')
+                        if len(sxglobals.exportObjects) > 0:
+                            col2_export.operator('sxtools.removeexports', text='Remove Exports')
+                        col2_export.separator()
+                        col2_export.label(text='Set Export Folder:')
+                        col2_export.prop(scene, 'exportfolder', text='')
+                        col2_export.operator('sxtools.exportfiles', text='Export Selected')
 
         else:
             layout = self.layout
@@ -4899,10 +4917,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             if 'SXMaterial' in bpy.data.materials.keys():
                 col.operator('sxtools.resetscene', text='Reset scene')
                 col.separator()
-            # col.label(text='Set Library Data Folder:')
-            # col.prop(bpy.context.scene.sxtools, 'libraryfolder', text='')
-            # col.operator('sxtools.loadlibraries', text='Load Libraries')
-            # col.separator()
             if sxglobals.librariesLoaded:
                 col.label(text='Select a mesh to continue')
             else:
@@ -5061,8 +5075,8 @@ class SXTOOLS_OT_addramp(bpy.types.Operator):
 class SXTOOLS_OT_delramp(bpy.types.Operator):
     bl_idname = 'sxtools.delramp'
     bl_label = 'Remove Ramp Preset'
-    bl_options = {'UNDO'}
     bl_description = 'Deletes ramp preset from Gradient Library'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5077,8 +5091,8 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
 class SXTOOLS_OT_scenesetup(bpy.types.Operator):
     bl_idname = 'sxtools.scenesetup'
     bl_label = 'Set Up Object'
-    bl_options = {'UNDO'}
     bl_description = 'Creates necessary material, vertex color layers,\nUV layers, and tool-specific variables'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5096,8 +5110,8 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
 class SXTOOLS_OT_applycolor(bpy.types.Operator):
     bl_idname = 'sxtools.applycolor'
     bl_label = 'Apply Color'
-    bl_options = {'UNDO'}
     bl_description = 'Applies the Fill Color to selected objects or components'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5122,8 +5136,8 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
 class SXTOOLS_OT_applyramp(bpy.types.Operator):
     bl_idname = 'sxtools.applyramp'
     bl_label = 'Apply Gradient'
-    bl_options = {'UNDO'}
     bl_description = 'Applies a gradient in various modes\nto the selected components or objects,\noptionally using their combined bounding volume'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5149,8 +5163,8 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
 class SXTOOLS_OT_mergeup(bpy.types.Operator):
     bl_idname = 'sxtools.mergeup'
     bl_label = 'Merge Up'
-    bl_options = {'UNDO'}
     bl_description = 'Merges the selected color layer with the one above'
+    bl_options = {'UNDO'}
 
 
     @classmethod
@@ -5186,8 +5200,8 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
 class SXTOOLS_OT_mergedown(bpy.types.Operator):
     bl_idname = 'sxtools.mergedown'
     bl_label = 'Merge Down'
-    bl_options = {'UNDO'}
     bl_description = 'Merges the selected color layer with the one below'
+    bl_options = {'UNDO'}
 
 
     @classmethod
@@ -5232,8 +5246,8 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
 class SXTOOLS_OT_copylayer(bpy.types.Operator):
     bl_idname = 'sxtools.copylayer'
     bl_label = 'Copy Layer'
-    bl_options = {'UNDO'}
     bl_description = 'Mark the selected layer for copying'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5248,8 +5262,8 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
 class SXTOOLS_OT_pastelayer(bpy.types.Operator):
     bl_idname = 'sxtools.pastelayer'
     bl_label = 'Paste Layer'
-    bl_options = {'UNDO'}
     bl_description = 'Shift-click to swap with copied layer\nAlt-click to merge with the target layer\n(Color layers only!)'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5284,8 +5298,8 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
     bl_idname = 'sxtools.clear'
     bl_label = 'Clear Layer'
-    bl_options = {'UNDO'}
     bl_description = 'Shift-click to clear all layers\non selected objects or components'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5307,8 +5321,8 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 class SXTOOLS_OT_selmask(bpy.types.Operator):
     bl_idname = 'sxtools.selmask'
     bl_label = 'Select Layer Mask'
-    bl_options = {'UNDO'}
     bl_description = 'Click to select components with alpha\nShift-click to invert selection'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5329,8 +5343,8 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 class SXTOOLS_OT_crease0(bpy.types.Operator):
     bl_idname = 'sxtools.crease0'
     bl_label = 'Crease0'
-    bl_options = {'UNDO'}
     bl_description = 'Uncrease selected components'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5347,8 +5361,8 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
 class SXTOOLS_OT_crease1(bpy.types.Operator):
     bl_idname = 'sxtools.crease1'
     bl_label = 'Crease1'
-    bl_options = {'UNDO'}
     bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5365,8 +5379,8 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
 class SXTOOLS_OT_crease2(bpy.types.Operator):
     bl_idname = 'sxtools.crease2'
     bl_label = 'Crease2'
-    bl_options = {'UNDO'}
     bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5383,8 +5397,8 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
 class SXTOOLS_OT_crease3(bpy.types.Operator):
     bl_idname = 'sxtools.crease3'
     bl_label = 'Crease3'
-    bl_options = {'UNDO'}
     bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5401,8 +5415,8 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
 class SXTOOLS_OT_crease4(bpy.types.Operator):
     bl_idname = 'sxtools.crease4'
     bl_label = 'Crease4'
-    bl_options = {'UNDO'}
     bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5419,8 +5433,8 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
 class SXTOOLS_OT_applypalette(bpy.types.Operator):
     bl_idname = 'sxtools.applypalette'
     bl_label = 'Apply Palette'
-    bl_options = {'UNDO'}
     bl_description = 'Applies the selected palette to selected objects\nPalette colors are applied to layers 1-5'
+    bl_options = {'UNDO'}
 
     label: bpy.props.StringProperty()
 
@@ -5442,8 +5456,8 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
 class SXTOOLS_OT_applymaterial(bpy.types.Operator):
     bl_idname = 'sxtools.applymaterial'
     bl_label = 'Apply PBR Material'
-    bl_options = {'UNDO'}
     bl_description = 'Applies the selected material to selected objects\nAlbedo color goes to the selected color layer\nmetallic and smoothness values are automatically applied\nto the selected material channels'
+    bl_options = {'UNDO'}
 
     label: bpy.props.StringProperty()
 
@@ -5470,8 +5484,8 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
 class SXTOOLS_OT_modifiers(bpy.types.Operator):
     bl_idname = 'sxtools.modifiers'
     bl_label = 'Add Modifiers'
-    bl_options = {'UNDO'}
     bl_description = 'Adds Subdivision, Edge Split and Weighted Normals modifiers\nto selected objects'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5484,8 +5498,8 @@ class SXTOOLS_OT_modifiers(bpy.types.Operator):
 class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
     bl_idname = 'sxtools.applymodifiers'
     bl_label = 'Apply Modifiers'
-    bl_options = {'UNDO'}
     bl_description = 'Applies modifiers to the selected objects'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5498,8 +5512,8 @@ class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
 class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
     bl_idname = 'sxtools.removemodifiers'
     bl_label = 'Remove Modifiers'
-    bl_options = {'UNDO'}
     bl_description = 'Remove SX Tools modifiers from selected objects'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5512,8 +5526,8 @@ class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
 class SXTOOLS_OT_generatemasks(bpy.types.Operator):
     bl_idname = 'sxtools.generatemasks'
     bl_label = 'Create Palette Masks'
-    bl_options = {'UNDO'}
     bl_description = 'Bakes masks of Layers 1-7 into a UV channel\nfor exporting to game engine\nif dynamic palettes are used'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5527,8 +5541,8 @@ class SXTOOLS_OT_generatemasks(bpy.types.Operator):
 class SXTOOLS_OT_enableall(bpy.types.Operator):
     bl_idname = 'sxtools.enableall'
     bl_label = 'Enable All Layers'
-    bl_options = {'UNDO'}
     bl_description = 'Enables all layers on selected objects'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5563,8 +5577,8 @@ class SXTOOLS_OT_enableall(bpy.types.Operator):
 class SXTOOLS_OT_resetscene(bpy.types.Operator):
     bl_idname = 'sxtools.resetscene'
     bl_label = 'Reset Scene'
-    bl_options = {'UNDO'}
     bl_description = 'Clears all SX Tools data from objects'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5589,6 +5603,7 @@ class SXTOOLS_OT_removeexports(bpy.types.Operator):
     bl_idname = 'sxtools.removeexports'
     bl_label = 'Remove Exports'
     bl_description = 'Deletes generated high-poly objects\nReturns the original object to its regular state'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5599,8 +5614,8 @@ class SXTOOLS_OT_removeexports(bpy.types.Operator):
 class SXTOOLS_OT_setpivots(bpy.types.Operator):
     bl_idname = 'sxtools.setpivots'
     bl_label = 'Set Pivots'
-    bl_options = {'UNDO'}
     bl_description = 'Set pivot to center of mass on selected objects\nShift-click to set pivot to center of bounding box'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5622,6 +5637,7 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
     bl_idname = 'sxtools.groupobjects'
     bl_label = 'Group Objects'
     bl_description = 'Groups objects under an empty\nwith pivot placed at the bottom center'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5635,6 +5651,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
     bl_idname = 'sxtools.revertobjects'
     bl_label = 'Revert to Control Cages'
     bl_description = 'Removes modifiers and clears\nlayers generated by processing'
+    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -5661,7 +5678,7 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
-    bl_description = 'A prototype batch process used in a game project\nApplies modifiers and calculates material channels'
+    bl_description = 'Applies modifiers and calculates material channels\naccording to category'
     bl_options = {'UNDO'}
 
 
@@ -5669,7 +5686,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
         scene = bpy.context.scene.sxtools
         objs = selectionValidator(self, context)
         if len(objs) > 0:
-            export.processObjects(objs, context.scene.sxtools.exportmode)
+            export.processObjects(objs, context.scene.sxtools.exportquality)
 
             sxglobals.composite = True
             refreshActives(self, context)
@@ -5794,6 +5811,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - ProcessBuildings: windows need hard normals
+# - ProcessObjects - category-specific ray biases (0.01 vehicles, 0.05 buildings...)
+# - Check removeExports
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
@@ -5802,8 +5822,8 @@ if __name__ == '__main__':
 # - High poly bake folder swap on remove
 # - Absolute path check
 # - Run from direct github zip download
-# - Split to multiple python files
-# - Default path to find libraries in the zip?
+#   - Split to multiple python files
+#   - Default path to find libraries in the zip?
 # - mask/adjustment indication
 # - Master palette library save/manage
 # - PBR material library save/manage
