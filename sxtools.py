@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 3),
+    'version': (2, 39, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2507,9 +2507,15 @@ class SXTOOLS_tools(object):
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate')
                 obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
-                obj.modifiers['sxDecimate'].angle_limit = 0.0349066
+                obj.modifiers['sxDecimate'].angle_limit = 0.0436332
                 obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
                 obj.modifiers['sxDecimate'].delimit = {'UV'}
+            if 'sxDecimate2' not in obj.modifiers.keys():
+                obj.modifiers.new(type='DECIMATE', name='sxDecimate2')
+                obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate2'].decimate_type = 'COLLAPSE'
+                obj.modifiers['sxDecimate2'].ratio = 0.99
+                obj.modifiers['sxDecimate2'].use_collapse_triangulate = True
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
@@ -2533,6 +2539,8 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxDecimate' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
+            if 'sxDecimate2' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
@@ -2548,6 +2556,8 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
             if 'sxDecimate' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxDecimate')
+            if 'sxDecimate2' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
 
