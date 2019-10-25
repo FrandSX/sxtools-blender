@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 7),
+    'version': (2, 39, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2528,6 +2528,7 @@ class SXTOOLS_tools(object):
 
 
     def applyModifiers(self, objs):
+        scene = bpy.context.scene.sxtools
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
@@ -2538,9 +2539,15 @@ class SXTOOLS_tools(object):
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxDecimate' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
+                if scene.exportquality == 'HI':
+                    bpy.ops.object.modifier_remove(modifier='sxDecimate')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
             if 'sxDecimate2' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
+                if scene.exportquality == 'HI':
+                    bpy.ops.object.modifier_remove(modifier='sxDecimate2')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
@@ -2612,6 +2619,7 @@ class SXTOOLS_export(object):
     # consistent project-wide looks.
     def processObjects(self, objs, mode):
         then = time.time()
+        scene = bpy.context.scene.sxtools
         orgObjNames = {}
 
         # Make sure auto-smooth is on
@@ -2666,8 +2674,6 @@ class SXTOOLS_export(object):
 
         # Create modifiers
         tools.addModifiers(objs)
-        if mode == 'HI':
-            tools.applyModifiers(objs)
 
         # Begin category-specific compositing operations
         for obj in objs:
@@ -2713,18 +2719,39 @@ class SXTOOLS_export(object):
                         obj.select_set(True)
 
                     if category == 'DEFAULT':
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
                     elif category == 'PALETTED':
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processPaletted(groupObjs)
                     elif category == 'VEHICLES':
+                        for obj in groupObjs:
+                            if 'wheel' in obj.name:
+                                scene.occlusionblend = 0.0
+                            else:
+                                scene.occlusionblend = 0.5
+                            if obj.name.endswith('_roof') or obj.name.endswith('_frame') or obj.name.endswith('_dash') or obj.name.endswith('_hood') or ('bumper' in obj.name):
+                                obj.modifiers['sxDecimate2'].use_symmetry = True
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processVehicles(groupObjs)
                     elif category == 'BUILDINGS':
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processBuildings(groupObjs)
                     elif category == 'TREES':
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processTrees(groupObjs)
                     elif category == 'TRANSPARENT':
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
                     else:
+                        if mode == 'HI':
+                            tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
 
                     for obj in groupObjs:
@@ -2752,11 +2779,10 @@ class SXTOOLS_export(object):
 
         if mode == 'HI':
             for obj in objs:
-                if obj.sxtools.hardmode != 'BEVEL':
-                    obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
-                    obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
-                    obj.modifiers['sxWeightedNormal'].weight = 95
-                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
+                obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
+                obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
+                obj.modifiers['sxWeightedNormal'].weight = 95
+                obj.modifiers['sxWeightedNormal'].keep_sharp = True
 
             # self.applyModifiers(objs)
 
@@ -2994,14 +3020,7 @@ class SXTOOLS_export(object):
         mergebbx = scene.rampbbox
         overwrite = True
 
-        for obj in objs:
-            if 'wheel' in obj.name:
-                scene.occlusionblend = 0.0
-            if obj.name.endswith('_roof') or obj.name.endswith('_frame') or obj.name.endswith('_dash') or obj.name.endswith('_hood') or ('bumper' in obj.name):
-                obj.modifiers['sxDecimate2'].use_symmetry = True
-            else:
-                scene.occlusionblend = 0.5
-            tools.applyRamp([obj, ], layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
@@ -3789,6 +3808,7 @@ def adjustBrightness(self, context):
 
 
 def updateModifiers(self, context):
+    scene = context.scene.sxtools
     objs = selectionValidator(self, context)
     if len(objs) > 0:
         vis = objs[0].sxtools.modifiervisibility
@@ -3820,13 +3840,13 @@ def updateModifiers(self, context):
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
             if 'sxDecimate' in obj.modifiers.keys():
-                if obj.sxtools.subdivisionlevel == 0:
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
                     obj.modifiers['sxDecimate'].show_viewport = False
                 else:
                     obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
             if 'sxDecimate2' in obj.modifiers.keys():
-                if obj.sxtools.subdivisionlevel == 0:
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
                     obj.modifiers['sxDecimate2'].show_viewport = False
                 else:
                     obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
@@ -3992,7 +4012,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Decimation',
         min=0.0,
         max=10.0,
-        default=2.0,
+        default=0.5,
         update=updateModifiers)
 
     staticvertexcolors: bpy.props.BoolProperty(
@@ -4436,7 +4456,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     exportquality: bpy.props.EnumProperty(
         name='Export Quality',
-        description='Low-detail mode uses base mesh for baking\nHigh-detail mode bakes after applying modifiers',
+        description='Low-detail mode uses base mesh for baking\nHigh-detail mode bakes after applying modifiers but disables decimation',
         items=[
             ('LO', 'Low-detail', ''),
             ('HI', 'High-detail', '')],
@@ -4839,7 +4859,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_sds.prop(sxtools, 'hardmode', expand=True)
                         col2_sds = box_crease.column(align=True)
                         col2_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                        if obj.sxtools.subdivisionlevel > 0:
+                        if (obj.sxtools.subdivisionlevel > 0) and (scene.exportquality == 'LO'):
                             col2_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                         if obj.sxtools.hardmode == 'BEVEL':
                             col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
