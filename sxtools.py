@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 6),
+    'version': (2, 39, 7),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2997,6 +2997,8 @@ class SXTOOLS_export(object):
         for obj in objs:
             if 'wheel' in obj.name:
                 scene.occlusionblend = 0.0
+            if obj.name.endswith('_roof') or obj.name.endswith('_frame') or obj.name.endswith('_dash') or obj.name.endswith('_hood') or ('bumper' in obj.name):
+                obj.modifiers['sxDecimate2'].use_symmetry = True
             else:
                 scene.occlusionblend = 0.5
             tools.applyRamp([obj, ], layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
@@ -5562,6 +5564,9 @@ class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             tools.removeModifiers(objs)
+
+            if objs[0].mode == 'OBJECT':
+                bpy.ops.object.shade_flat()
         return {'FINISHED'}
 
 
@@ -5862,9 +5867,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Enable decimation only when subdivision > 0
-# - Obj-specific decimation settings
-# - Vehicles: set name-specific decimation symmetry
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
