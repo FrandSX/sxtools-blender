@@ -5867,6 +5867,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate splitting updateModifiers to prevent accidental object-specific value overriding
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
