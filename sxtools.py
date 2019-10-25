@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 4),
+    'version': (2, 39, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3792,6 +3792,7 @@ def updateModifiers(self, context):
         vis = objs[0].sxtools.modifiervisibility
         hardmode = objs[0].sxtools.hardmode
         subdivLevel = objs[0].sxtools.subdivisionlevel
+        decimation = objs[0].sxtools.decimation
         bevelWidth = objs[0].sxtools.bevelwidth
         bevelSegments = objs[0].sxtools.bevelsegments
         for obj in objs:
@@ -3803,6 +3804,8 @@ def updateModifiers(self, context):
                 obj.sxtools.hardmode = hardmode
             if obj.sxtools.subdivisionlevel != subdivLevel:
                 obj.sxtools.subdivisionlevel = subdivLevel
+            if obj.sxtools.decimation != decimation:
+                obj.sxtools.decimation = decimation
             if obj.sxtools.bevelwidth != bevelWidth:
                 obj.sxtools.bevelwidth = bevelWidth
             if obj.sxtools.bevelsegments != bevelSegments:
@@ -3814,6 +3817,17 @@ def updateModifiers(self, context):
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+            if 'sxDecimate' in obj.modifiers.keys():
+                if obj.sxtools.subdivisionlevel == 0:
+                    obj.modifiers['sxDecimate'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
+            if 'sxDecimate2' in obj.modifiers.keys():
+                if obj.sxtools.subdivisionlevel == 0:
+                    obj.modifiers['sxDecimate2'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxBevel' in obj.modifiers.keys():
                 if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
                     obj.modifiers['sxBevel'].show_viewport = True
@@ -3970,6 +3984,13 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         min=1,
         max=10,
         default=2,
+        update=updateModifiers)
+
+    decimation: bpy.props.FloatProperty(
+        name='Decimation',
+        min=0.0,
+        max=10.0,
+        default=2.0,
         update=updateModifiers)
 
     staticvertexcolors: bpy.props.BoolProperty(
@@ -4816,11 +4837,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_sds.prop(sxtools, 'hardmode', expand=True)
                         col2_sds = box_crease.column(align=True)
                         col2_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
+                        if obj.sxtools.subdivisionlevel > 0:
+                            col2_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                         if obj.sxtools.hardmode == 'BEVEL':
                             col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
                             col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
                         col2_sds.separator()
-                        if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
+                        if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxDecimate' in obj.modifiers.keys()) or ('sxDecimate2' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
                         if ('sxBevel' not in obj.modifiers.keys()) or ('sxSubdivision' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.modifiers', text='Add Modifiers')
@@ -5839,7 +5862,9 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Enable decimation only when subdivision >= 1
+# - Enable decimation only when subdivision > 0
+# - Obj-specific decimation settings
+# - Vehicles: set name-specific decimation symmetry
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
