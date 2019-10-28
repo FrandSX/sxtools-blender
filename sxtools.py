@@ -5961,6 +5961,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
 # - Fill with 0.5 if overlay?
 # - ProcessBuildings Low: windows need hard normals
