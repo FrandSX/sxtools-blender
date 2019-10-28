@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 12),
+    'version': (2, 39, 17),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2487,6 +2487,13 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
                 obj.modifiers['sxSubdivision'].show_only_control_edges = True
                 obj.modifiers['sxSubdivision'].show_on_cage = True
+            if 'sxDecimate' not in obj.modifiers.keys():
+                obj.modifiers.new(type='DECIMATE', name='sxDecimate')
+                obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
+                obj.modifiers['sxDecimate'].angle_limit = obj.sxtools.decimation * (math.pi/180.0)
+                obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
+                obj.modifiers['sxDecimate'].delimit = {'SHARP', 'UV'}
             if 'sxBevel' not in  obj.modifiers.keys():
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
                 if hardmode == 'BEVEL' or obj.sxtools.modifiervisibility:
@@ -2503,13 +2510,6 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
-            if 'sxDecimate' not in obj.modifiers.keys():
-                obj.modifiers.new(type='DECIMATE', name='sxDecimate')
-                obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
-                obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
-                obj.modifiers['sxDecimate'].angle_limit = 0.0436332
-                obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
-                obj.modifiers['sxDecimate'].delimit = {'UV'}
             if 'sxDecimate2' not in obj.modifiers.keys():
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate2')
                 obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
@@ -2521,10 +2521,10 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
-                if hardmode == 'SHARP':
-                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
-                else:
+                if hardmode == 'SMOOTH':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
+                else:
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
 
 
     def applyModifiers(self, objs):
@@ -2536,13 +2536,13 @@ class SXTOOLS_tools(object):
                     bpy.ops.object.modifier_remove(modifier='sxSubdivision')
                 else:
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
-            if 'sxBevel' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxDecimate' in obj.modifiers.keys():
                 if scene.exportquality == 'HI':
                     bpy.ops.object.modifier_remove(modifier='sxDecimate')
                 else:
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
+            if 'sxBevel' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxDecimate2' in obj.modifiers.keys():
                 if scene.exportquality == 'HI':
                     bpy.ops.object.modifier_remove(modifier='sxDecimate2')
@@ -2557,14 +2557,14 @@ class SXTOOLS_tools(object):
             bpy.context.view_layer.objects.active = obj
             if 'sxSubdivision' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxSubdivision')
-            if 'sxBevel' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxBevel')
-            if 'sxEdgeSplit' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
             if 'sxDecimate' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxDecimate')
+            if 'sxBevel' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxBevel')
             if 'sxDecimate2' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxDecimate2')
+            if 'sxEdgeSplit' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
 
@@ -3868,6 +3868,145 @@ def updateModifiers(self, context):
         bpy.ops.object.mode_set(mode=mode)
 
 
+def updateModifierVisibility(self, context):
+    scene = context.scene.sxtools
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        vis = objs[0].sxtools.modifiervisibility
+        hardmode = objs[0].sxtools.hardmode
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.modifiervisibility != vis:
+                obj.sxtools.modifiervisibility = vis
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxSubdivision' in obj.modifiers.keys():
+                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+            if 'sxDecimate' in obj.modifiers.keys():
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
+                    obj.modifiers['sxDecimate'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+            if 'sxDecimate2' in obj.modifiers.keys():
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
+                    obj.modifiers['sxDecimate2'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
+            if 'sxBevel' in obj.modifiers.keys():
+                if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
+                    obj.modifiers['sxBevel'].show_viewport = True
+                else:
+                    obj.modifiers['sxBevel'].show_viewport = False
+            if 'sxWeightedNormal' in obj.modifiers.keys():
+                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def updateCreaseModifiers(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        hardmode = objs[0].sxtools.hardmode
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.hardmode != hardmode:
+                obj.sxtools.hardmode = hardmode
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxWeightedNormal' in obj.modifiers.keys():
+                if hardmode == 'SMOOTH':
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = False
+                else:
+                    obj.modifiers['sxWeightedNormal'].keep_sharp = True
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def updateSubdivisionModifier(self, context):
+    scene = context.scene.sxtools
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        vis = objs[0].sxtools.modifiervisibility
+        hardmode = objs[0].sxtools.hardmode
+        subdivLevel = objs[0].sxtools.subdivisionlevel
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.modifiervisibility != vis:
+                obj.sxtools.modifiervisibility = vis
+            if obj.sxtools.hardmode != hardmode:
+                obj.sxtools.hardmode = hardmode
+            if obj.sxtools.subdivisionlevel != subdivLevel:
+                obj.sxtools.subdivisionlevel = subdivLevel
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxSubdivision' in obj.modifiers.keys():
+                obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+            if 'sxDecimate' in obj.modifiers.keys():
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
+                    obj.modifiers['sxDecimate'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+            if 'sxDecimate2' in obj.modifiers.keys():
+                if (obj.sxtools.subdivisionlevel == 0) or (scene.exportquality == 'HI'):
+                    obj.modifiers['sxDecimate2'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def updateBevelModifier(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        bevelWidth = objs[0].sxtools.bevelwidth
+        bevelSegments = objs[0].sxtools.bevelsegments
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.bevelwidth != bevelWidth:
+                obj.sxtools.bevelwidth = bevelWidth
+            if obj.sxtools.bevelsegments != bevelSegments:
+                obj.sxtools.bevelsegments = bevelSegments
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxBevel' in obj.modifiers.keys():
+                obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
+                obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
+                obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def updateDecimateModifier(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        decimation = objs[0].sxtools.decimation
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.decimation != decimation:
+                obj.sxtools.decimation = decimation
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for obj in objs:
+            if 'sxDecimate' in obj.modifiers.keys():
+                obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
 def updateCustomProps(self, context):
     objs = selectionValidator(self, context)
     if len(objs) > 0:
@@ -3975,7 +4114,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     modifiervisibility: bpy.props.BoolProperty(
         name='Modifier Visibility',
         default=True,
-        update=updateModifiers)
+        update=updateModifierVisibility)
 
     hardmode: bpy.props.EnumProperty(
         name='Max Crease Mode',
@@ -3985,35 +4124,35 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('SHARP', 'Sharp', ''),
             ('BEVEL', 'Beveled', '')],
         default='BEVEL',
-        update=updateModifiers)
+        update=updateCreaseModifiers)
 
     subdivisionlevel: bpy.props.IntProperty(
         name='Subdivision Level',
         min=0,
         max=6,
         default=1,
-        update=updateModifiers)
+        update=updateSubdivisionModifier)
 
     bevelwidth: bpy.props.FloatProperty(
         name='Bevel Width',
         min=0.0,
         max=100.0,
         default=0.05,
-        update=updateModifiers)
+        update=updateBevelModifier)
 
     bevelsegments: bpy.props.IntProperty(
         name='Bevel Segments',
         min=1,
         max=10,
         default=2,
-        update=updateModifiers)
+        update=updateBevelModifier)
 
     decimation: bpy.props.FloatProperty(
         name='Decimation',
         min=0.0,
         max=10.0,
         default=0.5,
-        update=updateModifiers)
+        update=updateDecimateModifier)
 
     staticvertexcolors: bpy.props.BoolProperty(
         name='Static Vertex Colors Export Flag',
@@ -5887,7 +6026,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Investigate splitting updateModifiers to prevent accidental object-specific value overriding
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
