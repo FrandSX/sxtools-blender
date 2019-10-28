@@ -5961,6 +5961,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Merge vertices in process/modifier stack
 # - Fill with 0.5 if overlay?
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
