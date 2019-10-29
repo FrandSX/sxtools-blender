@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 22),
+    'version': (2, 39, 24),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2505,14 +2505,20 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxDecimate' not in obj.modifiers.keys():
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate')
-                obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+                if (obj.sxtools.subdivisionlevel == 0):
+                    obj.modifiers['sxDecimate'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
                 obj.modifiers['sxDecimate'].angle_limit = obj.sxtools.decimation * (math.pi/180.0)
                 obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
                 obj.modifiers['sxDecimate'].delimit = {'SHARP', 'UV'}
             if 'sxDecimate2' not in obj.modifiers.keys():
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate2')
-                obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
+                if (obj.sxtools.subdivisionlevel == 0):
+                    obj.modifiers['sxDecimate2'].show_viewport = False
+                else:
+                    obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxDecimate2'].decimate_type = 'COLLAPSE'
                 obj.modifiers['sxDecimate2'].ratio = 0.99
                 obj.modifiers['sxDecimate2'].use_collapse_triangulate = True
@@ -2538,9 +2544,15 @@ class SXTOOLS_tools(object):
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxDecimate' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
+                if obj.modifiers['sxSubdivision'].levels == 0:
+                    bpy.ops.object.modifier_remove(modifier='sxDecimate')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
             if 'sxDecimate2' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
+                if obj.modifiers['sxSubdivision'].levels == 0:
+                    bpy.ops.object.modifier_remove(modifier='sxDecimate2')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
 
