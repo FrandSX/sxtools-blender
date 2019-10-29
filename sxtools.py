@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 39, 24),
+    'version': (2, 40, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2596,6 +2596,26 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
+    def createUVSet0(self, objs):
+        for obj in objs:
+            setCount = len(obj.data.uv_layers)
+            if setCount > 6:
+                print('SX Tools: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
+            else:
+                base = obj.data.uv_layers[0]
+                if 'UVSet' not in base.name:
+                    base.name = 'UVSet0'
+                elif base.name == 'UVSet1':
+                    obj.data.uv_layers.new(name='UVSet0')
+                    for i in range(setCount):
+                        uvName = obj.data.uv_layers[0].name
+                        obj.data.uv_layers.active_index = 0
+                        bpy.ops.mesh.uv_texture_add()
+                        obj.data.uv_layers.active_index = 0
+                        bpy.ops.mesh.uv_texture_remove()
+                        obj.data.uv_layers[setCount].name = uvName
+
+
     def revertObjects(self, objs):
         self.removeModifiers(objs)
 
@@ -5033,6 +5053,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
                         col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                         col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
+                        col_masks.operator('sxtools.createuv0', text='Debug: Create UVSet0')
                         col_masks.separator()
                         col_masks.operator('sxtools.revertobjects', text='Revert to Control Cages')
                         col_masks.operator('sxtools.setpivots', text='Set Pivots')
@@ -5790,6 +5811,25 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_createuv0(bpy.types.Operator):
+    bl_idname = 'sxtools.createuv0'
+    bl_label = 'Create UVSet0'
+    bl_description = 'Checks if UVSet0 is missing\nand adds it at the top of the UV sets'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            active = context.active_object
+            for obj in objs:
+                bpy.context.view_layer.objects.active = obj
+                tools.createUVSet0(objs)
+
+            bpy.context.view_layer.objects.active = active
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_groupobjects(bpy.types.Operator):
     bl_idname = 'sxtools.groupobjects'
     bl_label = 'Group Objects'
@@ -5910,6 +5950,7 @@ classes = (
     SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_removeexports,
     SXTOOLS_OT_setpivots,
+    SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
