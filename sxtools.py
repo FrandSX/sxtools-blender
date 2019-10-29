@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 40, 4),
+    'version': (2, 40, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2599,12 +2599,20 @@ class SXTOOLS_tools(object):
     def createUVSet0(self, objs):
         for obj in objs:
             setCount = len(obj.data.uv_layers)
-            if setCount > 6:
-                print('SX Tools: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
+            if setCount == 0:
+                print('SX Tools: ', obj.name, ' has no UV Sets')
+            elif setCount > 6:
+                base = obj.data.uv_layers[0]
+                if base.name == 'UVSet0':
+                    print('SX Tools: UVSet0 already on ', obj.name)
+                else:
+                    print('SX Tools: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
             else:
                 base = obj.data.uv_layers[0]
                 if 'UVSet' not in base.name:
                     base.name = 'UVSet0'
+                elif base.name == 'UVSet0':
+                    print('SX Tools: UVSet0 already on ', obj.name)
                 elif base.name == 'UVSet1':
                     obj.data.uv_layers.new(name='UVSet0')
                     for i in range(setCount):
@@ -2614,6 +2622,8 @@ class SXTOOLS_tools(object):
                         obj.data.uv_layers.active_index = 0
                         bpy.ops.mesh.uv_texture_remove()
                         obj.data.uv_layers[setCount].name = uvName
+                else:
+                    print('SX Tools: ', obj.name, ' has an unknown UV Set configuration')
 
 
     def revertObjects(self, objs):
