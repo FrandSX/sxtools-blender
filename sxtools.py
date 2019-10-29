@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 40, 6),
+    'version': (2, 41, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2597,7 +2597,9 @@ class SXTOOLS_tools(object):
 
 
     def createUVSet0(self, objs):
+        active = bpy.context.view_layer.objects.active
         for obj in objs:
+            bpy.context.view_layer.objects.active = obj
             setCount = len(obj.data.uv_layers)
             if setCount == 0:
                 print('SX Tools: ', obj.name, ' has no UV Sets')
@@ -2624,6 +2626,8 @@ class SXTOOLS_tools(object):
                         obj.data.uv_layers[setCount].name = uvName
                 else:
                     print('SX Tools: ', obj.name, ' has an unknown UV Set configuration')
+
+        bpy.context.view_layer.objects.active = active
 
 
     def revertObjects(self, objs):
@@ -2663,6 +2667,9 @@ class SXTOOLS_export(object):
             obj.data.auto_smooth_angle = 3.14159
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
+
+        # Make sure all objects have UVSet0
+        tools.createUVSet0(objs)
 
         # Remove empties from selected objects
         for sel in bpy.context.view_layer.objects.selected:
@@ -5831,12 +5838,7 @@ class SXTOOLS_OT_createuv0(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
         if len(objs) > 0:
-            active = context.active_object
-            for obj in objs:
-                bpy.context.view_layer.objects.active = obj
-                tools.createUVSet0(objs)
-
-            bpy.context.view_layer.objects.active = active
+            tools.createUVSet0(objs)
         return {'FINISHED'}
 
 
