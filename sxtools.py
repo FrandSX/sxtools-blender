@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 41, 2),
+    'version': (2, 41, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1760,8 +1760,10 @@ class SXTOOLS_mesh(object):
 
             for vtxCurvatures in objCurvatures.values():
                 for vert, vtxCurvature in vtxCurvatures.items():
-                    if vtxCurvature < 0:
+                    if vtxCurvature < 0.0:
                         vtxCurvatures[vert] = (vtxCurvature / float(minCurv)) * -0.5 + 0.5
+                    elif vtxCurvature == 0.0:
+                        vtxCurvatures[vert] = 0.5
                     else:
                         vtxCurvatures[vert] = (vtxCurvature / float(maxCurv)) * 0.5 + 0.5
         else:
@@ -2310,7 +2312,7 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
 
-    def selectCrease(self, objs, group):
+    def selectCrease(self, objs, group, clearsel=False):
         creaseDict = {
             'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
@@ -2319,9 +2321,11 @@ class SXTOOLS_tools(object):
 
         bpy.context.view_layer.objects.active = objs[0]
 
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
-        bpy.ops.object.mode_set(mode='OBJECT')
+        if clearsel:
+            bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             for edge in obj.data.edges:
@@ -3218,18 +3222,15 @@ class SXTOOLS_export(object):
 
         mergebbx = scene.rampbbox
         overwrite = True
-        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         # Apply custom overlay
         layer = obj.sxlayers['overlay']
         rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
+        scene.ramplist = 'WEARANDTEAR'
         noise = 0.0
         mono = False
-
-        obj.mode == 'OBJECT'
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
@@ -3245,6 +3246,7 @@ class SXTOOLS_export(object):
         noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+
         color = (0.5, 0.5, 0.5, 0.5)
         layer = obj.sxlayers['overlay']
         tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
@@ -3522,14 +3524,13 @@ class SXTOOLS_export(object):
 
     def removeExports(self):
         objs = sxglobals.exportObjects
-        # bpy.ops.object.delete({"selected_objects": objs})
         for obj in objs:
-            if obj in bpy.data.objects:
+            if obj in bpy.context.view_layer.objects:
                 bpy.data.objects.remove(obj, do_unlink=True)
         sxglobals.exportObjects = []
 
         for obj in sxglobals.sourceObjects:
-            if obj in bpy.data.objects:
+            if obj in bpy.context.view_layer.objects:
                 if obj.name.endswith('_org'):
                     obj.name = obj.name[:-4]
                 if obj.data and obj.data.name.endswith('_org'):
@@ -5546,6 +5547,8 @@ class SXTOOLS_OT_crease0(bpy.types.Operator):
             group = 'CreaseSet0'
             if event.shift:
                 tools.selectCrease(objs, group)
+            elif event.alt:
+                tools.selectCrease(objs, group, True)
             else:
                 tools.assignCrease(objs, group)
         return {'FINISHED'}
@@ -5564,6 +5567,8 @@ class SXTOOLS_OT_crease1(bpy.types.Operator):
             group = 'CreaseSet1'
             if event.shift:
                 tools.selectCrease(objs, group)
+            elif event.alt:
+                tools.selectCrease(objs, group, True)
             else:
                 tools.assignCrease(objs, group)
         return {'FINISHED'}
@@ -5582,6 +5587,8 @@ class SXTOOLS_OT_crease2(bpy.types.Operator):
             group = 'CreaseSet2'
             if event.shift:
                 tools.selectCrease(objs, group)
+            elif event.alt:
+                tools.selectCrease(objs, group, True)
             else:
                 tools.assignCrease(objs, group)
         return {'FINISHED'}
@@ -5600,6 +5607,8 @@ class SXTOOLS_OT_crease3(bpy.types.Operator):
             group = 'CreaseSet3'
             if event.shift:
                 tools.selectCrease(objs, group)
+            elif event.alt:
+                tools.selectCrease(objs, group, True)
             else:
                 tools.assignCrease(objs, group)
         return {'FINISHED'}
@@ -5618,6 +5627,8 @@ class SXTOOLS_OT_crease4(bpy.types.Operator):
             group = 'CreaseSet4'
             if event.shift:
                 tools.selectCrease(objs, group)
+            elif event.alt:
+                tools.selectCrease(objs, group, True)
             else:
                 tools.assignCrease(objs, group)
         return {'FINISHED'}
