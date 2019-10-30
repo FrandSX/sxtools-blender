@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 41, 5),
+    'version': (2, 42, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1881,7 +1881,8 @@ class SXTOOLS_tools(object):
                                     vertexColors[loop_idx].color[2] = color[2]
                                     vertexColors[loop_idx].color[3] = maskValues[loop_idx].color[3]
                                 else:
-                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                                    if overwrite:
+                                        vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
                             elif fillMode == 'UV4':
                                 if maskValues[loop_idx].color[3] > 0.0:
                                     uvValues0[loop_idx].uv[fillChannel0] = color[0]
@@ -1889,13 +1890,17 @@ class SXTOOLS_tools(object):
                                     uvValues2[loop_idx].uv[fillChannel2] = color[2]
                                     uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
                                 else:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                                    if overwrite:
+                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                        uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                        uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                        uvValues3[loop_idx].uv[fillChannel3] = 0.0
                             elif fillMode == 'UV':
                                 if maskValues[loop_idx].color[3] > 0.0:
                                     uvValues0[loop_idx].uv[fillChannel0] = fillValue * maskValues[loop_idx].color[3]
+                                else:
+                                    if overwrite:
+                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
                         elif overwrite:
                             if fillMode == 'COLOR':
                                 vertexColors[loop_idx].color = color
@@ -1947,7 +1952,8 @@ class SXTOOLS_tools(object):
                                     vertexColors[loop_idx].color[2] = noiseColor[2]
                                     vertexColors[loop_idx].color[3] = maskValues[loop_idx].color[3]
                                 else:
-                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                                    if overwrite:
+                                        vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
                             elif overwrite:
                                 vertexColors[loop_idx].color = noiseColor
                             else:
@@ -1975,10 +1981,11 @@ class SXTOOLS_tools(object):
                                     uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
                                     uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
                                 else:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                                    if overwrite:
+                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                        uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                        uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                        uvValues3[loop_idx].uv[fillChannel3] = 0.0
                             elif overwrite:
                                 uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
                                 uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
@@ -2002,6 +2009,9 @@ class SXTOOLS_tools(object):
                             if maskLayer:
                                 if maskValues[loop_idx].color[3] > 0.0:
                                     uvValues0[loop_idx].uv[fillChannel0] = fillNoise * maskValues[loop_idx].color[3]
+                                else:
+                                    if overwrite:
+                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
                             elif overwrite:
                                 uvValues0[loop_idx].uv[fillChannel0] = fillNoise
                             else:
@@ -3051,7 +3061,6 @@ class SXTOOLS_export(object):
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        inverse = False
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -3087,7 +3096,6 @@ class SXTOOLS_export(object):
 
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
-
         layer = obj.sxlayers['smoothness']
         overwrite = True
         noise = 0.01
@@ -3096,32 +3104,20 @@ class SXTOOLS_export(object):
 
         layer4 = utils.findLayerFromIndex(obj, 4)
         layer5 = utils.findLayerFromIndex(obj, 5)
-        sxlayers = [layer4, layer5]
-        tools.selectMask(objs, sxlayers, inverse)
 
         color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
 
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-        noise = 0.01
-        mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+        overwrite = False
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer4)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer5)
 
         color = (0.0, 0.0, 0.0, 1.0)
-
-        maskLayer = utils.findLayerFromIndex(obj, 6)
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
+        layer6 = utils.findLayerFromIndex(obj, 6)
 
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer6)
 
         # Combine smoothness base mask with custom curvature gradient
         layer = obj.sxlayers['composite']
@@ -3162,7 +3158,7 @@ class SXTOOLS_export(object):
 
         # Apply PBR metal based on layer7
         layer = utils.findLayerFromIndex(obj, 7)
-        overwrite = True
+        overwrite = False
         material = 'Iron'
         noise = 0.01
         mono = True
@@ -3189,17 +3185,16 @@ class SXTOOLS_export(object):
 
         # Emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
-        layer = obj.sxlayers['emission']
-        tools.selectMask(objs, [layer, ], inverse)
-
+        maskLayer = obj.sxlayers['emission']
+        tools.selectMask(objs, [maskLayer, ], inverse=False)
         layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
+        overwrite = True
         noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
 
@@ -3208,7 +3203,6 @@ class SXTOOLS_export(object):
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        inverse = False
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -3241,7 +3235,7 @@ class SXTOOLS_export(object):
         color = (1.0, 1.0, 1.0, 1.0)
         maskLayer = utils.findLayerFromIndex(obj, 7)
         layer = obj.sxlayers['occlusion']
-        overwrite = True
+        overwrite = False
 
         noise = 0.0
         mono = True
@@ -3256,47 +3250,36 @@ class SXTOOLS_export(object):
         layers.clearUVs(objs, obj.sxlayers['smoothness'])
         layers.clearUVs(objs, obj.sxlayers['transmission'])
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         # Construct layer1-7 smoothness base mask
         color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
 
         layer = obj.sxlayers['smoothness']
         overwrite = True
-        obj.mode == 'OBJECT'
         noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
         layer4 = utils.findLayerFromIndex(obj, 4)
         layer5 = utils.findLayerFromIndex(obj, 5)
-        sxlayers = [layer4, layer5]
-        tools.selectMask(objs, sxlayers, inverse)
 
         color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
 
         layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
+        overwrite = False
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer4)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer5)
 
         color = (0.1, 0.1, 0.1, 1.0)
 
-        maskLayer = utils.findLayerFromIndex(obj, 6)
+        layer6 = utils.findLayerFromIndex(obj, 6)
         layer = obj.sxlayers['smoothness']
-        overwrite = True
+        overwrite = False
 
         noise = 0.0
         mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.applyColor(objs, layer, color, overwrite, noise, mono, layer6)
 
         # Combine smoothness base mask with custom curvature gradient
         layer = obj.sxlayers['composite']
@@ -3307,11 +3290,6 @@ class SXTOOLS_export(object):
         scene.ramplist = 'CURVATURESMOOTHNESS'
         noise = 0.0
         mono = True
-
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
@@ -3330,11 +3308,6 @@ class SXTOOLS_export(object):
         noise = 0.0
         mono = True
 
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
         tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
             obj.sxlayers['smoothness'].alpha = 1.0
@@ -3347,7 +3320,7 @@ class SXTOOLS_export(object):
 
         # Apply PBR glass based on layer7
         layer = utils.findLayerFromIndex(obj, 7)
-        overwrite = True
+        overwrite = False
         obj.mode == 'OBJECT'
         material = 'Silver'
         noise = 0.01
@@ -3364,18 +3337,16 @@ class SXTOOLS_export(object):
 
         # Emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
-        layer = obj.sxlayers['emission']
-        tools.selectMask(objs, [layer, ], inverse)
-
+        maskLayer = obj.sxlayers['emission']
+        tools.selectMask(objs, [maskLayer, ], inverse=False)
         layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
+        overwrite = True
         noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
 
@@ -4578,13 +4549,17 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Palette',
         default=False)
 
+    expanddebug: bpy.props.BoolProperty(
+        name='Expand Debug',
+        default=False)
+
     exportmode: bpy.props.EnumProperty(
         name='Export Mode',
         description='Display utils or export settings',
         items=[
-            ('UTILS', 'Utilities', ''),
-            ('EXPORT', 'Export', '')],
-        default='UTILS')
+            ('EXPORT', 'Export', ''),
+            ('UTILS', 'Utilities', '')],
+        default='EXPORT')
 
     exportquality: bpy.props.EnumProperty(
         name='Export Quality',
@@ -5073,19 +5048,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     icon='TRIA_DOWN' if scene.expandexport else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_export.prop(scene, 'exportmode', expand=True)
-                if scene.exportmode == 'UTILS':
-                    if scene.expandexport:
-                        col_masks = box_export.column(align=True)
-                        col_masks.operator('sxtools.enableall', text='Debug: Enable All Layers')
-                        col_masks.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
-                        col_masks.operator('sxtools.generatemasks', text='Debug: Generate Masks')
-                        col_masks.operator('sxtools.createuv0', text='Debug: Create UVSet0')
-                        col_masks.separator()
-                        col_masks.operator('sxtools.revertobjects', text='Revert to Control Cages')
-                        col_masks.operator('sxtools.setpivots', text='Set Pivots')
-                        col_masks.operator('sxtools.groupobjects', text='Group Selected Objects')
-
-                elif scene.exportmode == 'EXPORT':
+                if scene.exportmode == 'EXPORT':
                     if scene.expandexport:
                         col_export = box_export.column(align=True)
                         col_export.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
@@ -5104,6 +5067,26 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
                         col2_export.operator('sxtools.exportfiles', text='Export Selected')
+
+                elif scene.exportmode == 'UTILS':
+                    if scene.expandexport:
+                        col_utils = box_export.column(align=True)
+                        col_utils.operator('sxtools.revertobjects', text='Revert to Control Cages')
+                        col_utils.operator('sxtools.setpivots', text='Set Pivots')
+                        col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
+                        row_debug = box_export.row()
+                        row_debug.prop(scene, 'expanddebug',
+                            icon='TRIA_DOWN' if scene.expanddebug else 'TRIA_RIGHT',
+                            icon_only=True, emboss=False)
+                        row_debug.label(text='Debug Tools')
+                        if scene.expanddebug:
+                            col_debug = box_export.column(align=True)
+                            col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
+                            col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
+                            col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
+                            col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
+
+
 
         else:
             layout = self.layout
