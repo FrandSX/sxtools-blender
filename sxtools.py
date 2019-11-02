@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 42, 3),
+    'version': (2, 44, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -66,7 +66,7 @@ class SXTOOLS_sxglobals(object):
             ['smoothness', False, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U'],
             ['gradient1', False, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U'],
             ['gradient2', False, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U'],
-            ['overlay', False, 10, 'UV4', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'],
+            ['overlay', False, 10, 'UV4', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'],
             ['texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U'],
             ['masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U']]
  
@@ -874,7 +874,7 @@ class SXTOOLS_layers(object):
         objDicts = tools.selectionHandler(objs)
         sxUVs = utils.findDefaultValues(objs[0], 'Dict')
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'U': 0, 'V': 1}
 
         if targetLayer is not None:
@@ -936,7 +936,7 @@ class SXTOOLS_layers(object):
 
     def blendDebug(self, objs, layer, shadingmode):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         fillMode = layer.layerType
         channels = {'U': 0, 'V':1}
 
@@ -991,9 +991,10 @@ class SXTOOLS_layers(object):
 
     def blendLayers(self, objs, topLayerArray, baseLayer, resultLayer):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         channels = {'U': 0, 'V': 1}
+        midpoint = tools.srgbToLinear([0.5, 0.5, 0.5, 1.0])[0]
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
@@ -1076,7 +1077,7 @@ class SXTOOLS_layers(object):
                             elif blend == 'OVR':
                                 over = [0.0, 0.0, 0.0, 0.0]
                                 for j in range(3):
-                                    if base[j] < 0.5:
+                                    if base[j] < midpoint:
                                         over[j] = 2.0 * base[j] * top[j]
                                     else:
                                         over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
@@ -1096,7 +1097,7 @@ class SXTOOLS_layers(object):
     def copyChannel(self, objs, source, sourceChannel, target, targetChannel, fillMode):
         objDicts = tools.selectionHandler(objs)
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
         for obj in objs:
@@ -1170,7 +1171,7 @@ class SXTOOLS_layers(object):
     # so the faces can be re-colored in a game engine
     def generateMasks(self, objs):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
         for obj in objs:
@@ -1197,23 +1198,38 @@ class SXTOOLS_layers(object):
 
     def flattenAlphas(self, objs):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             vertexUVs = obj.data.uv_layers
             channels = {'U': 0, 'V': 1}
             for layer in obj.sxlayers:
+                alpha = layer.alpha
                 if (layer.name == 'gradient1') or (layer.name == 'gradient2'):
-                    alpha = layer.alpha
                     for poly in obj.data.polygons:
                         for idx in poly.loop_indices:
                             vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] *= alpha
                     layer.alpha = 1.0
-
                 elif layer.name == 'overlay':
-                    alpha = layer.alpha
-                    for poly in obj.data.polygons:
-                        for idx in poly.loop_indices:
-                            vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] *= alpha
+                    if layer.blendMode == 'OVR':
+                        for poly in obj.data.polygons:
+                            for idx in poly.loop_indices:
+                                base = [0.5, 0.5, 0.5, 1.0]
+                                top = [
+                                    vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
+                                    vertexUVs[layer.uvLayer1].data[idx].uv[channels[layer.uvChannel1]],
+                                    vertexUVs[layer.uvLayer2].data[idx].uv[channels[layer.uvChannel2]],
+                                    vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]]][:]
+                                for j in range(3):
+                                    base[j] = (top[j] * (top[3] * alpha) + base[j] * (1 - (top[3] * alpha)))
+
+                                vertexUVs[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]] = base[0]
+                                vertexUVs[layer.uvLayer1].data[idx].uv[channels[layer.uvChannel1]] = base[1]
+                                vertexUVs[layer.uvLayer2].data[idx].uv[channels[layer.uvChannel2]] = base[2]
+                                vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] = base[3]
+                    else:
+                        for poly in obj.data.polygons:
+                            for idx in poly.loop_indices:
+                                vertexUVs[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]] *= alpha
                     layer.alpha = 1.0
 
         bpy.ops.object.mode_set(mode=mode)
@@ -1269,7 +1285,7 @@ class SXTOOLS_layers(object):
 
     def updateLayerPalette(self, objs, layer):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'U': 0, 'V': 1}
         colorArray = []
 
@@ -1294,10 +1310,10 @@ class SXTOOLS_layers(object):
                         uvValue1 = uvValues1[loop_idx].uv[channels[layer.uvChannel1]]
                         uvValue2 = uvValues2[loop_idx].uv[channels[layer.uvChannel2]]
                         uvValue3 = uvValues3[loop_idx].uv[channels[layer.uvChannel3]]
-                        color = (uvValue0, uvValue1, uvValue2, uvValue3)
+                        color = [uvValue0, uvValue1, uvValue2, uvValue3]
                     elif layer.layerType == 'UV':
                         uvValue = uvValues[loop_idx].uv[channels[layer.uvChannel0]]
-                        color = (uvValue, uvValue, uvValue, uvValue)
+                        color = [uvValue, uvValue, uvValue, uvValue]
 
                     if color[3] > 0.0:
                         colorArray.append(color)
@@ -1306,7 +1322,8 @@ class SXTOOLS_layers(object):
             color = (0.0, 0.0, 0.0, 1.0)
             colorArray.append(color)
 
-        colorSet = set(colorArray)
+        # colorSet = set(colorArray)
+        colorSet = set(tuple(color) for color in colorArray)
         colorFreq = []
         for color in colorSet:
             colorFreq.append((colorArray.count(color), color))
@@ -1391,7 +1408,7 @@ class SXTOOLS_mesh(object):
         mode = objs[0].mode
         objDirections = {}
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1440,7 +1457,7 @@ class SXTOOLS_mesh(object):
 
     def findRootPivot(self, objs):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         bbx_x = []
         bbx_y = []
@@ -1478,7 +1495,7 @@ class SXTOOLS_mesh(object):
                 if modifier.type == 'SUBSURF':
                     modifier.show_viewport = False
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1569,7 +1586,7 @@ class SXTOOLS_mesh(object):
                 if modifier.type == 'SUBSURF':
                     modifier.show_viewport = False
 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         # First pass to analyze ray hit distances,
         # then set max ray distance to half of median distance
@@ -1659,7 +1676,7 @@ class SXTOOLS_mesh(object):
         objDicts = tools.selectionHandler(objs)
         layerType = layer.layerType
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'U': 0, 'V':1}
 
         objLuminances = {}
@@ -1786,7 +1803,7 @@ class SXTOOLS_tools(object):
     # return appropriate vertices
     def selectionHandler(self, objs):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         objDicts = {}
         objSel = False
         faceSel = False
@@ -1838,6 +1855,7 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
         return objDicts
 
+
     # maskLayer assumes color layers only
     def applyColor(self, objs, layer, color, overwrite, noise=0.0, mono=False, maskLayer=None):
         objDicts = self.selectionHandler(objs)
@@ -1847,11 +1865,10 @@ class SXTOOLS_tools(object):
         fillChannel1 = channels[layer.uvChannel1]
         fillChannel2 = channels[layer.uvChannel2]
         fillChannel3 = channels[layer.uvChannel3]
-
         fillValue = mesh.colorToLuminance(color)
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             if fillMode == 'COLOR':
@@ -2031,7 +2048,7 @@ class SXTOOLS_tools(object):
         fillChannel3 = channels[layer.uvChannel3]
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         luminanceDict = mesh.calculateLuminance(objs, layer)
         luminanceList = list()
@@ -2129,7 +2146,7 @@ class SXTOOLS_tools(object):
         fillChannel3 = channels[layer.uvChannel3]
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         if rampmode == 'C':
             objValues = mesh.calculateCurvature(objs, False)
@@ -2342,7 +2359,7 @@ class SXTOOLS_tools(object):
                 if math.isclose(edge.crease, weight, abs_tol=0.1):
                     edge.select = True
 
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
 
     def assignCrease(self, objs, group):
@@ -2352,7 +2369,7 @@ class SXTOOLS_tools(object):
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
             'CreaseSet4': 1.0}
         weight = creaseDict[group]
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
         for obj in objs:
             bm = bmesh.from_edit_mesh(obj.data)
@@ -2469,7 +2486,7 @@ class SXTOOLS_tools(object):
 
         for idx in range(1, 6):
             layer = utils.findLayerFromIndex(objs[0], idx)
-            color = palette[idx - 1]
+            color = tools.srgbToLinear(palette[idx - 1])
             bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = color
 
             self.applyColor(objs, layer, color, False, noise, mono)
@@ -2481,9 +2498,13 @@ class SXTOOLS_tools(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        self.applyColor(objs, objs[0].sxlayers['smoothness'], palette[2], overwrite, noise, mono)
-        self.applyColor(objs, objs[0].sxlayers['metallic'], palette[1], overwrite, noise, mono)
-        self.applyColor(objs, targetLayer, palette[0], overwrite, noise, mono)
+        color0 = tools.srgbToLinear(palette[0])
+        color1 = tools.srgbToLinear(palette[0])
+        color2 = tools.srgbToLinear(palette[0])
+
+        self.applyColor(objs, objs[0].sxlayers['smoothness'], color2, overwrite, noise, mono)
+        self.applyColor(objs, objs[0].sxlayers['metallic'], color1, overwrite, noise, mono)
+        self.applyColor(objs, targetLayer, color0, overwrite, noise, mono)
 
 
     def addModifiers(self, objs):
@@ -2590,7 +2611,7 @@ class SXTOOLS_tools(object):
 
     def groupObjects(self, objs):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         pivot = mesh.findRootPivot(objs)
 
@@ -2653,6 +2674,29 @@ class SXTOOLS_tools(object):
         layers.clearUVs(objs, objs[0].sxlayers['smoothness'])
         layers.clearUVs(objs, objs[0].sxlayers['transmission'])
 
+
+    def srgbToLinear(self, inColor):
+        outColor = list()
+        for i in range(4):
+            if 0.0 <= inColor[i] <= 0.0404482362771082:
+                outColor.append(float(inColor[i]) / 12.92)
+            elif  0.0404482362771082 < inColor[i] <= 1.0: 
+                outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
+
+        print(inColor, outColor)
+        return outColor
+
+
+    def linearToSrgb(self, inColor):
+        outColor = list()
+        for i in range(4):
+            if 0.0 <= inColor[i] <= 0.00313066844250063:
+                outColor.append(float(inColor[i]) * 12.92)
+            elif  0.00313066844250063 < inColor[i] <= 1.0: 
+                outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
+
+        print(inColor, outColor)
+        return outColor
 
     def __del__(self):
         print('SX Tools: Exiting tools')
@@ -3213,7 +3257,6 @@ class SXTOOLS_export(object):
         scene.occlusionblend = 0.0
         scene.occlusionrays = 200
         scene.occlusionbias = 0.05
-
         mergebbx = scene.rampbbox
         overwrite = True
 
@@ -3235,13 +3278,13 @@ class SXTOOLS_export(object):
         color = (1.0, 1.0, 1.0, 1.0)
         maskLayer = utils.findLayerFromIndex(obj, 7)
         layer = obj.sxlayers['occlusion']
-        overwrite = False
-
         noise = 0.0
         mono = True
+        overwrite = False
+
         tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
-        color = (0.5, 0.5, 0.5, 0.5)
+        color = (0.5, 0.5, 0.5, 1.0)
         layer = obj.sxlayers['overlay']
         tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
 
@@ -3835,7 +3878,7 @@ def updateModifierVisibility(self, context):
                 obj.sxtools.modifiervisibility = vis
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
@@ -3871,7 +3914,7 @@ def updateCreaseModifiers(self, context):
                 obj.sxtools.hardmode = hardmode
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxBevel' in obj.modifiers.keys():
                 if hardmode != 'BEVEL':
@@ -3905,7 +3948,7 @@ def updateSubdivisionModifier(self, context):
                 obj.sxtools.subdivisionlevel = subdivLevel
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
@@ -3937,7 +3980,7 @@ def updateBevelModifier(self, context):
                 obj.sxtools.bevelsegments = bevelSegments
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxBevel' in obj.modifiers.keys():
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
@@ -3958,7 +4001,7 @@ def updateDecimateModifier(self, context):
                 obj.sxtools.decimation = decimation
 
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxDecimate' in obj.modifiers.keys():
                 obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
@@ -5070,7 +5113,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
-                        col_utils = box_export.column(align=True)
+                        col_utils = box_export.column(align=False)
                         col_utils.operator('sxtools.revertobjects', text='Revert to Control Cages')
                         col_utils.operator('sxtools.setpivots', text='Set Pivots')
                         col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
@@ -5875,7 +5918,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
             refreshActives(self, context)
 
             scene.shadingmode = 'FULL'
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             bpy.ops.object.shade_flat()
         return {'FINISHED'}
 
@@ -5908,7 +5951,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             refreshActives(self, context)
 
             scene.shadingmode = 'FULL'
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             bpy.ops.object.shade_smooth()
         return {'FINISHED'}
 
@@ -6028,9 +6071,10 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Source data in gamma space -> write to verts with invert display transform
+# - Overlay strength needs to blend toward neutral gray!
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
-# - Fill with 0.5 if overlay?
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
