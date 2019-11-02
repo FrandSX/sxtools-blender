@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 44, 4),
+    'version': (2, 44, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2683,7 +2683,6 @@ class SXTOOLS_tools(object):
             elif  0.0404482362771082 < inColor[i] <= 1.0: 
                 outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
 
-        print(inColor, outColor)
         return outColor
 
 
@@ -2695,7 +2694,6 @@ class SXTOOLS_tools(object):
             elif  0.00313066844250063 < inColor[i] <= 1.0: 
                 outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
 
-        print(inColor, outColor)
         return outColor
 
     def __del__(self):
@@ -3539,17 +3537,15 @@ class SXTOOLS_export(object):
     def removeExports(self):
         objs = sxglobals.exportObjects
         for obj in objs:
-            if obj in bpy.context.view_layer.objects:
-                bpy.data.objects.remove(obj, do_unlink=True)
+            bpy.data.objects.remove(obj, do_unlink=True)
         sxglobals.exportObjects = []
 
         for obj in sxglobals.sourceObjects:
-            if obj in bpy.context.view_layer.objects:
-                if obj.name.endswith('_org'):
-                    obj.name = obj.name[:-4]
-                if obj.data and obj.data.name.endswith('_org'):
-                    obj.data.name = obj.data.name[:-4]
-                obj.hide_viewport = False
+            if obj.name.endswith('_org'):
+                obj.name = obj.name[:-4]
+            if obj.data and obj.data.name.endswith('_org'):
+                obj.data.name = obj.data.name[:-4]
+            obj.hide_viewport = False
 
         sxglobals.sourceObjects = []
 
