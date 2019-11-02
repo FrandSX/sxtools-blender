@@ -193,7 +193,6 @@ Rory Driscoll for tips on better sampling
 Serge Scherbakov for tips on working with iterators
 
 Jason Summers for sRGB conversion formulas
-http://entropymine.com/imageworsener/srgbformula/
 
 
 SX Tools builds on the following work:
