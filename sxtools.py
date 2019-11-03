@@ -6067,15 +6067,12 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Source data in gamma space -> write to verts with invert display transform
-# - Overlay strength needs to blend toward neutral gray!
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
-# - Create and re-index UV0 if not present in processing
 # - Auto-place pivots during processing?
 # - Absolute path check
 # - Run from direct github zip download
