@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 45, 7),
+    'version': (2, 46, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -225,6 +225,7 @@ class SXTOOLS_files(object):
     # not composited to VertexColor0 as that will be
     # done by the shader on the game engine side 
     def exportFiles(self, groups):
+        scene = bpy.context.scene.sxtools
         groupNames = []
         for group in groups:
             bpy.context.view_layer.objects.active = group
@@ -243,6 +244,9 @@ class SXTOOLS_files(object):
                 layer0 = utils.findLayerFromIndex(sel, 0)
                 layer1 = utils.findLayerFromIndex(sel, 1)
                 layers.blendLayers([sel, ], compLayers, layer1, layer0)
+
+            if scene.colorspace == 'LIN':
+                export.convertToLinear(selArray)
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
             pathlib.Path(path).mkdir(exist_ok=True) 
@@ -2709,11 +2713,20 @@ class SXTOOLS_export(object):
         return None
 
 
+    def convertToLinear(self, objs):
+        for obj in objs:
+            vertexColors = obj.data.vertex_colors
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    vCol = vertexColors['VertexColor0'].data[idx].color
+                    vertexColors['VertexColor0'].data[idx].color = tools.srgbToLinear(vCol)
+
+
     # This is a project-specific batch operation.
     # These should be adapted to the needs of the game,
     # baking category-specific values to achieve
     # consistent project-wide looks.
-    def processObjects(self, objs, mode):
+    def processObjects(self, objs):
         then = time.time()
         scene = bpy.context.scene.sxtools
         orgObjNames = {}
@@ -2734,7 +2747,7 @@ class SXTOOLS_export(object):
                 sel.select_set(False)
 
         # Create high-poly bake meshes
-        if mode == 'HI':
+        if scene.exportquality == 'HI':
             newObjs = []
 
             groups = utils.findGroups(objs)
@@ -2742,7 +2755,7 @@ class SXTOOLS_export(object):
                 orgGroup = bpy.data.objects.new('empty', None)
                 bpy.context.scene.collection.objects.link(orgGroup)
                 orgGroup.empty_display_size = 2
-                orgGroup.empty_display_type = 'PLAIN_AXES'   
+                orgGroup.empty_display_type = 'PLAIN_AXES'
                 orgGroup.location = group.location
                 orgGroup.name = group.name + '_org'
                 orgGroup.hide_viewport = True
@@ -2818,11 +2831,11 @@ class SXTOOLS_export(object):
                         obj.select_set(True)
 
                     if category == 'DEFAULT':
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
                     elif category == 'PALETTED':
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processPaletted(groupObjs)
                     elif category == 'VEHICLES':
@@ -2833,23 +2846,23 @@ class SXTOOLS_export(object):
                                 scene.occlusionblend = 0.5
                             if obj.name.endswith('_roof') or obj.name.endswith('_frame') or obj.name.endswith('_dash') or obj.name.endswith('_hood') or ('bumper' in obj.name):
                                 obj.modifiers['sxDecimate2'].use_symmetry = True
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processVehicles(groupObjs)
                     elif category == 'BUILDINGS':
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processBuildings(groupObjs)
                     elif category == 'TREES':
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processTrees(groupObjs)
                     elif category == 'TRANSPARENT':
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
                     else:
-                        if mode == 'HI':
+                        if scene.exportquality == 'HI':
                             tools.applyModifiers(groupObjs)
                         self.processDefault(groupObjs)
 
@@ -2861,7 +2874,7 @@ class SXTOOLS_export(object):
                 print('SX Tools: ', category, ' / ', len(groupList), ' groups duration: ', now-then, ' seconds')
 
         for obj in bpy.context.view_layer.objects:
-            if (mode == 'HI') and ('_org' in obj.name):
+            if (scene.exportquality == 'HI') and ('_org' in obj.name):
                 obj.hide_viewport = True
             elif obj.type == 'MESH':
                 obj.hide_viewport = False
@@ -2876,7 +2889,7 @@ class SXTOOLS_export(object):
         # now = time.time()
         # print('masks and alphas duration: ', now-then, ' seconds')
 
-        if mode == 'HI':
+        if scene.exportquality == 'HI':
             for obj in objs:
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
@@ -3808,7 +3821,7 @@ def loadCategory(self, context):
                     layer = utils.findLayerFromIndex(obj, i+1)
                     layer.name = categoryData[i]
 
-            obj.sxtools.staticvertexcolors = bool(categoryData[7])
+            obj.sxtools.staticvertexcolors = categoryData[7]
             obj.sxtools.smoothness1 = categoryData[8]
             obj.sxtools.smoothness2 = categoryData[9]
             obj.sxtools.overlaystrength = categoryData[10]
@@ -4161,10 +4174,13 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=0.5,
         update=updateDecimateModifier)
 
-    staticvertexcolors: bpy.props.BoolProperty(
+    staticvertexcolors: bpy.props.EnumProperty(
         name='Static Vertex Colors Export Flag',
-        description='Disable to use dynamic palettes in a game engine\nWhen paletted, overlays are not composited to VertexColor0',
-        default=True,
+        description='Choose how to export vertex colors to a game engine\nStatic bakes all color layers to VertexColor0\nPaletted leaves overlays in alpha channels',
+        items=[
+            ('1', 'Static', ''),
+            ('0', 'Paletted', '')],
+        default='1',
         update=updateCustomProps)
 
     smoothness1: bpy.props.FloatProperty(
@@ -4604,12 +4620,20 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('UTILS', 'Utilities', '')],
         default='EXPORT')
 
+    colorspace: bpy.props.EnumProperty(
+        name='Color Space',
+        description='Export vertex colors in sRGB or Linear color space',
+        items=[
+            ('SRGB', 'sRGB', ''),
+            ('LIN', 'Linear', '')],
+        default='SRGB')
+
     exportquality: bpy.props.EnumProperty(
         name='Export Quality',
-        description='Low-detail mode uses base mesh for baking\nHigh-detail mode bakes after applying modifiers but disables decimation',
+        description='Low Detail mode uses base mesh for baking\nHigh Detail mode bakes after applying modifiers but disables decimation',
         items=[
-            ('LO', 'Low-detail', ''),
-            ('HI', 'High-detail', '')],
+            ('LO', 'Low Detail', ''),
+            ('HI', 'High Detail', '')],
         default='LO')
 
     exportfolder: bpy.props.StringProperty(
@@ -5094,12 +5118,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if scene.exportmode == 'EXPORT':
                     if scene.expandexport:
                         col_export = box_export.column(align=True)
-                        col_export.prop(sxtools, 'staticvertexcolors', text='Static Vertex Colors')
                         col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
                         col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
                         col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
                         col_export.separator()
+                        row3_export = box_export.row(align=True)
+                        row3_export.prop(sxtools, 'staticvertexcolors', expand=True)
+                        row4_export = box_export.row(align=True)
+                        row4_export.prop(scene, 'colorspace', expand=True)
                         row2_export = box_export.row(align=True)
                         row2_export.prop(scene, 'exportquality', expand=True)
                         col2_export = box_export.column(align=True)
@@ -5945,10 +5972,10 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        scene = bpy.context.scene.sxtools
+        scene = context.scene.sxtools
         objs = selectionValidator(self, context)
         if len(objs) > 0:
-            export.processObjects(objs, context.scene.sxtools.exportquality)
+            export.processObjects(objs)
 
             sxglobals.composite = True
             refreshActives(self, context)
