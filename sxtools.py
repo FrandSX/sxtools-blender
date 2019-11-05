@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 4),
+    'version': (2, 46, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5143,6 +5143,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
                         col2_export.operator('sxtools.exportfiles', text='Export Selected')
+                        if mode == 'EDIT':
+                            col2_export.enabled = False
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
