@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 3),
+    'version': (2, 46, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1747,25 +1747,28 @@ class SXTOOLS_mesh(object):
             bm.from_mesh(obj.data)
             for vert in bm.verts:
                 numConnected = len(vert.link_edges)
-                edgeWeights = []
-                angles = []
-                for edge in vert.link_edges:
-                    edgeWeights.append(edge.calc_length())
-                    pos1 = vert.co
-                    pos2 = edge.other_vert(vert).co
-                    edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
-                    angles.append(math.acos(vert.normal.normalized() @ edgeVec.normalized()))
+                if numConnected > 0:
+                    edgeWeights = []
+                    angles = []
+                    for edge in vert.link_edges:
+                        edgeWeights.append(edge.calc_length())
+                        pos1 = vert.co
+                        pos2 = edge.other_vert(vert).co
+                        edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
+                        angles.append(math.acos(vert.normal.normalized() @ edgeVec.normalized()))
 
-                vtxCurvature = 0.0
-                for i in range(numConnected):
-                    curvature = angles[i] / math.pi - 0.5
-                    vtxCurvature += curvature
+                    vtxCurvature = 0.0
+                    for i in range(numConnected):
+                        curvature = angles[i] / math.pi - 0.5
+                        vtxCurvature += curvature
 
-                vtxCurvature = vtxCurvature / float(numConnected)
-                if vtxCurvature > 1.0:
-                    vtxCurvature = 1.0
+                    vtxCurvature = vtxCurvature / float(numConnected)
+                    if vtxCurvature > 1.0:
+                        vtxCurvature = 1.0
 
-                vtxCurvatures[vert.index] = vtxCurvature
+                    vtxCurvatures[vert.index] = vtxCurvature
+                else:
+                    vtxCurvatures[vert.index] = 0.0
             objCurvatures[obj] = vtxCurvatures
 
         # Normalize convex and concave separately
