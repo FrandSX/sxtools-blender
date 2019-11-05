@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 0),
+    'version': (2, 46, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4021,6 +4021,9 @@ def updateDecimateModifier(self, context):
                 if obj.sxtools.decimation == 0:
                     obj.modifiers['sxDecimate'].show_viewport = False
                     obj.modifiers['sxDecimate2'].show_viewport = False
+                elif (obj.sxtools.decimation > 0) and obj.sxtools.modifiervisibility:
+                    obj.modifiers['sxDecimate'].show_viewport = True
+                    obj.modifiers['sxDecimate2'].show_viewport = True
 
         bpy.ops.object.mode_set(mode=mode)
 
