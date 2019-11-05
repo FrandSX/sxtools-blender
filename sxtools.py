@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 2),
+    'version': (2, 46, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3821,7 +3821,7 @@ def loadCategory(self, context):
                     layer = utils.findLayerFromIndex(obj, i+1)
                     layer.name = categoryData[i]
 
-            obj.sxtools.staticvertexcolors = categoryData[7]
+            obj.sxtools.staticvertexcolors = str(categoryData[7])
             obj.sxtools.smoothness1 = categoryData[8]
             obj.sxtools.smoothness2 = categoryData[9]
             obj.sxtools.overlaystrength = categoryData[10]
