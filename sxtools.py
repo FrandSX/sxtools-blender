@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 1),
+    'version': (2, 46, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4036,7 +4036,7 @@ def updateCustomProps(self, context):
         sm2 = objs[0].sxtools.smoothness2
         ovr = objs[0].sxtools.overlaystrength
         for obj in objs:
-            obj['staticVertexColors'] = stc
+            obj['staticVertexColors'] = int(stc)
             if obj.sxtools.staticvertexcolors != stc:
                 obj.sxtools.staticvertexcolors = stc
             if obj.sxtools.smoothness1 != sm1:
