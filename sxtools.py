@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 5),
+    'version': (2, 46, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1080,12 +1080,12 @@ class SXTOOLS_layers(object):
 
                             elif blend == 'OVR':
                                 over = [0.0, 0.0, 0.0, 0.0]
+                                over[3] += top[3]
                                 for j in range(3):
                                     if base[j] < midpoint:
                                         over[j] = 2.0 * base[j] * top[j]
                                     else:
                                         over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
-                                    over[3] += top[3]
                                     base[j] = (over[j] * (over[3] * alpha) + base[j] * (1.0 - (over[3] * alpha)))
                                 base[3] += top[3] * alpha
                                 if base[3] > 1.0:
@@ -2686,10 +2686,14 @@ class SXTOOLS_tools(object):
     def srgbToLinear(self, inColor):
         outColor = list()
         for i in range(4):
-            if 0.0 <= inColor[i] <= 0.0404482362771082:
+            if inColor[i] < 0.0:
+                outColor.append(0.0)
+            elif 0.0 <= inColor[i] <= 0.0404482362771082:
                 outColor.append(float(inColor[i]) / 12.92)
             elif  0.0404482362771082 < inColor[i] <= 1.0: 
                 outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
+            elif inColor[i] > 1.0:
+                outColor.append(1.0)
 
         return tuple(outColor)
 
@@ -2697,10 +2701,14 @@ class SXTOOLS_tools(object):
     def linearToSrgb(self, inColor):
         outColor = list()
         for i in range(4):
-            if 0.0 <= inColor[i] <= 0.00313066844250063:
+            if inColor[i] < 0.0:
+                outColor.append(0.0)
+            elif 0.0 <= inColor[i] <= 0.00313066844250063:
                 outColor.append(float(inColor[i]) * 12.92)
             elif  0.00313066844250063 < inColor[i] <= 1.0: 
                 outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
+            elif inColor[i] > 1.0:
+                outColor.append(1.0)
 
         return tuple(outColor)
 
@@ -6109,6 +6117,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Improve indication of when magic button is necessary
 # - Add linear color conversion step to batch processing
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
