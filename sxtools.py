@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 46, 8),
+    'version': (2, 47, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5134,7 +5134,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_export = box_export.column(align=True)
                         col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
                         col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
-                        col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
+                        if obj.sxtools.staticvertexcolors == '0':
+                            col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
                         col_export.separator()
                         row3_export = box_export.row(align=True)
@@ -5150,9 +5151,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.separator()
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
-                        col2_export.operator('sxtools.exportfiles', text='Export Selected')
+                        split_export = box_export.split(factor=0.1)
+                        split_export.operator('sxtools.checklist', text='', icon='INFO')
+                        split_export.operator('sxtools.exportfiles', text='Export Selected')
                         if mode == 'EDIT':
-                            col2_export.enabled = False
+                            split_export.enabled = False
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
@@ -5977,7 +5980,18 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
 
     def invoke(self, context, event):
         loadLibraries(self, context)
-        return {'FINISHED'}    
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_checklist(bpy.types.Operator):
+    bl_idname = 'sxtools.checklist'
+    bl_label = 'Export Checklist'
+    bl_description = '1) Choose category\n2) Paint color layers\n2) Crease edges\n3) Set object pivots\n4) Objects must be in groups\n5) Set subdivision\n6) Set base smoothness and overlay strength\n7) Press Magic Button\n8) Set folder, Export Selected'
+
+
+    def invoke(self, context, event):
+        # messageBox(self.bl_description)
+        return {'FINISHED'}
 
 
 class SXTOOLS_OT_macro(bpy.types.Operator):
@@ -6057,6 +6071,7 @@ classes = (
     SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
+    SXTOOLS_OT_checklist,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -6118,7 +6133,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Improve indication of when magic button is necessary
-# - Add linear color conversion step to batch processing
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
 # - ProcessBuildings Low: windows need hard normals
