@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 48, 2),
+    'version': (2, 48, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3671,11 +3671,6 @@ def refreshActives(self, context):
             setup.startModal()
 
 
-# Clicking a palette color would ideally set it in fillcolor, TBD
-def updateColorSwatches(self, context):
-    pass
-
-
 def shadingMode(self, context):
     mode = context.scene.sxtools.shadingmode
     objs = selectionValidator(self, context)
@@ -4069,9 +4064,12 @@ def updateCustomProps(self, context):
 
 
 def messageBox(message='', title='SX Tools', icon='INFO'):
+    messageLines = message.splitlines()
+
 
     def draw(self, context):
-        self.layout.label(text=message)
+        for line in messageLines:
+            self.layout.label(text=line)
 
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
@@ -4378,6 +4376,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0))
+
     layerpalette7: bpy.props.FloatVectorProperty(
         name='Layer Palette 7',
         description='Color from the selected layer\nDrag and drop to Fill Color',
@@ -5213,8 +5212,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
 
-
-
         else:
             layout = self.layout
             col = self.layout.column()
@@ -6024,11 +6021,11 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
 class SXTOOLS_OT_checklist(bpy.types.Operator):
     bl_idname = 'sxtools.checklist'
     bl_label = 'Export Checklist'
-    bl_description = '1) Choose category\n2) Paint color layers\n2) Crease edges\n3) Set object pivots\n4) Objects must be in groups\n5) Set subdivision\n6) Set base smoothness and overlay strength\n7) Press Magic Button\n8) Set folder, Export Selected'
+    bl_description = 'Steps to check before exporting'
 
 
     def invoke(self, context, event):
-        # messageBox(self.bl_description)
+        messageBox('1) Choose category\n2) Paint color layers\n2) Crease edges\n3) Set object pivots\n4) Objects must be in groups\n5) Set subdivision\n6) Set base smoothness and overlay strength\n7) Press Magic Button\n8) Set folder, Export Selected')
         return {'FINISHED'}
 
 
@@ -6037,6 +6034,34 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_label = 'Process Exports'
     bl_description = 'Calculates material channels\naccording to category.\nApplies modifiers in High Detail mode'
     bl_options = {'UNDO'}
+
+    # NOTE: This method only works in 2.81 and higher
+    @classmethod
+    def description(cls, context, properties):
+        objs = selectionValidator(cls, context)
+        category = objs[0].sxtools.category
+        mode = context.scene.sxtools.exportquality
+
+        if mode == 'HI':
+            modeString = 'High Detail export:\nModifiers are applied before baking\n\n'
+        else:
+            modeString = 'Low Detail export:\nBaking is performed on control cage (base mesh)\n\n'
+
+        if category == 'DEFAULT':
+            modeString += 'Default batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+        elif category == 'PALETTED':
+            modeString += 'Paletted batch process:\n1) Occlusion bake\n2) Custom smoothness & metallic bake\n3) Custom overlay bake\n4) Emissive faces are smooth and non-occluded\nNOTE: Overwrites existing overlay, occlusion, transmission, metallic and smoothness'
+        elif category == 'VEHICLES':
+            modeString += 'Vehicle batch process:\n1) Custom occlusion bake\n2) Custom smoothness & metallic bake\n3) Custom overlay bake\n4) Emissive faces are smooth and non-occluded\nNOTE: Overwrites existing overlay, occlusion, transmission, metallic and smoothness'
+        elif category == 'BUILDINGS':
+            modeString += 'Buildings batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+        elif category == 'TREES':
+            modeString += 'Trees batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+        elif category == 'TRANSPARENT':
+            modeString += 'Buildings batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+        else:
+            modeString += 'Batch process:\nCalculates material channels according to category'
+        return modeString
 
 
     def invoke(self, context, event):
@@ -6170,6 +6195,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate applyColor with partial alpha colors
+# - processVehicles: emissives are non-occluded
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
