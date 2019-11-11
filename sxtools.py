@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 47, 1),
+    'version': (2, 47, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4066,6 +4066,26 @@ def messageBox(message='', title='SX Tools', icon='INFO'):
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
+def expandFill(self, context):
+    if context.scene.sxtools.expandfill is False:
+        context.scene.sxtools.expandfill = True
+
+
+def expandCrease(self, context):
+    if context.scene.sxtools.expandcrease is False:
+        context.scene.sxtools.expandcrease = True
+
+
+def expandPalette(self, context):
+    if context.scene.sxtools.expandpalette is False:
+        context.scene.sxtools.expandpalette = True
+
+
+def expandExport(self, context):
+    if context.scene.sxtools.expandexport is False:
+        context.scene.sxtools.expandexport = True
+
+
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
@@ -4366,7 +4386,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('COL', 'Color', ''),
             ('GRD', 'Gradient', '')],
-        default='COL')
+        default='COL',
+        update=expandFill)
 
     fillpalette1: bpy.props.FloatVectorProperty(
         name='Recent Color 1',
@@ -4596,7 +4617,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('CRS', 'Creasing', ''),
             ('SDS', 'Modifiers', '')],
-        default='CRS')
+        default='CRS',
+        update=expandCrease)
 
     expandfill: bpy.props.BoolProperty(
         name='Expand Fill',
@@ -4616,7 +4638,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('PAL', 'Palettes', ''),
             ('MAT', 'Materials', '')],
-        default='PAL')
+        default='PAL',
+        update=expandPalette)
 
     expandpalette: bpy.props.BoolProperty(
         name='Expand Palette',
@@ -4632,7 +4655,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('EXPORT', 'Export', ''),
             ('UTILS', 'Utilities', '')],
-        default='EXPORT')
+        default='EXPORT',
+        update=expandExport)
 
     colorspace: bpy.props.EnumProperty(
         name='Color Space',
@@ -6132,6 +6156,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
