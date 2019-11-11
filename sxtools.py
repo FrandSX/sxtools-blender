@@ -6157,6 +6157,7 @@ if __name__ == '__main__':
 
 # TODO:
 # - Move decimation controls to export settings?
+# - Decimation face count display to sxtool
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
