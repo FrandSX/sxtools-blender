@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 47, 2),
+    'version': (2, 48, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -225,7 +225,8 @@ class SXTOOLS_files(object):
     # not composited to VertexColor0 as that will be
     # done by the shader on the game engine side 
     def exportFiles(self, groups):
-        scene = bpy.context.scene.sxtools
+        prefs = bpy.context.preferences
+        colorspace = prefs.addons['sxtools'].preferences.colorspace
         groupNames = []
         for group in groups:
             bpy.context.view_layer.objects.active = group
@@ -245,7 +246,7 @@ class SXTOOLS_files(object):
                 layer1 = utils.findLayerFromIndex(sel, 1)
                 layers.blendLayers([sel, ], compLayers, layer1, layer0)
 
-            if scene.colorspace == 'LIN':
+            if colorspace == 'LIN':
                 export.convertToLinear(selArray)
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
@@ -1797,6 +1798,15 @@ class SXTOOLS_mesh(object):
                     vtxCurvatures[vert] = (vtxCurvature + 0.5)
 
         return objCurvatures
+
+
+    def calculateTriangles(self, objs):
+        count = 0
+        for obj in objs:
+            if 'sxDecimate2' in obj.modifiers.keys():
+                count += obj.modifiers['sxDecimate2'].face_count
+
+        return str(count)
 
 
 # ------------------------------------------------------------------------
@@ -4103,7 +4113,7 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
 
     libraryfolder: bpy.props.StringProperty(
         name='Library Folder',
-        description='Folder containing Materials and Palettes files',
+        description='Folder containing SX Tools data files\n(materials.json, palettes.json, gradients.json)',
         default='',
         maxlen=1024,
         subtype='DIR_PATH',
@@ -4119,14 +4129,28 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         description='Connect Transmission Layer to SXMaterial Transmission',
         default=True)
 
+    colorspace: bpy.props.EnumProperty(
+        name='Color Space for Exports',
+        description='Color space for exported vertex colors',
+        items=[
+            ('SRGB', 'sRGB', ''),
+            ('LIN', 'Linear', '')],
+        default='SRGB')
+
+
     def draw(self, context):
         layout = self.layout
-        layout.label(text='Material Preferences')
-        layout.prop(self, 'materialsubsurface')
-        layout.prop(self, 'materialtransmission')
-        layout.separator()
-        layout.label(text='Select the folder containing SX Tools data files (materials.json, palettes.json, gradients.json)')
-        layout.prop(self, 'libraryfolder')
+        layout_split = layout.split()
+        layout_split.label(text='Connect Transmission Layer to:')
+        layout_split2 = layout_split.split()
+        layout_split2.prop(self, 'materialsubsurface')
+        layout_split2.prop(self, 'materialtransmission')
+        layout_split3 = layout.split()
+        layout_split3.label(text='Color Space for Exports:')
+        layout_split3.prop(self, 'colorspace', text='')
+        layout_split4 = layout.split()
+        layout_split4.label(text='Library Folder:')
+        layout_split4.prop(self, 'libraryfolder', text='')
 
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
@@ -4205,7 +4229,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Decimation',
         min=0.0,
         max=10.0,
-        default=0.5,
+        default=0.0,
         update=updateDecimateModifier)
 
     staticvertexcolors: bpy.props.EnumProperty(
@@ -4658,14 +4682,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default='EXPORT',
         update=expandExport)
 
-    colorspace: bpy.props.EnumProperty(
-        name='Color Space',
-        description='Export vertex colors in sRGB or Linear color space',
-        items=[
-            ('SRGB', 'sRGB', ''),
-            ('LIN', 'Linear', '')],
-        default='SRGB')
-
     exportquality: bpy.props.EnumProperty(
         name='Export Quality',
         description='Low Detail mode uses base mesh for baking\nHigh Detail mode bakes after applying modifiers but disables decimation',
@@ -4909,7 +4925,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             obj = objs[0]
 
             layout = self.layout
-            mesh = obj.data
             mode = obj.mode
             sxtools = obj.sxtools
             scene = context.scene.sxtools
@@ -5071,11 +5086,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_sds.prop(sxtools, 'hardmode', expand=True)
                         col2_sds = box_crease.column(align=True)
                         col2_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                        if obj.sxtools.subdivisionlevel > 0:
-                            col2_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                         if obj.sxtools.hardmode == 'BEVEL':
                             col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
                             col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
+                        if obj.sxtools.subdivisionlevel > 0:
+                            col2_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
+                            col2_sds.label(text='Selection Tri Count: '+mesh.calculateTriangles(objs))
                         col2_sds.separator()
                         if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxDecimate' in obj.modifiers.keys()) or ('sxDecimate2' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
                             col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
@@ -5164,8 +5180,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_export.separator()
                         row3_export = box_export.row(align=True)
                         row3_export.prop(sxtools, 'staticvertexcolors', expand=True)
-                        row4_export = box_export.row(align=True)
-                        row4_export.prop(scene, 'colorspace', expand=True)
                         row2_export = box_export.row(align=True)
                         row2_export.prop(scene, 'exportquality', expand=True)
                         col2_export = box_export.column(align=True)
@@ -6021,7 +6035,7 @@ class SXTOOLS_OT_checklist(bpy.types.Operator):
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
-    bl_description = 'Applies modifiers and calculates material channels\naccording to category'
+    bl_description = 'Calculates material channels\naccording to category.\nApplies modifiers in High Detail mode'
     bl_options = {'UNDO'}
 
 
@@ -6157,7 +6171,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Move decimation controls to export settings?
-# - Decimation face count display to sxtool
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
 # - Merge vertices in process/modifier stack
