@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 48, 5),
+    'version': (2, 48, 6),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5919,6 +5919,8 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         selected = context.view_layer.objects.selected
         groups = utils.findGroups(selected)
         files.exportFiles(groups)
+        sxglobals.composite = True
+        refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -6198,8 +6200,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Export Selected -> wrong display state
-# - Color mask generation for export selected if no magic button pressed
 # - Investigate applyColor with partial alpha colors
 # - processVehicles: emissives are non-occluded
 # - Move decimation controls to export settings?
