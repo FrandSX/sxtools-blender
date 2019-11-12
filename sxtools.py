@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 48, 3),
+    'version': (2, 48, 4),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -237,6 +237,10 @@ class SXTOOLS_files(object):
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             selArray = bpy.context.view_layer.objects.selected
+
+            # Create palette masks
+            layers.generateMasks(selArray)
+
             for sel in selArray:
                 if 'staticVertexColors' not in sel.keys():
                     sel['staticVertexColors'] = True
@@ -2903,8 +2907,7 @@ class SXTOOLS_export(object):
         for obj in objs:
             obj.select_set(True)
 
-        # Create palette masks
-        layers.generateMasks(objs)
+        # Bake Overlay for export
         layers.flattenAlphas(objs)
 
         # now = time.time()
@@ -6195,6 +6198,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Color mask generation for export selected if no magic button pressed
 # - Investigate applyColor with partial alpha colors
 # - processVehicles: emissives are non-occluded
 # - Move decimation controls to export settings?
