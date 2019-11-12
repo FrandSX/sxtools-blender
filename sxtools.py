@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 48, 4),
+    'version': (2, 48, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5642,7 +5642,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 
             idx = objs[0].sxtools.selectedlayer
             layer = utils.findLayerFromIndex(objs[0], idx)
-
+            bpy.context.view_layer.objects.active = objs[0]
             tools.selectMask(objs, [layer, ], inverse)
         return {'FINISHED'}
 
@@ -6198,6 +6198,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Export Selected -> wrong display state
 # - Color mask generation for export selected if no magic button pressed
 # - Investigate applyColor with partial alpha colors
 # - processVehicles: emissives are non-occluded
