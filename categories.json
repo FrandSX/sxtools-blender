@@ -20,11 +20,11 @@
         "layer4 - Palette Color 4",
         "layer5 - Palette Color 5",
         "layer6 - Static Colors",
-        "layer7 - Metallic",
+        "layer7 - PBR Material",
         0,
         0.0,
         0.0,
-        0.5,
+        0.6,
         "OPAQUE"
     ],
     "Vehicles": [
@@ -34,11 +34,11 @@
         "layer4 - Seats",
         "layer5 - Inside Panels",
         "layer6 - Static Colors",
-        "layer7 - Metallic",
+        "layer7 - Metallic Color",
         0,
-        1.0,
-        0.3,
-        0.5,
+        0.95,
+        0.30,
+        0.6,
         "OPAQUE"
     ],
     "Buildings": [

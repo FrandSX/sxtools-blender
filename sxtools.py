@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 48, 6),
+    'version': (2, 49, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3046,7 +3046,6 @@ class SXTOOLS_export(object):
         scene = bpy.context.scene.sxtools
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        inverse = False
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -3056,6 +3055,7 @@ class SXTOOLS_export(object):
         mono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
+        scene.occlusionbias = 0.01
 
         mergebbx = scene.rampbbox
         overwrite = True
@@ -3074,66 +3074,19 @@ class SXTOOLS_export(object):
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
-        # Clear metallic, smoothness, and transmission
-        layers.clearUVs(objs, obj.sxlayers['metallic'])
-        layers.clearUVs(objs, obj.sxlayers['smoothness'])
-        layers.clearUVs(objs, obj.sxlayers['transmission'])
-
-        # Construct layer1-7 smoothness base mask
-        color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
-
+        # Emissives are smooth
+        color = (1.0, 1.0, 1.0, 1.0)
+        maskLayer = obj.sxlayers['emission']
+        tools.selectMask(objs, [maskLayer, ], inverse=False)
         layer = obj.sxlayers['smoothness']
         overwrite = True
-        noise = 0.01
-        mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono)
-
-        layer4 = utils.findLayerFromIndex(obj, 4)
-        layer5 = utils.findLayerFromIndex(obj, 5)
-        sxlayers = [layer4, layer5]
-        tools.selectMask(objs, sxlayers, inverse)
-
-        color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-        noise = 0.01
+        noise = 0.0
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        color = (0.1, 0.1, 0.1, 1.0)
-
-        maskLayer = utils.findLayerFromIndex(obj, 6)
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-
-        noise = 0.0
-        mono = True
-        tools.applyColor(objs, layer, color, overwrite, noise, mono, maskLayer)
-
-        # Combine smoothness base mask with custom curvature gradient
-        layer = obj.sxlayers['composite']
-        for obj in objs:
-            obj.sxlayers['composite'].blendMode = 'ALPHA'
-            obj.sxlayers['composite'].alpha = 1.0
-        rampmode = 'CN'
-        scene.ramplist = 'CURVATURESMOOTHNESS'
-        noise = 0.01
-        mono = True
-
-        tools.applyRamp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['smoothness'].alpha = 1.0
-            obj.sxlayers['smoothness'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blendLayers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        tools.layerCopyManager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
 
 
     def processVehicles(self, objs):
@@ -5174,8 +5127,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if scene.exportmode == 'EXPORT':
                     if scene.expandexport:
                         col_export = box_export.column(align=True)
-                        col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
-                        col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
+                        if (obj.sxtools.category != 'DEFAULT') and (obj.sxtools.category != 'PALETTED'):
+                            col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
+                            col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
                         if obj.sxtools.staticvertexcolors == '0':
                             col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
