@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 49, 2),
+    'version': (2, 49, 3),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4875,6 +4875,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_blend.enabled = False
                     row_alpha.enabled = False
 
+                if (scene.shadingmode == 'DEBUG') or (scene.shadingmode == 'ALPHA'):
+                    row_alpha.enabled = False
+
                 layout.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
                 # layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', scene, 'listIndex', type='DEFAULT')
                 # layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type='DEFAULT')
@@ -6098,7 +6101,6 @@ if __name__ == '__main__':
 # - Merge vertices in process/modifier stack
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
-# - Add alpha support to debug mode
 # - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Auto-place pivots during processing?
 # - Absolute path check
