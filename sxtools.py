@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 49, 1),
+    'version': (2, 49, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3159,6 +3159,10 @@ class SXTOOLS_export(object):
         mono = True
         tools.applyColor(objs, layer, color, overwrite, noise, mono)
 
+        # Emissives are not occluded
+        layer = obj.sxlayers['occlusion']
+        tools.applyColor(objs, layer, color, overwrite, noise, mono)
+
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -6088,7 +6092,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Investigate applyColor with partial alpha colors
-# - processVehicles: emissives are non-occluded
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
