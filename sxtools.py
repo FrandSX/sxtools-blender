@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 50, 2),
+    'version': (2, 50, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -224,7 +224,7 @@ class SXTOOLS_files(object):
     # In paletted export mode, gradients and overlays are
     # not composited to VertexColor0 as that will be
     # done by the shader on the game engine side 
-    def exportFiles(self, groups):
+    def exportFiles(self, groups, cleanup):
         prefs = bpy.context.preferences
         colorspace = prefs.addons['sxtools'].preferences.colorspace
         groupNames = []
@@ -254,25 +254,42 @@ class SXTOOLS_files(object):
                 layer1 = utils.findLayerFromIndex(sel, 1)
                 layers.blendLayers([sel, ], compLayers, layer1, layer0)
 
+            # If linear colorspace exporting is selected
             if colorspace == 'LIN':
                 export.convertToLinear(selArray)
 
+            # LOD levels are created according to maximum subdivision level found per group
             if createLODs is True:
                 orgSelArray = selArray[:]
-                for i in range(3):
-                    print('SX Tools: Generating LOD' + str(i))
-                    for sel in orgSelArray:
-                        newObj = sel.copy()
-                        newObj.data = sel.data.copy()
+                nameArray = list()
 
-                        newObj.data.name = sel.data.name + '_LOD' + str(i)
-                        newObj.name = sel.name + '_LOD' + str(i)
+                lodCount = 1
+                for sel in orgSelArray:
+                    nameArray.append((sel.name[:], sel.data.name[:]))
+                    if (sel.sxtools.subdivisionlevel + 1) > lodCount:
+                        lodCount = sel.sxtools.subdivisionlevel + 1
 
-                        bpy.context.scene.collection.objects.link(newObj)
-                        sxglobals.exportObjects.append(newObj)
+                if lodCount > 1:
+                    for i in range(lodCount):
+                        print('SX Tools: Generating LOD' + str(i))
+                        if i == 0:
+                            for sel in orgSelArray:
+                                    sel.data.name = sel.data.name + '_LOD' + str(i)
+                                    sel.name = sel.name + '_LOD' + str(i)
+                        else:
+                            for j, sel in enumerate(orgSelArray):
+                                if 'sxSubdivision' in sel.modifiers.keys():
+                                    newObj = sel.copy()
+                                    newObj.data = sel.data.copy()
 
-                        newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
-                        newObj.modifiers['sxSubdivision'].levels  = 2 - i
+                                    newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
+                                    newObj.name = nameArray[j][0] + '_LOD' + str(i)
+
+                                    bpy.context.scene.collection.objects.link(newObj)
+                                    sxglobals.exportObjects.append(newObj)
+
+                                    newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
+                                    newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
             pathlib.Path(path).mkdir(exist_ok=True) 
@@ -300,6 +317,13 @@ class SXTOOLS_files(object):
 
             groupNames.append(group.name)
             group.location = org_loc
+
+            if cleanup:
+                for i, sel in enumerate(orgSelArray):
+                    sel.data.name = nameArray[i][1]
+                    sel.name = nameArray[i][0]
+
+                export.removeExports()
 
         messageBox('Exported ' + str(', ').join(groupNames))
 
@@ -3965,6 +3989,7 @@ def updateCustomProps(self, context):
         sm1 = objs[0].sxtools.smoothness1
         sm2 = objs[0].sxtools.smoothness2
         ovr = objs[0].sxtools.overlaystrength
+        lod = objs[0].sxtools.lodmeshes
         for obj in objs:
             obj['staticVertexColors'] = int(stc)
             if obj.sxtools.staticvertexcolors != stc:
@@ -3975,6 +4000,8 @@ def updateCustomProps(self, context):
                 obj.sxtools.smoothness2 = sm2
             if obj.sxtools.overlaystrength != ovr:
                 obj.sxtools.overlaystrength = ovr
+            if obj.sxtools.lodmeshes != lod:
+                obj.sxtools.lodmeshes = lod
 
 
 def messageBox(message='', title='SX Tools', icon='INFO'):
@@ -4176,7 +4203,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     lodmeshes: bpy.props.BoolProperty(
         name='Generate LOD Meshes',
-        default=False)
+        default=False,
+        update=updateCustomProps)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -5110,7 +5138,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.separator()
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
-                        col2_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
+                        col3_export = box_export.column(align=True)
+                        col3_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
+                        if 'sxSubdivision' not in obj.modifiers.keys():
+                            col3_export.enabled = False
                         split_export = box_export.split(factor=0.1)
                         split_export.operator('sxtools.checklist', text='', icon='INFO')
                         split_export.operator('sxtools.exportfiles', text='Export Selected')
@@ -5832,13 +5863,16 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
 class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_idname = 'sxtools.exportfiles'
     bl_label = 'Export Selected'
-    bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY groups at root based on selection are exported'
+    bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY groups at root based on selection are exported\nShift-click to leave generated and renamed meshes in the scene'
 
 
     def invoke(self, context, event):
+        cleanup = True
         selected = context.view_layer.objects.selected
         groups = utils.findGroups(selected)
-        files.exportFiles(groups)
+        if event.shift:
+            cleanup = False
+        files.exportFiles(groups, cleanup)
         sxglobals.composite = True
         refreshActives(self, context)
         return {'FINISHED'}
@@ -6120,7 +6154,7 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Add LOD exporting
+# - Add LOD exporting for High Detail export mode
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
