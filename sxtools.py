@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 49, 3),
+    'version': (2, 50, 2),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -229,6 +229,7 @@ class SXTOOLS_files(object):
         colorspace = prefs.addons['sxtools'].preferences.colorspace
         groupNames = []
         for group in groups:
+            createLODs = False
             bpy.context.view_layer.objects.active = group
             bpy.ops.object.select_all(action='DESELECT')
             group.select_set(True)
@@ -245,6 +246,9 @@ class SXTOOLS_files(object):
                 if 'staticVertexColors' not in sel.keys():
                     sel['staticVertexColors'] = True
 
+                if sel.sxtools.lodmeshes is True:
+                    createLODs = True
+
                 compLayers = utils.findCompLayers(sel, sel['staticVertexColors'])
                 layer0 = utils.findLayerFromIndex(sel, 0)
                 layer1 = utils.findLayerFromIndex(sel, 1)
@@ -252,6 +256,23 @@ class SXTOOLS_files(object):
 
             if colorspace == 'LIN':
                 export.convertToLinear(selArray)
+
+            if createLODs is True:
+                orgSelArray = selArray[:]
+                for i in range(3):
+                    print('SX Tools: Generating LOD' + str(i))
+                    for sel in orgSelArray:
+                        newObj = sel.copy()
+                        newObj.data = sel.data.copy()
+
+                        newObj.data.name = sel.data.name + '_LOD' + str(i)
+                        newObj.name = sel.name + '_LOD' + str(i)
+
+                        bpy.context.scene.collection.objects.link(newObj)
+                        sxglobals.exportObjects.append(newObj)
+
+                        newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
+                        newObj.modifiers['sxSubdivision'].levels  = 2 - i
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
             pathlib.Path(path).mkdir(exist_ok=True) 
@@ -4153,6 +4174,10 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=0.5,
         update=updateCustomProps)
 
+    lodmeshes: bpy.props.BoolProperty(
+        name='Generate LOD Meshes',
+        default=False)
+
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -5085,6 +5110,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.separator()
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
+                        col2_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
                         split_export = box_export.split(factor=0.1)
                         split_export.operator('sxtools.checklist', text='', icon='INFO')
                         split_export.operator('sxtools.exportfiles', text='Export Selected')
@@ -6094,6 +6120,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Add LOD exporting
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
