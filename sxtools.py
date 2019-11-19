@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 51, 8),
+    'version': (2, 51, 9),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2426,6 +2426,8 @@ class SXTOOLS_tools(object):
                     edge[bevelWeightLayer] = -1.0
 
             bmesh.update_edit_mesh(obj.data)
+
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode=mode)
 
 
@@ -6167,7 +6169,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - No bevels in LOD1, LOD2... 
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
