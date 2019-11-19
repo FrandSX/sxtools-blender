@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 51, 5),
+    'version': (2, 51, 8),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2777,6 +2777,10 @@ class SXTOOLS_export(object):
 
                             newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
                             newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
+                            newObj.modifiers['sxBevel'].show_viewport = False
+                            if newObj.modifiers['sxSubdivision'].levels == 0:
+                                newObj.modifiers['sxDecimate'].show_viewport = False
+                                newObj.modifiers['sxDecimate2'].show_viewport = False
 
                             newObjArray.append(newObj)
 
@@ -6163,6 +6167,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - No bevels in LOD1, LOD2... 
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
