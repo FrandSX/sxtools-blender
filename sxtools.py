@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 50, 9),
+    'version': (2, 51, 5),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -225,6 +225,7 @@ class SXTOOLS_files(object):
     # not composited to VertexColor0 as that will be
     # done by the shader on the game engine side 
     def exportFiles(self, groups, cleanup):
+        scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences
         colorspace = prefs.addons['sxtools'].preferences.colorspace
         groupNames = []
@@ -258,38 +259,8 @@ class SXTOOLS_files(object):
             if colorspace == 'LIN':
                 export.convertToLinear(selArray)
 
-            # LOD levels are created according to maximum subdivision level found per group
-            if createLODs is True:
-                orgSelArray = selArray[:]
-                nameArray = list()
-
-                lodCount = 1
-                for sel in orgSelArray:
-                    nameArray.append((sel.name[:], sel.data.name[:]))
-                    if (sel.sxtools.subdivisionlevel + 1) > lodCount:
-                        lodCount = sel.sxtools.subdivisionlevel + 1
-
-                if lodCount > 1:
-                    for i in range(lodCount):
-                        print('SX Tools: Generating LOD' + str(i))
-                        if i == 0:
-                            for sel in orgSelArray:
-                                    sel.data.name = sel.data.name + '_LOD' + str(i)
-                                    sel.name = sel.name + '_LOD' + str(i)
-                        else:
-                            for j, sel in enumerate(orgSelArray):
-                                if 'sxSubdivision' in sel.modifiers.keys():
-                                    newObj = sel.copy()
-                                    newObj.data = sel.data.copy()
-
-                                    newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
-                                    newObj.name = nameArray[j][0] + '_LOD' + str(i)
-
-                                    bpy.context.scene.collection.objects.link(newObj)
-                                    sxglobals.exportObjects.append(newObj)
-
-                                    newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
-                                    newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
+            if (createLODs is True) and (scene.exportquality == 'LO'):
+                orgSelArray, nameArray, newObjArray = export.generateLODs(selArray)
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
             pathlib.Path(path).mkdir(exist_ok=True) 
@@ -1445,16 +1416,20 @@ class SXTOOLS_mesh(object):
         return bbx
 
 
-    def rayRandomizer(self):
-        u1 = random.uniform(0, 1)
-        u2 = random.uniform(0, 1)
-        r = math.sqrt(u1)
-        theta = 2*math.pi*u2
+    def rayRandomizer(self, count):
+        hemiSphere = [None] * count
+        for i in range(count):
+            u1 = random.random()
+            u2 = random.random()
+            r = math.sqrt(u1)
+            theta = 2*math.pi*u2
 
-        x = r * math.cos(theta)
-        y = r * math.sin(theta)
+            x = r * math.cos(theta)
+            y = r * math.sin(theta)
 
-        return (x, y, math.sqrt(max(0, 1 - u1)))
+            hemiSphere[i] = (x, y, math.sqrt(max(0, 1 - u1)))
+
+        return hemiSphere
 
 
     def calculateDirection(self, objs, directionVector):
@@ -1483,15 +1458,15 @@ class SXTOOLS_mesh(object):
     def groundPlane(self, size, pos):
         vertArray = []
         faceArray = []
-        size = size * 0.5
+        size *= 0.5
 
-        vert = [(-size, -size, 0.0)]
+        vert = [(pos[0]-size, pos[1]-size, pos[2])]
         vertArray.extend(vert)
-        vert = [(size, -size, 0.0)]
+        vert = [(pos[0]+size, pos[1]-size, pos[2])]
         vertArray.extend(vert)
-        vert = [(-size, size, 0.0)]
+        vert = [(pos[0]-size, pos[1]+size, pos[2])]
         vertArray.extend(vert)
-        vert = [(size, size, 0.0)]
+        vert = [(pos[0]+size, pos[1]+size, pos[2])]
         vertArray.extend(vert)
 
         face = [(0, 1, 3, 2)]
@@ -1504,7 +1479,7 @@ class SXTOOLS_mesh(object):
         mesh.from_pydata(vertArray, [], faceArray)
         mesh.update(calc_edges=True)
 
-        groundPlane.location = pos
+        # groundPlane.location = pos
 
         return groundPlane
 
@@ -1537,12 +1512,10 @@ class SXTOOLS_mesh(object):
         mode = objs[0].mode
         scene = bpy.context.scene
         contribution = 1.0/float(rayCount)
-        hemiSphere = [None] * rayCount
-
+        hemiSphere = self.rayRandomizer(rayCount)
+        mix = max(min(blend, 1.0), 0.0)
+        forward = Vector((0.0, 0.0, 1.0))
         objOcclusions = {}
-
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
 
         for obj in objs:
             for modifier in obj.modifiers:
@@ -1568,16 +1541,14 @@ class SXTOOLS_mesh(object):
                 vertNormal = Vector(vertPosDict[vert_idx][1])
                 vertWorldLoc = Vector(vertWorldPosDict[vert_idx][0])
                 vertWorldNormal = Vector(vertWorldPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
 
                 # Pass 1: Local space occlusion for individual object
-                if 0.0 <= blend < 1.0:
+                if 0.0 <= mix < 1.0:
                     biasVec = tuple([bias*x for x in vertNormal])
                     rotQuat = forward.rotation_difference(vertNormal)
-                    vertPos = vertLoc
 
                     # offset ray origin with normal bias
-                    vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+                    vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
 
                     for sample in hemiSphere:
                         sample = Vector(sample)
@@ -1589,14 +1560,12 @@ class SXTOOLS_mesh(object):
                             occValue -= contribution
 
                 # Pass 2: Worldspace occlusion for scene
-                if 0.0 < blend <= 1.0:
-                    scnNormal = vertWorldNormal
-                    biasVec = tuple([bias*x for x in scnNormal])
-                    rotQuat = forward.rotation_difference(scnNormal)
-                    scnVertPos = vertWorldLoc
+                if 0.0 < mix <= 1.0:
+                    biasVec = tuple([bias*x for x in vertWorldNormal])
+                    rotQuat = forward.rotation_difference(vertWorldNormal)
 
                     # offset ray origin with normal bias
-                    scnVertPos = (scnVertPos[0] + biasVec[0], scnVertPos[1] + biasVec[1], scnVertPos[2] + biasVec[2])
+                    scnVertPos = (vertWorldLoc[0] + biasVec[0], vertWorldLoc[1] + biasVec[1], vertWorldLoc[2] + biasVec[2])
 
                     for sample in hemiSphere:
                         sample = Vector(sample)
@@ -1608,7 +1577,7 @@ class SXTOOLS_mesh(object):
                             scnOccValue -= contribution
 
                 for loop_idx in loop_indices:
-                    vertOccDict[vert_idx] = float(occValue * (1.0 - blend) + scnOccValue * blend)
+                    vertOccDict[vert_idx] = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
 
             if groundPlane:
                 bpy.data.objects.remove(ground, do_unlink=True)
@@ -1629,8 +1598,9 @@ class SXTOOLS_mesh(object):
         objDicts = tools.selectionHandler(objs)
         mode = objs[0].mode
         contribution = 1.0/float(rayCount)
-        hemiSphere = [None] * rayCount
+        hemiSphere = self.rayRandomizer(rayCount)
         bias = 1e-5
+        forward = Vector((0, 0, 1))
 
         distances = list()
         objThicknesses = {}
@@ -1644,9 +1614,7 @@ class SXTOOLS_mesh(object):
 
         # First pass to analyze ray hit distances,
         # then set max ray distance to half of median distance
-        distHemiSphere = [None] * 20
-        for idx in range(20):
-            distHemiSphere[idx] = self.rayRandomizer()
+        distHemiSphere = self.rayRandomizer(20)
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1655,17 +1623,15 @@ class SXTOOLS_mesh(object):
             for vert_idx, loop_indices in vertLoopDict.items():
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
 
                 # Invert normal to cast inside object
                 invNormal = tuple([-1*x for x in vertNormal])
 
                 biasVec = tuple([bias*x for x in invNormal])
                 rotQuat = forward.rotation_difference(invNormal)
-                vertPos = vertLoc
 
                 # offset ray origin with normal bias
-                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+                vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
 
                 for sample in distHemiSphere:
                     sample = Vector(sample)
@@ -1674,14 +1640,10 @@ class SXTOOLS_mesh(object):
                     hit, loc, normal, index = obj.ray_cast(vertPos, sample)
 
                     if hit:
-                        distanceVec = (loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2])
-                        distanceVec = Vector(distanceVec)
+                        distanceVec = Vector((loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2]))
                         distances.append(distanceVec.length)
 
         rayDistance = statistics.median(distances) * 0.5
-
-        for idx in range(rayCount):
-            hemiSphere[idx] = self.rayRandomizer()
 
         for obj in objs:
             vertLoopDict = objDicts[obj][0]
@@ -1692,17 +1654,15 @@ class SXTOOLS_mesh(object):
                 thicknessValue = 0.0
                 vertLoc = Vector(vertPosDict[vert_idx][0])
                 vertNormal = Vector(vertPosDict[vert_idx][1])
-                forward = Vector((0, 0, 1))
 
                 # Invert normal to cast inside object
                 invNormal = tuple([-1*x for x in vertNormal])
 
                 biasVec = tuple([bias*x for x in invNormal])
                 rotQuat = forward.rotation_difference(invNormal)
-                vertPos = vertLoc
 
                 # offset ray origin with normal bias
-                vertPos = (vertPos[0] + biasVec[0], vertPos[1] + biasVec[1], vertPos[2] + biasVec[2])
+                vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
 
                 for sample in hemiSphere:
                     sample = Vector(sample)
@@ -2292,17 +2252,17 @@ class SXTOOLS_tools(object):
                         fvPos = vertPosDict[vert_idx][0]
                     if rampmode == 'X':
                         xdiv = float(xmax - xmin)
-                        if xdiv == 0:
+                        if xdiv == 0.0:
                             xdiv = 1.0
                         ratioRaw = ((fvPos[0] - xmin) / xdiv)
                     elif rampmode == 'Y':
                         ydiv = float(ymax - ymin)
-                        if ydiv == 0:
+                        if ydiv == 0.0:
                             ydiv = 1.0
                         ratioRaw = ((fvPos[1] - ymin) / ydiv)
                     elif rampmode == 'Z':
                         zdiv = float(zmax - zmin)
-                        if zdiv == 0:
+                        if zdiv == 0.0:
                             zdiv = 1.0
                         ratioRaw = ((fvPos[2] - zmin) / zdiv)
                     elif rampmode == 'C' or rampmode == 'CN' or rampmode == 'OCC' or rampmode == 'THK' or rampmode == 'DIR':
@@ -2314,12 +2274,12 @@ class SXTOOLS_tools(object):
                     if rampmode == 'LUM':
                         ratio = []
                         for rt in ratioRaw:
-                            ratio.append(max(min(rt, 1), 0))
+                            ratio.append(max(min(rt, 1.0), 0.0))
                         evalColor = ramp.color_ramp.evaluate(ratio[i])
                         for i, value in enumerate(evalColor):
                             color[i] = value
                     else:
-                        ratio = max(min(ratioRaw, 1), 0)
+                        ratio = max(min(ratioRaw, 1.0), 0.0)
                         evalColor = ramp.color_ramp.evaluate(ratio)
                         for i, value in enumerate(evalColor):
                             color[i] = value
@@ -2783,6 +2743,46 @@ class SXTOOLS_export(object):
         return None
 
 
+    def generateLODs(self, objs):
+        # LOD levels are created according to maximum subdivision level found per group
+        orgSelArray = objs[:]
+        nameArray = list()
+        newObjArray = list()
+
+        lodCount = 1
+        for sel in orgSelArray:
+            nameArray.append((sel.name[:], sel.data.name[:]))
+            if (sel.sxtools.subdivisionlevel + 1) > lodCount:
+                lodCount = sel.sxtools.subdivisionlevel + 1
+
+        if lodCount > 1:
+            for i in range(lodCount):
+                print('SX Tools: Generating LOD' + str(i))
+                if i == 0:
+                    for sel in orgSelArray:
+                            sel.data.name = sel.data.name + '_LOD' + str(i)
+                            sel.name = sel.name + '_LOD' + str(i)
+                            newObjArray.append(sel)
+                else:
+                    for j, sel in enumerate(orgSelArray):
+                        if 'sxSubdivision' in sel.modifiers.keys():
+                            newObj = sel.copy()
+                            newObj.data = sel.data.copy()
+
+                            newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
+                            newObj.name = nameArray[j][0] + '_LOD' + str(i)
+
+                            bpy.context.scene.collection.objects.link(newObj)
+                            sxglobals.exportObjects.append(newObj)
+
+                            newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
+                            newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
+
+                            newObjArray.append(newObj)
+
+        return orgSelArray, nameArray, newObjArray
+
+
     def convertToLinear(self, objs):
         for obj in objs:
             vertexColors = obj.data.vertex_colors
@@ -2800,6 +2800,7 @@ class SXTOOLS_export(object):
         then = time.time()
         scene = bpy.context.scene.sxtools
         orgObjNames = {}
+        createLODs = False
 
         # Make sure auto-smooth is on
         for obj in objs:
@@ -2833,20 +2834,28 @@ class SXTOOLS_export(object):
                 sxglobals.exportObjects.append(group)
 
             for obj in objs:
-                sxglobals.sourceObjects.append(obj)
-                newObj = obj.copy()
-                newObj.data = obj.data.copy()
+                if obj.sxtools.lodmeshes is True:
+                    createLODs = True
 
+            for obj in objs:
+                sxglobals.sourceObjects.append(obj)
                 orgObjNames[obj] = [obj.name, obj.data.name][:]
                 obj.data.name = obj.data.name + '_org'
                 obj.name = obj.name + '_org'
 
+                newObj = obj.copy()
+                newObj.data = obj.data.copy()
                 newObj.name = orgObjNames[obj][0]
                 newObj.data.name = orgObjNames[obj][1]
-
                 bpy.context.scene.collection.objects.link(newObj)
-                newObjs.append(newObj)
                 sxglobals.exportObjects.append(newObj)
+
+                if createLODs is True:
+                    orgObjArray, nameArray, newObjArray = export.generateLODs([newObj, ])
+                    for newObj in newObjArray:
+                        newObjs.append(newObj)
+                else:
+                    newObjs.append(newObj)
 
                 obj.parent = bpy.context.view_layer.objects[obj.parent.name + '_org']
 
@@ -6154,7 +6163,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Add LOD exporting for High Detail export mode
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
