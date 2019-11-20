@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 51, 13),
+    'version': (2, 52, 1),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2548,9 +2548,19 @@ class SXTOOLS_tools(object):
             obj.data.auto_smooth_angle = 3.14159
 
         for obj in objs:
+            if 'sxMirror' not in obj.modifiers.keys():
+                obj.modifiers.new(type='MIRROR', name='sxMirror')
+                obj.modifiers['sxMirror'].show_viewport = False
+                obj.modifiers['sxMirror'].show_expanded = False
+                obj.modifiers['sxMirror'].use_axis[0] = False
+                obj.modifiers['sxMirror'].use_axis[1] = False
+                obj.modifiers['sxMirror'].use_axis[2] = False
+                obj.modifiers['sxMirror'].use_clip = True
+                obj.modifiers['sxMirror'].use_mirror_merge = True
             if 'sxSubdivision' not in obj.modifiers.keys():
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxSubdivision'].show_expanded = False
                 obj.modifiers['sxSubdivision'].quality = 6
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
@@ -2562,6 +2572,7 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxBevel'].show_viewport = True
                 else:
                     obj.modifiers['sxBevel'].show_viewport = False
+                obj.modifiers['sxBevel'].show_expanded = False
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
@@ -2578,6 +2589,7 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxDecimate'].show_viewport = False
                 else:
                     obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate'].show_expanded = False
                 obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
                 obj.modifiers['sxDecimate'].angle_limit = obj.sxtools.decimation * (math.pi/180.0)
                 obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
@@ -2588,12 +2600,14 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxDecimate2'].show_viewport = False
                 else:
                     obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxDecimate2'].show_expanded = False
                 obj.modifiers['sxDecimate2'].decimate_type = 'COLLAPSE'
                 obj.modifiers['sxDecimate2'].ratio = 0.99
                 obj.modifiers['sxDecimate2'].use_collapse_triangulate = True
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxWeightedNormal'].show_expanded = False
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
                 if hardmode == 'SMOOTH':
@@ -2605,6 +2619,11 @@ class SXTOOLS_tools(object):
     def applyModifiers(self, objs):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
+            if 'sxMirror' in obj.modifiers.keys():
+                if obj.modifiers['sxMirror'].show_viewport == False:
+                    bpy.ops.object.modifier_remove(modifier='sxMirror')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
             if 'sxSubdivision' in obj.modifiers.keys():
                 if obj.modifiers['sxSubdivision'].levels == 0:
                     bpy.ops.object.modifier_remove(modifier='sxSubdivision')
@@ -2629,6 +2648,8 @@ class SXTOOLS_tools(object):
     def removeModifiers(self, objs):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
+            if 'sxMirror' in obj.modifiers.keys():
+                bpy.ops.object.modifier_remove(modifier='sxMirror')
             if 'sxSubdivision' in obj.modifiers.keys():
                 bpy.ops.object.modifier_remove(modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
@@ -3867,6 +3888,8 @@ def updateModifierVisibility(self, context):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
+            if 'sxMirror' in obj.modifiers.keys():
+                obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxDecimate' in obj.modifiers.keys():
@@ -3886,6 +3909,44 @@ def updateModifierVisibility(self, context):
                     obj.modifiers['sxBevel'].show_viewport = False
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+def updateMirrorModifier(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        mirrorMode = objs[0].sxtools.mirrormode
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            obj.data.auto_smooth_angle = 3.14159
+            if obj.sxtools.mirrormode != mirrorMode:
+                obj.sxtools.mirrormode = mirrorMode
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        for obj in objs:
+            if 'sxMirror' in obj.modifiers.keys():
+                if mirrorMode == 'OFF':
+                    obj.modifiers['sxMirror'].show_viewport = False
+                    obj.modifiers['sxMirror'].use_axis[0] = False
+                    obj.modifiers['sxMirror'].use_axis[1] = False
+                    obj.modifiers['sxMirror'].use_axis[2] = False
+                else:
+                    obj.modifiers['sxMirror'].show_viewport = True
+
+                if mirrorMode == 'X':
+                    obj.modifiers['sxMirror'].use_axis[0] = True
+                    obj.modifiers['sxMirror'].use_axis[1] = False
+                    obj.modifiers['sxMirror'].use_axis[2] = False
+                elif mirrorMode == 'Y':
+                    obj.modifiers['sxMirror'].use_axis[0] = False
+                    obj.modifiers['sxMirror'].use_axis[1] = True
+                    obj.modifiers['sxMirror'].use_axis[2] = False
+                elif mirrorMode == 'Z':
+                    obj.modifiers['sxMirror'].use_axis[0] = False
+                    obj.modifiers['sxMirror'].use_axis[1] = False
+                    obj.modifiers['sxMirror'].use_axis[2] = True
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -3918,7 +3979,6 @@ def updateCreaseModifiers(self, context):
 
 
 def updateSubdivisionModifier(self, context):
-    scene = context.scene.sxtools
     objs = selectionValidator(self, context)
     if len(objs) > 0:
         vis = objs[0].sxtools.modifiervisibility
@@ -4153,6 +4213,17 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Modifier Visibility',
         default=True,
         update=updateModifierVisibility)
+
+    mirrormode: bpy.props.EnumProperty(
+        name='Mesh Mirroring',
+        description='Mirror modifier mode',
+        items=[
+            ('OFF', 'Disabled', ''),
+            ('X', 'X-Axis', ''),
+            ('Y', 'Y-Axis', ''),
+            ('Z', 'Z-Axis', '')],
+        default='OFF',
+        update=updateMirrorModifier)
 
     hardmode: bpy.props.EnumProperty(
         name='Max Crease Mode',
@@ -5050,22 +5121,26 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandcrease:
                         col_sds = box_crease.column(align=False)
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                        col_sds.label(text='100% Creases Are:')
+                        col_sds.label(text='Mesh Mirroring:')
+                        row_mirror = box_crease.row()
+                        row_mirror.prop(sxtools, 'mirrormode', expand=True)
+                        col2_sds = box_crease.column(align=False)
+                        col2_sds.label(text='100% Creases Are:')
                         row_sds = box_crease.row()
                         row_sds.prop(sxtools, 'hardmode', expand=True)
-                        col2_sds = box_crease.column(align=True)
-                        col2_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
+                        col3_sds = box_crease.column(align=True)
+                        col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                         if obj.sxtools.hardmode == 'BEVEL':
-                            col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
-                            col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
+                            col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
+                            col3_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
                         if obj.sxtools.subdivisionlevel > 0:
-                            col2_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
-                            col2_sds.label(text='Selection Tri Count: '+mesh.calculateTriangles(objs))
-                        col2_sds.separator()
+                            col3_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
+                            col3_sds.label(text='Selection Tri Count: '+mesh.calculateTriangles(objs))
+                        col3_sds.separator()
                         if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxDecimate' in obj.modifiers.keys()) or ('sxDecimate2' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
-                            col2_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                            col3_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
                         if ('sxBevel' not in obj.modifiers.keys()) or ('sxSubdivision' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
-                            col2_sds.operator('sxtools.modifiers', text='Add Modifiers')
+                            col3_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -6175,6 +6250,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Add optional mirror modifier
+# - Collapsable palette and material categories
+# - Save new palette from layers
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
