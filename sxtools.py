@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 51, 9),
+    'version': (2, 51, 12),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -16,6 +16,7 @@ import bmesh
 import json
 import pathlib
 import statistics
+import sys
 from bpy.app.handlers import persistent
 from collections import defaultdict
 from mathutils import Vector
@@ -246,6 +247,9 @@ class SXTOOLS_files(object):
             for sel in selArray:
                 if 'staticVertexColors' not in sel.keys():
                     sel['staticVertexColors'] = True
+
+                if 'sxToolsVersion' not in sel.keys():
+                    sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
                 if sel.sxtools.lodmeshes is True:
                     createLODs = True
@@ -2396,6 +2400,7 @@ class SXTOOLS_tools(object):
             'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
             'CreaseSet4': 1.0}
         weight = creaseDict[group]
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
         for obj in objs:
@@ -2427,7 +2432,6 @@ class SXTOOLS_tools(object):
 
             bmesh.update_edit_mesh(obj.data)
 
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode=mode)
 
 
@@ -4007,6 +4011,7 @@ def updateCustomProps(self, context):
         lod = objs[0].sxtools.lodmeshes
         for obj in objs:
             obj['staticVertexColors'] = int(stc)
+            obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
             if obj.sxtools.staticvertexcolors != stc:
                 obj.sxtools.staticvertexcolors = stc
             if obj.sxtools.smoothness1 != sm1:
@@ -6169,6 +6174,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Custom version string
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
