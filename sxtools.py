@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 51, 12),
+    'version': (2, 51, 13),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -294,9 +294,10 @@ class SXTOOLS_files(object):
             group.location = org_loc
 
             if cleanup:
-                for i, sel in enumerate(orgSelArray):
-                    sel.data.name = nameArray[i][1]
-                    sel.name = nameArray[i][0]
+                if createLODs is True:
+                    for i, sel in enumerate(orgSelArray):
+                        sel.data.name = nameArray[i][1]
+                        sel.name = nameArray[i][0]
 
                 export.removeExports()
 
@@ -3651,7 +3652,7 @@ def shadingMode(self, context):
             if emission:
                 context.scene.eevee.use_bloom = True
             areas = bpy.context.workspace.screens[0].areas
-            shading = 'RENDERED'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+            shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
             for area in areas:
                 for space in area.spaces:
                     if space.type == 'VIEW_3D':
@@ -6174,7 +6175,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Custom version string
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
