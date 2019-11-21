@@ -6250,7 +6250,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Add optional mirror modifier
 # - Collapsable palette and material categories
 # - Save new palette from layers
 # - Investigate applyColor with partial alpha colors
