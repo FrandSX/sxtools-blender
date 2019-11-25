@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 52, 1),
+    'version': (2, 53, 0),
     'blender': (2, 80, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3801,6 +3801,26 @@ def categoryLister(self, context):
     return enumItems
 
 
+def paletteCategoryLister(self, context):
+    palettes = context.scene.sxpalettes
+    categories = []
+    for palette in palettes:
+        enumItem = (palette.category.replace(" ", "_").upper(), palette.category, '')
+        categories.append(enumItem)
+    enumItems = list(set(categories))
+    return enumItems
+
+
+def materialCategoryLister(self, context):
+    materials = context.scene.sxmaterials
+    categories = []
+    for material in materials:
+        enumItem = (material.category.replace(" ", "_").upper(), material.category, '')
+        categories.append(enumItem)
+    enumItems = list(set(categories))
+    return enumItems
+
+
 def loadCategory(self, context):
     objs = selectionValidator(self, context)
     if len(objs) > 0:
@@ -4643,6 +4663,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=360.0,
         default=0.0)
 
+    palettecategories: bpy.props.EnumProperty(
+        name='Category',
+        description='Choose palette category',
+        items=paletteCategoryLister)
+
     palettenoise: bpy.props.FloatProperty(
         name='Noise',
         description='Random per-vertex noise',
@@ -4654,6 +4679,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Monochrome',
         description='Uncheck to randomize all noise channels separately',
         default=False)
+
+    materialcategories: bpy.props.EnumProperty(
+        name='Category',
+        description='Choose material category',
+        items=materialCategoryLister)
 
     materialalpha: bpy.props.BoolProperty(
         name='Overwrite Alpha',
@@ -5153,23 +5183,22 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     palettes = context.scene.sxpalettes
 
                     if scene.expandpalette:
-                        category = ''
-                        for name in palettes.keys():
-                            palette = palettes[name]
-                            if palette.category != category:
-                                category = palette.category
-                                row_category = box_palette.row(align=True)
-                                row_category.label(text='CATEGORY: '+category)
-                                row_category.separator()
-                            row_mpalette = box_palette.row(align=True)
-                            split_mpalette = row_mpalette.split(factor=0.33)
-                            split_mpalette.label(text=name)
-                            split2_mpalette = split_mpalette.split()
-                            row2_mpalette = split2_mpalette.row(align=True)
-                            for i in range(5):
-                                row2_mpalette.prop(palette, 'color'+str(i), text='')
-                            mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
-                            mp_button.label = name
+                        category = scene.palettecategories
+                        row_category = box_palette.row(align=True)
+                        row_category.prop(scene, 'palettecategories', text='Category')
+                        row_category.separator()
+                        for palette in palettes:
+                            name = palette.name
+                            if palette.category.replace(" ", "_").upper() == category:
+                                row_mpalette = box_palette.row(align=True)
+                                split_mpalette = row_mpalette.split(factor=0.33)
+                                split_mpalette.label(text=name)
+                                split2_mpalette = split_mpalette.split()
+                                row2_mpalette = split2_mpalette.row(align=True)
+                                for i in range(5):
+                                    row2_mpalette.prop(palette, 'color'+str(i), text='')
+                                mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
+                                mp_button.label = name
 
                         row_mnoise = box_palette.row(align=True)
                         row_mnoise.prop(scene, 'palettenoise', slider=True)
@@ -5181,23 +5210,22 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     materials = context.scene.sxmaterials
 
                     if scene.expandpalette:
-                        category = ''
-                        for name in materials.keys():
-                            material = materials[name]
-                            if material.category != category:
-                                category = material.category
-                                row_category = box_palette.row(align=True)
-                                row_category.label(text='CATEGORY: '+category)
-                                row_category.separator()
-                            row_mat = box_palette.row(align=True)
-                            split_mat = row_mat.split(factor=0.33)
-                            split_mat.label(text=name)
-                            split2_mat = split_mat.split()
-                            row2_mat = split2_mat.row(align=True)
-                            for i in range(3):
-                                row2_mat.prop(material, 'color'+str(i), text='')
-                            mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
-                            mat_button.label = name
+                        category = scene.materialcategories
+                        row_category = box_palette.row(align=True)
+                        row_category.prop(scene, 'materialcategories', text='Category')
+                        row_category.separator()
+                        for material in materials:
+                            name = material.name
+                            if material.category.replace(" ", "_").upper() == category:
+                                row_mat = box_palette.row(align=True)
+                                split_mat = row_mat.split(factor=0.33)
+                                split_mat.label(text=name)
+                                split2_mat = split_mat.split()
+                                row2_mat = split2_mat.row(align=True)
+                                for i in range(3):
+                                    row2_mat.prop(material, 'color'+str(i), text='')
+                                mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
+                                mat_button.label = name
 
                         row_pbrnoise = box_palette.row(align=True)
                         row_pbrnoise.prop(scene, 'materialnoise', slider=True)
@@ -6250,8 +6278,9 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Collapsable palette and material categories
 # - Save new palette from layers
+# - Master palette library save/manage
+# - PBR material library save/manage
 # - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
@@ -6266,7 +6295,5 @@ if __name__ == '__main__':
 #   - Split to multiple python files
 #   - Default path to find libraries in the zip?
 # - mask/adjustment indication
-# - Master palette library save/manage
-# - PBR material library save/manage
 # - Skinning support?
 # - Submesh support
