@@ -6278,6 +6278,10 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Take bevel segments into account when creating LODs
+# - Parent under the same collection
+# - Proper HSL-RGB conversion with brightness slider
+# - Modifier stack occasionally staying hidden?
 # - Save new palette from layers
 # - Master palette library save/manage
 # - PBR material library save/manage
