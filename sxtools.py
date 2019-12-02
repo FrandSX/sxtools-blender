@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 53, 0),
-    'blender': (2, 80, 0),
+    'version': (2, 54, 0),
+    'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'category': 'Development',
@@ -29,7 +29,7 @@ class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.librariesLoaded = False
         self.refreshInProgress = False
-        self.brightnessUpdate = False
+        self.lightnessUpdate = False
         self.modalStatus = False
         self.composite = False
         self.copyLayer = None
@@ -865,6 +865,133 @@ class SXTOOLS_setup(object):
 
 
 # ------------------------------------------------------------------------
+#    Color Conversions
+# ------------------------------------------------------------------------
+class SXTOOLS_convert(object):
+    def __init__(self):
+        return None
+
+
+    def colorToLuminance(self, color):
+        lumR = 0.212655
+        lumG = 0.715158
+        lumB = 0.072187
+
+        linColor = self.srgbToLinear(color)
+        linLum = lumR * linColor[0] + lumG * linColor[1] + lumB * linColor[2]
+        luminance = self.linearToSrgb([linLum, linLum, linLum, 1.0])[0]
+        # luminance = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
+        return luminance
+
+
+    def srgbToLinear(self, inColor):
+        outColor = list()
+        for i in range(4):
+            if inColor[i] < 0.0:
+                outColor.append(0.0)
+            elif 0.0 <= inColor[i] <= 0.0404482362771082:
+                outColor.append(float(inColor[i]) / 12.92)
+            elif  0.0404482362771082 < inColor[i] <= 1.0: 
+                outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
+            elif inColor[i] > 1.0:
+                outColor.append(1.0)
+
+        return tuple(outColor)
+
+
+    def linearToSrgb(self, inColor):
+        outColor = list()
+        for i in range(4):
+            if inColor[i] < 0.0:
+                outColor.append(0.0)
+            elif 0.0 <= inColor[i] <= 0.00313066844250063:
+                outColor.append(float(inColor[i]) * 12.92)
+            elif  0.00313066844250063 < inColor[i] <= 1.0: 
+                outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
+            elif inColor[i] > 1.0:
+                outColor.append(1.0)
+
+        return tuple(outColor)
+
+
+    def rgbToHsl(self, inColor):
+        R = inColor[0]
+        G = inColor[1]
+        B = inColor[2]
+        Cmax = max(R, G, B)
+        Cmin = min(R, G, B)
+
+        H = 0.0
+        S = 0.0
+        L = (Cmax+Cmin)/2.0
+
+        if 0.0 < L < 0.5:
+            S = (Cmax-Cmin)/(Cmax+Cmin)
+        elif L >= 0.5:
+            S = (Cmax-Cmin)/(2.0-Cmax-Cmin)
+
+        if S > 0.0:
+            if R == Cmax:
+                H = ((G-B)/(Cmax-Cmin))*60.0
+            elif G == Cmax:
+                H = ((B-R)/(Cmax-Cmin)+2.0)*60.0
+            elif B == Cmax:
+                H = ((R-G)/(Cmax-Cmin)+4.0)*60.0
+
+        return [H, S, L]
+
+
+    def hslToRgb(self, inValue):
+        H = inValue[0]
+        S = inValue[1]
+        L = inValue[2]
+
+        v1 = 0.0
+        v2 = 0.0
+
+        rgb = [0.0, 0.0, 0.0]
+
+        if S == 0.0:
+            rgb = [L, L, L]
+        else:
+            if L < 0.5:
+                v1 = L*(S+1.0)
+            elif L >= 0.5:
+                v1 = L+S-L*S
+
+            v2 = 2.0*L-v1
+
+            H = H/360.0
+
+            tR = H + 0.333333
+            tG = H
+            tB = H - 0.333333
+
+            tList = [tR, tG, tB]
+
+            for i, t in enumerate(tList):
+                if t < 0.0:
+                    t += 1.0
+                elif t > 1.0:
+                    t -= 1.0
+
+                if t*6.0 < 1.0:
+                    rgb[i] = v2+(v1-v2)*6.0*t
+                elif t*2.0 < 1.0:
+                    rgb[i] = v1
+                elif t*3.0 < 2.0:
+                    rgb[i] = v2+(v1-v2)*(0.666666 - t)*6.0
+                else:
+                    rgb[i] = v2
+
+        return rgb
+
+
+    def __del__(self):
+        print('SX Tools: Exiting conversions')
+
+
+# ------------------------------------------------------------------------
 #    Layer Functions
 # ------------------------------------------------------------------------
 class SXTOOLS_layers(object):
@@ -1024,7 +1151,7 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         channels = {'U': 0, 'V': 1}
-        midpoint = 0.5 # tools.srgbToLinear([0.5, 0.5, 0.5, 1.0])[0]
+        midpoint = 0.5 # convert.srgbToLinear([0.5, 0.5, 0.5, 1.0])[0]
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
@@ -1147,7 +1274,7 @@ class SXTOOLS_layers(object):
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for idx in loop_indices:
                         color = vertexColors[source].data[idx].color
-                        value = mesh.colorToLuminance(color)
+                        value = convert.colorToLuminance(color)
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
             # UV to RGB
             elif fillMode == 2:
@@ -1191,7 +1318,7 @@ class SXTOOLS_layers(object):
                         v1 = vertexUVs[set1].data[idx].uv[channel1]
                         v2 = vertexUVs[set2].data[idx].uv[channel2]
                         color = [v0, v1, v2, 1.0]
-                        value = mesh.colorToLuminance(color)
+                        value = convert.colorToLuminance(color)
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
 
         bpy.ops.object.mode_set(mode=mode)
@@ -1372,19 +1499,19 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def updateLayerBrightness(self, objs, layer):
-        luminanceDict = mesh.calculateLuminance(objs, layer)
-        luminanceList = list()
-        for vertDict in luminanceDict.values():
+    def updateLayerLightness(self, objs, layer):
+        lightnessDict = mesh.calculateLightness(objs, layer)
+        lightnessList = list()
+        for vertDict in lightnessDict.values():
             for valueList in vertDict.values():
-                luminanceList.extend(valueList[1])
-        if len(luminanceList) == 0:
-            luminanceList.extend([0.0, ])
+                lightnessList.extend(valueList[1])
+        if len(lightnessList) == 0:
+            lightnessList.extend([0.0, ])
 
-        brightness = statistics.mean(luminanceList)
-        sxglobals.brightnessUpdate = True
-        bpy.context.scene.sxtools.brightnessvalue = brightness
-        sxglobals.brightnessUpdate = False
+        lightness = max(lightnessList)
+        sxglobals.lightnessUpdate = True
+        bpy.context.scene.sxtools.lightnessvalue = lightness
+        sxglobals.lightnessUpdate = False
 
 
     def __del__(self):
@@ -1724,14 +1851,14 @@ class SXTOOLS_mesh(object):
                 for loop_idx in loop_indices:
                     if layerType == 'COLOR':
                         fvColor = vertexColors[loop_idx].color
-                        luminance = self.colorToLuminance(fvColor)
+                        luminance = convert.colorToLuminance(fvColor)
                     elif layerType == 'UV4':
                         fvColor = [
                             uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
                             uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
                             uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
                             uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                        luminance = self.colorToLuminance(fvColor)
+                        luminance = convert.colorToLuminance(fvColor)
                     elif layerType == 'UV':
                         luminance = uvValues[loop_idx].uv[selChannel]
                     loopLuminances.append(luminance)
@@ -1742,16 +1869,55 @@ class SXTOOLS_mesh(object):
         return objLuminances
 
 
-    def colorToLuminance(self, color):
-        lumR = 0.212655
-        lumG = 0.715158
-        lumB = 0.072187
+    def calculateLightness(self, objs, layer):
+        objDicts = tools.selectionHandler(objs)
+        layerType = layer.layerType
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        channels = {'U': 0, 'V':1}
 
-        linColor = tools.srgbToLinear(color)
-        linLum = lumR * linColor[0] + lumG * linColor[1] + lumB * linColor[2]
-        luminance = tools.linearToSrgb([linLum, linLum, linLum, 1.0])[0]
-        # luminance = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-        return luminance
+        objLightnesses = {}
+
+        for obj in objs:
+            if layerType == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif layerType == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+            elif layerType == 'UV':
+                uvValues = obj.data.uv_layers[layer.uvLayer0].data
+                if layer.uvChannel0 == 'U':
+                    selChannel = 0
+                elif layer.uvChannel0 == 'V':
+                    selChannel = 1
+
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
+            vtxLightnesses = {}
+
+            for vert_idx, loop_indices in vertLoopDict.items():
+                loopLightnesses = []
+                for loop_idx in loop_indices:
+                    if layerType == 'COLOR':
+                        fvColor = vertexColors[loop_idx].color
+                        lightness = convert.rgbToHsl(fvColor)[2]
+                    elif layerType == 'UV4':
+                        fvColor = [
+                            uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
+                            uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
+                            uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
+                            uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
+                        lightness = convert.rgbToHsl(fvColor)[2]
+                    elif layerType == 'UV':
+                        lightness = uvValues[loop_idx].uv[selChannel]
+                    loopLightnesses.append(lightness)
+                vtxLightnesses[vert_idx] = (loop_indices, loopLightnesses)
+            objLightnesses[obj] = vtxLightnesses
+
+        bpy.ops.object.mode_set(mode=mode)
+        return objLightnesses
 
 
     def calculateCurvature(self, objs, normalize=False):
@@ -1897,7 +2063,7 @@ class SXTOOLS_tools(object):
         fillChannel1 = channels[layer.uvChannel1]
         fillChannel2 = channels[layer.uvChannel2]
         fillChannel3 = channels[layer.uvChannel3]
-        fillValue = mesh.colorToLuminance(color)
+        fillValue = convert.colorToLuminance(color)
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -2052,7 +2218,7 @@ class SXTOOLS_tools(object):
                                     uvValues3[loop_idx].uv[fillChannel3] = 0.0
                 elif fillMode == 'UV':
                     for vert_idx, loop_indices in vertLoopDict.items():
-                        fillNoise = mesh.colorToLuminance(color)
+                        fillNoise = convert.colorToLuminance(color)
                         fillNoise += random.uniform(-fillNoise*noise, fillNoise*noise)
                         for loop_idx in loop_indices:
                             if maskLayer:
@@ -2070,29 +2236,26 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def applyBrightness(self, objs, layer, newBrightness):
+    def applyLightness(self, objs, layer, newLightness):
         objDicts = self.selectionHandler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
         fillChannel0 = channels[layer.uvChannel0]
         fillChannel1 = channels[layer.uvChannel1]
         fillChannel2 = channels[layer.uvChannel2]
-        fillChannel3 = channels[layer.uvChannel3]
+        # fillChannel3 = channels[layer.uvChannel3]
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        luminanceDict = mesh.calculateLuminance(objs, layer)
-        luminanceList = list()
-        for vertDict in luminanceDict.values():
+        lightnessDict = mesh.calculateLightness(objs, layer)
+        lightnessList = list()
+        for vertDict in lightnessDict.values():
             for valueList in vertDict.values():
-                luminanceList.extend(valueList[1])
+                lightnessList.extend(valueList[1])
 
-        avgBrightness = statistics.mean(luminanceList)
-        if avgBrightness == 0.0:
-            fillValue = 0.01
-        else:
-            fillValue = float(newBrightness)/float(avgBrightness)
+        lightness = max(lightnessList)
+        offset = newLightness-lightness
 
         for obj in objs:
             if fillMode == 'COLOR':
@@ -2103,45 +2266,45 @@ class SXTOOLS_tools(object):
                 uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
                 uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
                 uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+                # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
 
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
 
-            if avgBrightness != 0.0:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for loop_idx in loop_indices:
-                        if fillMode == 'COLOR':
-                            for i in range(3):
-                                vertexColors[loop_idx].color[i] *= fillValue
-                                if vertexColors[loop_idx].color[i] > 1.0:
-                                    vertexColors[loop_idx].color[i] = 1.0
-                        elif fillMode == 'UV4':
-                            uvValues0[loop_idx].uv[fillChannel0] *= fillValue
-                            uvValues1[loop_idx].uv[fillChannel1] *= fillValue
-                            uvValues2[loop_idx].uv[fillChannel2] *= fillValue
-                            if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
-                                uvValues0[loop_idx].uv[fillChannel0] = 1.0
-                            if uvValues1[loop_idx].uv[fillChannel1] > 1.0:
-                                uvValues1[loop_idx].uv[fillChannel1] = 1.0
-                            if uvValues2[loop_idx].uv[fillChannel2] > 1.0:
-                                uvValues2[loop_idx].uv[fillChannel2] = 1.0
-                        elif fillMode == 'UV':
-                            uvValues0[loop_idx].uv[fillChannel0] *= fillValue
-                            if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
-                                uvValues0[loop_idx].uv[fillChannel0] = 1.0
-            else:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for loop_idx in loop_indices:
-                        if fillMode == 'COLOR':
-                            for i in range(3):
-                                vertexColors[loop_idx].color[i] = fillValue
-                        elif fillMode == 'UV4':
-                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
-                            uvValues1[loop_idx].uv[fillChannel1] = fillValue
-                            uvValues2[loop_idx].uv[fillChannel2] = fillValue
-                        elif fillMode == 'UV':
-                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
+            for vert_idx, loop_indices in vertLoopDict.items():
+                for loop_idx in loop_indices:
+                    if fillMode == 'COLOR':
+                        color = vertexColors[loop_idx].color
+                        hsl = convert.rgbToHsl(color)
+                        hsl[2] += offset
+                        if hsl[2] > 1.0:
+                            hsl[2] = 1.0
+                        elif hsl[2] < 0.0:
+                            hsl[2] = 0.0
+                        rgb = convert.hslToRgb(hsl)
+                        vertexColors[loop_idx].color[0] = rgb[0]
+                        vertexColors[loop_idx].color[1] = rgb[1]
+                        vertexColors[loop_idx].color[2] = rgb[2]
+
+                    elif fillMode == 'UV4':
+                        rgb = (uvValues0[loop_idx].uv[fillChannel0], uvValues0[loop_idx].uv[fillChannel1], uvValues0[loop_idx].uv[fillChannel2])
+                        hsl = convert.rgbToHsl(rgb)
+                        hsl[2] += offset
+                        if hsl[2] > 1.0:
+                            hsl[2] = 1.0
+                        elif hsl[2] < 0.0:
+                            hsl[2] = 0.0
+                        rgb = convert.hslToRgb(hsl)
+                        uvValues0[loop_idx].uv[fillChannel0] = rgb[0]
+                        uvValues1[loop_idx].uv[fillChannel1] = rgb[1]
+                        uvValues2[loop_idx].uv[fillChannel2] = rgb[2]
+
+                    elif fillMode == 'UV':
+                        uvValues0[loop_idx].uv[fillChannel0] += offset
+                        if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
+                            uvValues0[loop_idx].uv[fillChannel0] = 1.0
+                        if uvValues0[loop_idx].uv[fillChannel0] < 0.0:
+                            uvValues0[loop_idx].uv[fillChannel0] = 0.0
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2300,7 +2463,7 @@ class SXTOOLS_tools(object):
                             uvValues2[loop_idx].uv[fillChannel2] = color[2] + noiseColor[2]
                             uvValues3[loop_idx].uv[fillChannel3] = color[3]
                         elif fillMode == 'UV':
-                            fillValue = mesh.colorToLuminance(color)
+                            fillValue = convert.colorToLuminance(color)
                             uvValues0[loop_idx].uv[fillChannel0] = fillValue + noiseColor[0]
                     else:
                         if fillMode == 'COLOR':
@@ -2322,7 +2485,7 @@ class SXTOOLS_tools(object):
                         elif fillMode == 'UV':
                             if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
                                 color = ramp.color_ramp.evaluate(ratio[i])
-                                fillValue = mesh.colorToLuminance(color)
+                                fillValue = convert.colorToLuminance(color)
                                 uvValues0[loop_idx].uv[fillChannel0] = (fillValue + noiseColor[0])
 
         bpy.ops.object.mode_set(mode=mode)
@@ -2520,7 +2683,7 @@ class SXTOOLS_tools(object):
 
         for idx in range(1, 6):
             layer = utils.findLayerFromIndex(objs[0], idx)
-            color = palette[idx - 1] # tools.srgbToLinear(palette[idx - 1])
+            color = palette[idx - 1] # convert.srgbToLinear(palette[idx - 1])
             bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = color
 
             self.applyColor(objs, layer, color, False, noise, mono)
@@ -2532,9 +2695,9 @@ class SXTOOLS_tools(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        color0 = palette[0] # tools.srgbToLinear(palette[0])
-        color1 = palette[1] # tools.srgbToLinear(palette[1])
-        color2 = palette[2] # tools.srgbToLinear(palette[2])
+        color0 = palette[0] # convert.srgbToLinear(palette[0])
+        color1 = palette[1] # convert.srgbToLinear(palette[1])
+        color2 = palette[2] # convert.srgbToLinear(palette[2])
 
         self.applyColor(objs, objs[0].sxlayers['smoothness'], color2, overwrite, noise, mono)
         self.applyColor(objs, objs[0].sxlayers['metallic'], color1, overwrite, noise, mono)
@@ -2730,35 +2893,6 @@ class SXTOOLS_tools(object):
         layers.clearUVs(objs, objs[0].sxlayers['transmission'])
 
 
-    def srgbToLinear(self, inColor):
-        outColor = list()
-        for i in range(4):
-            if inColor[i] < 0.0:
-                outColor.append(0.0)
-            elif 0.0 <= inColor[i] <= 0.0404482362771082:
-                outColor.append(float(inColor[i]) / 12.92)
-            elif  0.0404482362771082 < inColor[i] <= 1.0: 
-                outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
-            elif inColor[i] > 1.0:
-                outColor.append(1.0)
-
-        return tuple(outColor)
-
-
-    def linearToSrgb(self, inColor):
-        outColor = list()
-        for i in range(4):
-            if inColor[i] < 0.0:
-                outColor.append(0.0)
-            elif 0.0 <= inColor[i] <= 0.00313066844250063:
-                outColor.append(float(inColor[i]) * 12.92)
-            elif  0.00313066844250063 < inColor[i] <= 1.0: 
-                outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
-            elif inColor[i] > 1.0:
-                outColor.append(1.0)
-
-        return tuple(outColor)
-
     def __del__(self):
         print('SX Tools: Exiting tools')
 
@@ -2821,7 +2955,7 @@ class SXTOOLS_export(object):
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
                     vCol = vertexColors['VertexColor0'].data[idx].color
-                    vertexColors['VertexColor0'].data[idx].color = tools.srgbToLinear(vCol)
+                    vertexColors['VertexColor0'].data[idx].color = convert.srgbToLinear(vCol)
 
 
     # This is a project-specific batch operation.
@@ -3633,7 +3767,7 @@ def refreshActives(self, context):
 
             # Refresh SX Tools UI to latest selection
             layers.updateLayerPalette(objs, layer)
-            layers.updateLayerBrightness(objs, layer)
+            layers.updateLayerLightness(objs, layer)
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -3881,14 +4015,14 @@ def loadLibraries(self, context):
         sxglobals.librariesLoaded = True
 
 
-def adjustBrightness(self, context):
-    if not sxglobals.brightnessUpdate:
+def adjustLightness(self, context):
+    if not sxglobals.lightnessUpdate:
         objs = selectionValidator(self, context)
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.findLayerFromIndex(objs[0], idx)
 
-            tools.applyBrightness(objs, layer, context.scene.sxtools.brightnessvalue)
+            tools.applyLightness(objs, layer, context.scene.sxtools.lightnessvalue)
 
             sxglobals.composite = True
             refreshActives(self, context)
@@ -4453,13 +4587,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0))
 
-    brightnessvalue: bpy.props.FloatProperty(
-        name='Brightness',
-        description='The mean brightness of the selection',
+    lightnessvalue: bpy.props.FloatProperty(
+        name='Lightness',
+        description='The max lightness in the selection',
         min=0.0,
         max=1.0,
         default=0.0,
-        update=adjustBrightness)
+        update=adjustLightness)
 
     toolmode: bpy.props.EnumProperty(
         name='Tool Mode',
@@ -5069,9 +5203,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 col_misc = self.layout.row(align=True)
                 if obj.mode == 'OBJECT':
-                    col_misc.prop(scene, 'brightnessvalue', slider=True, text='Layer Brightness')
+                    col_misc.prop(scene, 'lightnessvalue', slider=True, text='Layer Lightness')
                 else:
-                    col_misc.prop(scene, 'brightnessvalue', slider=True, text='Selection Brightness')
+                    col_misc.prop(scene, 'lightnessvalue', slider=True, text='Selection Lightness')
 
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
@@ -5501,7 +5635,7 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.findLayerFromIndex(objs[0], idx)
-            color = context.scene.sxtools.fillcolor # tools.srgbToLinear(context.scene.sxtools.fillcolor)
+            color = context.scene.sxtools.fillcolor # convert.srgbToLinear(context.scene.sxtools.fillcolor)
             overwrite = context.scene.sxtools.fillalpha
             if objs[0].mode == 'EDIT':
                 overwrite = True
@@ -6167,6 +6301,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
 # ------------------------------------------------------------------------
 sxglobals = SXTOOLS_sxglobals()
 files = SXTOOLS_files()
+convert = SXTOOLS_convert()
 utils = SXTOOLS_utils()
 layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
@@ -6280,7 +6415,6 @@ if __name__ == '__main__':
 # TODO:
 # - Take bevel segments into account when creating LODs
 # - Parent under the same collection
-# - Proper HSL-RGB conversion with brightness slider
 # - Modifier stack occasionally staying hidden?
 # - Save new palette from layers
 # - Master palette library save/manage
