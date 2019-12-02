@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 54, 0),
+    'version': (2, 54, 1),
     'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1612,7 +1612,6 @@ class SXTOOLS_mesh(object):
         mesh.update(calc_edges=True)
 
         # groundPlane.location = pos
-
         return groundPlane
 
 
@@ -2310,16 +2309,16 @@ class SXTOOLS_tools(object):
 
 
     def updateRecentColors(self, color):
-        scn = bpy.context.scene.sxtools
+        scene = bpy.context.scene.sxtools
         palCols = [
-            scn.fillpalette1[:],
-            scn.fillpalette2[:],
-            scn.fillpalette3[:],
-            scn.fillpalette4[:],
-            scn.fillpalette5[:],
-            scn.fillpalette6[:],
-            scn.fillpalette7[:],
-            scn.fillpalette8[:]]
+            scene.fillpalette1[:],
+            scene.fillpalette2[:],
+            scene.fillpalette3[:],
+            scene.fillpalette4[:],
+            scene.fillpalette5[:],
+            scene.fillpalette6[:],
+            scene.fillpalette7[:],
+            scene.fillpalette8[:]]
         colorArray = [
             color, palCols[0], palCols[1], palCols[2],
             palCols[3], palCols[4], palCols[5], palCols[6]]
@@ -2327,7 +2326,7 @@ class SXTOOLS_tools(object):
         fillColor = color[:]
         if (fillColor not in palCols) and (fillColor[3] > 0.0):
             for i in range(8):
-                setattr(scn, 'fillpalette' + str(i + 1), colorArray[i])
+                setattr(scene, 'fillpalette' + str(i + 1), colorArray[i])
 
 
     def applyRamp(self, objs, layer, ramp, rampmode, overwrite, mergebbx=True, noise=0.0, mono=False, maskLayer=None):
@@ -2609,35 +2608,17 @@ class SXTOOLS_tools(object):
             layers.copyChannel(objs, sourceVertexColors, None, targetLayer.vertexColorLayer, None, 4)
         elif sourceType == 'COLOR' and targetType == 'UV4':
             sourceVertexColors = sourceLayer.vertexColorLayer
-            targetUVs = targetLayer.uvLayer0
-            sourceChannel = 'R'
-            targetChannel = targetLayer.uvChannel0
-            layers.copyChannel(objs, sourceVertexColors, sourceChannel, targetUVs, targetChannel, 3)
-            targetUVs = targetLayer.uvLayer1
-            sourceChannel = 'G'
-            targetChannel = targetLayer.uvChannel1
-            layers.copyChannel(objs, sourceVertexColors, sourceChannel, targetUVs, targetChannel, 3)
-            targetUVs = targetLayer.uvLayer2
-            sourceChannel = 'B'
-            targetChannel = targetLayer.uvChannel2
-            layers.copyChannel(objs, sourceVertexColors, sourceChannel, targetUVs, targetChannel, 3)
-            targetUVs = targetLayer.uvLayer3
-            sourceChannel = 'A'
-            targetChannel = targetLayer.uvChannel3
-            layers.copyChannel(objs, sourceVertexColors, sourceChannel, targetUVs, targetChannel, 3)
+            targetUVs = [targetLayer.uvLayer0, targetLayer.uvLayer1, targetLayer.uvLayer2, targetLayer.uvLayer3]
+            sourceChannels = ['R', 'G', 'B', 'A']
+            targetChannels = [targetLayer.uvChannel0, targetLayer.uvChannel1, targetLayer.uvChannel2, targetLayer.uvChannel3]
+            for i in range(4):
+                layers.copyChannel(objs, sourceVertexColors, sourceChannels[i], targetUVs[i], targetChannels[i], 3)
         elif sourceType == 'UV4' and targetType == 'COLOR':
-            sourceUVs = sourceLayer.uvLayer0
-            sourceChannel = sourceLayer.uvChannel0
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetLayer.vertexColorLayer, 'R', 5)
-            sourceUVs = sourceLayer.uvLayer1
-            sourceChannel = sourceLayer.uvChannel1
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetLayer.vertexColorLayer, 'G', 5)
-            sourceUVs = sourceLayer.uvLayer2
-            sourceChannel = sourceLayer.uvChannel2
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetLayer.vertexColorLayer, 'B', 5)
-            sourceUVs = sourceLayer.uvLayer3
-            sourceChannel = sourceLayer.uvChannel3
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetLayer.vertexColorLayer, 'A', 5)
+            sourceUVs = [sourceLayer.uvLayer0, sourceLayer.uvLayer1, sourceLayer.uvLayer2, sourceLayer.uvLayer3]
+            sourceChannels = [sourceLayer.uvChannel0, sourceLayer.uvChannel1, sourceLayer.uvChannel2, sourceLayer.uvChannel3]
+            targetChannels = ['R', 'G', 'B', 'A']
+            for i in range(4):
+                layers.copyChannel(objs, sourceUVs[i], sourceChannels[i], targetLayer.vertexColorLayer, targetChannels[i], 5)
         elif sourceType == 'UV4' and targetType == 'UV':
             targetUVs = targetLayer.uvLayer0
             targetChannel = targetLayer.uvChannel0
@@ -2659,18 +2640,10 @@ class SXTOOLS_tools(object):
         elif sourceType == 'UV' and targetType == 'UV4':
             sourceUVs = sourceLayer.uvLayer0
             sourceChannel = sourceLayer.uvChannel0
-            targetUVs = targetLayer.uvLayer0
-            targetChannel = targetLayer.uvChannel0
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
-            targetUVs = targetLayer.uvLayer1
-            targetChannel = targetLayer.uvChannel1
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
-            targetUVs = targetLayer.uvLayer2
-            targetChannel = targetLayer.uvChannel2
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
-            targetUVs = targetLayer.uvLayer3
-            targetChannel = targetLayer.uvChannel3
-            layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs, targetChannel, 0)
+            targetUVs = [targetLayer.uvLayer0, targetLayer.uvLayer1, targetLayer.uvLayer2, targetLayer.uvLayer3]
+            targetChannels = [targetLayer.uvChannel0, targetLayer.uvChannel1, targetLayer.uvChannel2, targetLayer.uvChannel3]
+            for i in range(4):
+                layers.copyChannel(objs, sourceUVs, sourceChannel, targetUVs[i], targetChannels[i], 0)
 
 
     def applyPalette(self, objs, palette, noise, mono):
@@ -2809,22 +2782,12 @@ class SXTOOLS_tools(object):
 
 
     def removeModifiers(self, objs):
+        modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
-            if 'sxMirror' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxMirror')
-            if 'sxSubdivision' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxSubdivision')
-            if 'sxBevel' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxBevel')
-            if 'sxDecimate' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxDecimate')
-            if 'sxDecimate2' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxDecimate2')
-            if 'sxEdgeSplit' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxEdgeSplit')
-            if 'sxWeightedNormal' in obj.modifiers.keys():
-                bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
+            for modifier in modifiers:
+                if modifier in obj.modifiers.keys():
+                    bpy.ops.object.modifier_remove(modifier=modifier)
 
 
     def groupObjects(self, objs):
@@ -3085,7 +3048,7 @@ class SXTOOLS_export(object):
                         self.processPaletted(groupObjs)
                     elif category == 'VEHICLES':
                         for obj in groupObjs:
-                            if 'wheel' in obj.name:
+                            if ('wheel' in obj.name) or ('tire' in obj.name):
                                 scene.occlusionblend = 0.0
                             else:
                                 scene.occlusionblend = 0.5
