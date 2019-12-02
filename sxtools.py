@@ -6426,7 +6426,6 @@ if __name__ == '__main__':
 # - Merge vertices in process/modifier stack
 # - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
-# - Crease fails with face selection (no, fails with extrusion performed without going obj/edit)
 # - Auto-place pivots during processing?
 # - Absolute path check
 # - Run from direct github zip download
