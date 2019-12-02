@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 54, 1),
+    'version': (2, 55, 1),
     'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1500,7 +1500,7 @@ class SXTOOLS_layers(object):
 
 
     def updateLayerLightness(self, objs, layer):
-        lightnessDict = mesh.calculateLightness(objs, layer)
+        lightnessDict = mesh.calculateLuminance(objs, layer, 1)
         lightnessList = list()
         for vertDict in lightnessDict.values():
             for valueList in vertDict.values():
@@ -1816,8 +1816,8 @@ class SXTOOLS_mesh(object):
         bpy.ops.object.mode_set(mode=mode)
         return objThicknesses
 
-
-    def calculateLuminance(self, objs, layer):
+    # mode 0: luminance, mode 1: HSL lightness
+    def calculateLuminance(self, objs, layer, mode):
         objDicts = tools.selectionHandler(objs)
         layerType = layer.layerType
         mode = objs[0].mode
@@ -1850,14 +1850,20 @@ class SXTOOLS_mesh(object):
                 for loop_idx in loop_indices:
                     if layerType == 'COLOR':
                         fvColor = vertexColors[loop_idx].color
-                        luminance = convert.colorToLuminance(fvColor)
+                        if mode == 0:
+                            luminance = convert.colorToLuminance(fvColor)
+                        else:
+                            luminance = convert.rgbToHsl(fvColor)[2]
                     elif layerType == 'UV4':
                         fvColor = [
                             uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
                             uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
                             uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
                             uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                        luminance = convert.colorToLuminance(fvColor)
+                        if mode == 0:
+                            luminance = convert.colorToLuminance(fvColor)
+                        else:
+                            luminance = convert.rgbToHsl(fvColor)[2]
                     elif layerType == 'UV':
                         luminance = uvValues[loop_idx].uv[selChannel]
                     loopLuminances.append(luminance)
@@ -1866,57 +1872,6 @@ class SXTOOLS_mesh(object):
 
         bpy.ops.object.mode_set(mode=mode)
         return objLuminances
-
-
-    def calculateLightness(self, objs, layer):
-        objDicts = tools.selectionHandler(objs)
-        layerType = layer.layerType
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V':1}
-
-        objLightnesses = {}
-
-        for obj in objs:
-            if layerType == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif layerType == 'UV4':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
-            elif layerType == 'UV':
-                uvValues = obj.data.uv_layers[layer.uvLayer0].data
-                if layer.uvChannel0 == 'U':
-                    selChannel = 0
-                elif layer.uvChannel0 == 'V':
-                    selChannel = 1
-
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
-            vtxLightnesses = {}
-
-            for vert_idx, loop_indices in vertLoopDict.items():
-                loopLightnesses = []
-                for loop_idx in loop_indices:
-                    if layerType == 'COLOR':
-                        fvColor = vertexColors[loop_idx].color
-                        lightness = convert.rgbToHsl(fvColor)[2]
-                    elif layerType == 'UV4':
-                        fvColor = [
-                            uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
-                            uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
-                            uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
-                            uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                        lightness = convert.rgbToHsl(fvColor)[2]
-                    elif layerType == 'UV':
-                        lightness = uvValues[loop_idx].uv[selChannel]
-                    loopLightnesses.append(lightness)
-                vtxLightnesses[vert_idx] = (loop_indices, loopLightnesses)
-            objLightnesses[obj] = vtxLightnesses
-
-        bpy.ops.object.mode_set(mode=mode)
-        return objLightnesses
 
 
     def calculateCurvature(self, objs, normalize=False):
@@ -2247,7 +2202,7 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        lightnessDict = mesh.calculateLightness(objs, layer)
+        lightnessDict = mesh.calculateLuminance(objs, layer, 1)
         lightnessList = list()
         for vertDict in lightnessDict.values():
             for valueList in vertDict.values():
@@ -2349,7 +2304,7 @@ class SXTOOLS_tools(object):
         elif rampmode == 'OCC':
             objValues = mesh.calculateOcclusion(objs, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
         elif rampmode == 'LUM':
-            objValues = mesh.calculateLuminance(objs, layer)
+            objValues = mesh.calculateLuminance(objs, layer, 0)
         elif rampmode == 'THK':
             objValues = mesh.calculateThickness(objs, scene.occlusionrays, scene.occlusionbias)
         elif rampmode == 'DIR':
@@ -2663,18 +2618,11 @@ class SXTOOLS_tools(object):
 
 
     def applyMaterial(self, objs, targetLayer, material, overwrite, noise, mono):
-        palette = [
-            bpy.context.scene.sxmaterials[material].color0,
-            bpy.context.scene.sxmaterials[material].color1,
-            bpy.context.scene.sxmaterials[material].color2]
+        material = bpy.context.scene.sxmaterials[material]
 
-        color0 = palette[0] # convert.srgbToLinear(palette[0])
-        color1 = palette[1] # convert.srgbToLinear(palette[1])
-        color2 = palette[2] # convert.srgbToLinear(palette[2])
-
-        self.applyColor(objs, objs[0].sxlayers['smoothness'], color2, overwrite, noise, mono)
-        self.applyColor(objs, objs[0].sxlayers['metallic'], color1, overwrite, noise, mono)
-        self.applyColor(objs, targetLayer, color0, overwrite, noise, mono)
+        self.applyColor(objs, objs[0].sxlayers['smoothness'], material.color2, overwrite, noise, mono)
+        self.applyColor(objs, objs[0].sxlayers['metallic'], material.color1, overwrite, noise, mono)
+        self.applyColor(objs, targetLayer, material.color0, overwrite, noise, mono)
 
 
     def addModifiers(self, objs):
@@ -2867,9 +2815,9 @@ class SXTOOLS_export(object):
     def __init__(self):
         return None
 
-
+    # LOD levels are created according to maximum subdivision level
+    # or bevel segment count found per group
     def generateLODs(self, objs):
-        # LOD levels are created according to maximum subdivision level found per group
         orgSelArray = objs[:]
         nameArray = list()
         newObjArray = list()
@@ -2879,6 +2827,8 @@ class SXTOOLS_export(object):
             nameArray.append((sel.name[:], sel.data.name[:]))
             if (sel.sxtools.subdivisionlevel + 1) > lodCount:
                 lodCount = sel.sxtools.subdivisionlevel + 1
+            elif (sel.sxtools.subdivisionlevel == 0) and ((sel.sxtools.bevelsegments + 1) > lodCount):
+                lodCount = sel.sxtools.bevelsegments + 1
 
         if lodCount > 1:
             for i in range(lodCount):
@@ -2890,24 +2840,34 @@ class SXTOOLS_export(object):
                             newObjArray.append(sel)
                 else:
                     for j, sel in enumerate(orgSelArray):
-                        if 'sxSubdivision' in sel.modifiers.keys():
-                            newObj = sel.copy()
-                            newObj.data = sel.data.copy()
+                        newObj = sel.copy()
+                        newObj.data = sel.data.copy()
 
-                            newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
-                            newObj.name = nameArray[j][0] + '_LOD' + str(i)
+                        newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
+                        newObj.name = nameArray[j][0] + '_LOD' + str(i)
 
-                            bpy.context.scene.collection.objects.link(newObj)
-                            sxglobals.exportObjects.append(newObj)
+                        bpy.context.scene.collection.objects.link(newObj)
+                        sxglobals.exportObjects.append(newObj)
 
-                            newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
+                        newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
+
+                        if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True):
                             newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
                             newObj.modifiers['sxBevel'].show_viewport = False
                             if newObj.modifiers['sxSubdivision'].levels == 0:
                                 newObj.modifiers['sxDecimate'].show_viewport = False
                                 newObj.modifiers['sxDecimate2'].show_viewport = False
+                        elif ('sxBevel' in sel.modifiers.keys()) and (sel.sxtools.hardmode == 'BEVEL'):
+                            if (lodCount - i - 1) > 0:
+                                newObj.modifiers['sxBevel'].segments  = lodCount - i - 1
+                            else:
+                                newObj.modifiers['sxBevel'].show_viewport = False
+                            if newObj.modifiers['sxSubdivision'].levels == 0:
+                                newObj.modifiers['sxDecimate'].show_viewport = False
+                                newObj.modifiers['sxDecimate2'].show_viewport = False
 
-                            newObjArray.append(newObj)
+                        newObjArray.append(newObj)
+
 
         return orgSelArray, nameArray, newObjArray
 
@@ -4008,7 +3968,10 @@ def updateModifierVisibility(self, context):
             if 'sxMirror' in obj.modifiers.keys():
                 obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxSubdivision' in obj.modifiers.keys():
-                obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
+                if (obj.sxtools.subdivisionlevel == 0):
+                    obj.modifiers['sxSubdivision'].show_viewport = False
+                else:
+                    obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxDecimate' in obj.modifiers.keys():
                 if (obj.sxtools.subdivisionlevel == 0):
                     obj.modifiers['sxDecimate'].show_viewport = False
@@ -4116,6 +4079,8 @@ def updateSubdivisionModifier(self, context):
         for obj in objs:
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
+                if obj.sxtools.subdivisionlevel == 0:
+                    obj.modifiers['sxSubdivision'].show_viewport = False
             if 'sxDecimate' in obj.modifiers.keys():
                 if obj.sxtools.subdivisionlevel == 0:
                     obj.modifiers['sxDecimate'].show_viewport = False
@@ -6376,7 +6341,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Take bevel segments into account when creating LODs
 # - Parent under the same collection
 # - Modifier stack occasionally staying hidden?
 # - Save new palette from layers
