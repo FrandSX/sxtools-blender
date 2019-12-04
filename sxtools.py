@@ -6341,6 +6341,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Modifier UI values not properly refreshed upon selection (segments, decimation)
 # - Parent under the same collection
 # - Modifier stack occasionally staying hidden?
 # - Save new palette from layers
