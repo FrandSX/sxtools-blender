@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 55, 1),
+    'version': (2, 56, 0),
     'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3996,37 +3996,27 @@ def updateModifierVisibility(self, context):
 def updateMirrorModifier(self, context):
     objs = selectionValidator(self, context)
     if len(objs) > 0:
-        mirrorMode = objs[0].sxtools.mirrormode
+        xmirror = objs[0].sxtools.xmirror
+        ymirror = objs[0].sxtools.ymirror
+        zmirror = objs[0].sxtools.zmirror
+
         for obj in objs:
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = 3.14159
-            if obj.sxtools.mirrormode != mirrorMode:
-                obj.sxtools.mirrormode = mirrorMode
+            if obj.sxtools.xmirror != xmirror:
+                obj.sxtools.xmirror = xmirror
+            if obj.sxtools.ymirror != ymirror:
+                obj.sxtools.ymirror = ymirror
+            if obj.sxtools.zmirror != zmirror:
+                obj.sxtools.zmirror = zmirror
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxMirror' in obj.modifiers.keys():
-                if mirrorMode == 'OFF':
-                    obj.modifiers['sxMirror'].show_viewport = False
-                    obj.modifiers['sxMirror'].use_axis[0] = False
-                    obj.modifiers['sxMirror'].use_axis[1] = False
-                    obj.modifiers['sxMirror'].use_axis[2] = False
-                else:
-                    obj.modifiers['sxMirror'].show_viewport = True
-
-                if mirrorMode == 'X':
-                    obj.modifiers['sxMirror'].use_axis[0] = True
-                    obj.modifiers['sxMirror'].use_axis[1] = False
-                    obj.modifiers['sxMirror'].use_axis[2] = False
-                elif mirrorMode == 'Y':
-                    obj.modifiers['sxMirror'].use_axis[0] = False
-                    obj.modifiers['sxMirror'].use_axis[1] = True
-                    obj.modifiers['sxMirror'].use_axis[2] = False
-                elif mirrorMode == 'Z':
-                    obj.modifiers['sxMirror'].use_axis[0] = False
-                    obj.modifiers['sxMirror'].use_axis[1] = False
-                    obj.modifiers['sxMirror'].use_axis[2] = True
+                obj.modifiers['sxMirror'].use_axis[0] = xmirror
+                obj.modifiers['sxMirror'].use_axis[1] = ymirror
+                obj.modifiers['sxMirror'].use_axis[2] = zmirror
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -4296,15 +4286,19 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=True,
         update=updateModifierVisibility)
 
-    mirrormode: bpy.props.EnumProperty(
-        name='Mesh Mirroring',
-        description='Mirror modifier mode',
-        items=[
-            ('OFF', 'Disabled', ''),
-            ('X', 'X-Axis', ''),
-            ('Y', 'Y-Axis', ''),
-            ('Z', 'Z-Axis', '')],
-        default='OFF',
+    xmirror: bpy.props.BoolProperty(
+        name='X-Axis',
+        default=False,
+        update=updateMirrorModifier)
+
+    ymirror: bpy.props.BoolProperty(
+        name='Y-Axis',
+        default=False,
+        update=updateMirrorModifier)
+
+    zmirror: bpy.props.BoolProperty(
+        name='Z-Axis',
+        default=False,
         update=updateMirrorModifier)
 
     hardmode: bpy.props.EnumProperty(
@@ -5215,7 +5209,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
                         col_sds.label(text='Mesh Mirroring:')
                         row_mirror = box_crease.row()
-                        row_mirror.prop(sxtools, 'mirrormode', expand=True)
+                        row_mirror.prop(sxtools, 'xmirror')
+                        row_mirror.prop(sxtools, 'ymirror')
+                        row_mirror.prop(sxtools, 'zmirror')
                         col2_sds = box_crease.column(align=False)
                         col2_sds.label(text='100% Creases Are:')
                         row_sds = box_crease.row()
