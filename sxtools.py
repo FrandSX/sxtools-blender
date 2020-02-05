@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 56, 0),
+    'version': (2, 56, 1),
     'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4017,6 +4017,11 @@ def updateMirrorModifier(self, context):
                 obj.modifiers['sxMirror'].use_axis[0] = xmirror
                 obj.modifiers['sxMirror'].use_axis[1] = ymirror
                 obj.modifiers['sxMirror'].use_axis[2] = zmirror
+
+                if xmirror or ymirror or zmirror:
+                    obj.modifiers['sxMirror'].show_viewport = True
+                else:
+                    obj.modifiers['sxMirror'].show_viewport = False
 
         bpy.ops.object.mode_set(mode=mode)
 
