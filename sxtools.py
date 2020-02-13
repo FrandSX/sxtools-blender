@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 56, 1),
+    'version': (2, 58, 5),
     'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -925,7 +925,9 @@ class SXTOOLS_convert(object):
         S = 0.0
         L = (Cmax+Cmin)/2.0
 
-        if 0.0 < L < 0.5:
+        if L == 1.0:
+            S = 0.0
+        elif 0.0 < L < 0.5:
             S = (Cmax-Cmin)/(Cmax+Cmin)
         elif L >= 0.5:
             S = (Cmax-Cmin)/(2.0-Cmax-Cmin)
@@ -2629,7 +2631,7 @@ class SXTOOLS_tools(object):
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
 
         for obj in objs:
             if 'sxMirror' not in obj.modifiers.keys():
@@ -2809,11 +2811,112 @@ class SXTOOLS_tools(object):
 
 
 # ------------------------------------------------------------------------
+#    Validation Functions
+# ------------------------------------------------------------------------
+class SXTOOLS_validate(object):
+    def __init__(self):
+        return None
+
+
+    def validateObjects(self, objs):
+        ok = True
+        ok = self.testPaletteLayers(objs)
+        if ok:
+            print('SX Tools: Selected objects passed validation checks')
+
+        return ok
+
+
+    # if paletted, fail if layer colorcount > 1
+    def testPaletteLayers(self, objs):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for obj in objs:
+            if obj.sxtools.category != 'DEFAULT':
+                mesh = obj.data
+                for i in range(5):
+                    colorArray = []
+                    layer = utils.findLayerFromIndex(obj, i+1)
+                    vertexColors = mesh.vertex_colors[layer.vertexColorLayer].data
+
+                    for poly in mesh.polygons:
+                        for loop_idx in poly.loop_indices:
+                            colorArray.append(vertexColors[loop_idx].color[:])
+
+                    colorSet = set(colorArray)
+
+                    if i == 0:
+                        if len(colorSet) > 1:
+                            messageBox('Multiple colors in ' + obj.name + ' layer ' + str(i))
+                            bpy.ops.object.mode_set(mode=mode)
+                            return False
+                    else:
+                        if len(colorSet) > 2:
+                            messageBox('Multiple colors in ' + obj.name + ' layer ' + str(i))
+                            bpy.ops.object.mode_set(mode=mode)
+                            return False
+
+        bpy.ops.object.mode_set(mode=mode)
+        return True
+
+
+    # if paletted, check that emissive faces have color in static channel
+    def testEmissives(self, objs):
+        pass
+
+
+    def __del__(self):
+        print('SX Tools: Exiting validate')
+
+
+    def updateLayerPalette(self, objs, layer):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        channels = {'U': 0, 'V': 1}
+        colorArray = []
+
+        for obj in objs:
+            mesh = obj.data
+            if layer.layerType == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+
+            for poly in mesh.polygons:
+                for loop_idx in poly.loop_indices:
+                    if layer.layerType == 'COLOR':
+                        color = vertexColors[loop_idx].color[:]
+
+                    if color[3] > 0.0:
+                        colorArray.append(color)
+
+        if len(colorArray) == 0:
+            color = (0.0, 0.0, 0.0, 1.0)
+            colorArray.append(color)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ------------------------------------------------------------------------
 #    Exporting Functions
 # ------------------------------------------------------------------------
 class SXTOOLS_export(object):
     def __init__(self):
         return None
+
 
     # LOD levels are created according to maximum subdivision level
     # or bevel segment count found per group
@@ -2851,7 +2954,7 @@ class SXTOOLS_export(object):
 
                         newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
 
-                        if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True):
+                        if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True) and (sel.modifiers['sxSubdivision'].levels > 0):
                             newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
                             newObj.modifiers['sxBevel'].show_viewport = False
                             if newObj.modifiers['sxSubdivision'].levels == 0:
@@ -2894,7 +2997,7 @@ class SXTOOLS_export(object):
         # Make sure auto-smooth is on
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
 
@@ -3958,7 +4061,7 @@ def updateModifierVisibility(self, context):
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.modifiervisibility != vis:
                 obj.sxtools.modifiervisibility = vis
 
@@ -4002,7 +4105,7 @@ def updateMirrorModifier(self, context):
 
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.xmirror != xmirror:
                 obj.sxtools.xmirror = xmirror
             if obj.sxtools.ymirror != ymirror:
@@ -4032,7 +4135,7 @@ def updateCreaseModifiers(self, context):
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.hardmode != hardmode:
                 obj.sxtools.hardmode = hardmode
 
@@ -4061,7 +4164,7 @@ def updateSubdivisionModifier(self, context):
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.modifiervisibility != vis:
                 obj.sxtools.modifiervisibility = vis
             if obj.sxtools.hardmode != hardmode:
@@ -4097,7 +4200,7 @@ def updateBevelModifier(self, context):
         bevelSegments = objs[0].sxtools.bevelsegments
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.bevelwidth != bevelWidth:
                 obj.sxtools.bevelwidth = bevelWidth
             if obj.sxtools.bevelsegments != bevelSegments:
@@ -4120,7 +4223,7 @@ def updateDecimateModifier(self, context):
         decimation = objs[0].sxtools.decimation
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = 3.14159
+            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.decimation != decimation:
                 obj.sxtools.decimation = decimation
 
@@ -4160,6 +4263,16 @@ def updateCustomProps(self, context):
                 obj.sxtools.overlaystrength = ovr
             if obj.sxtools.lodmeshes != lod:
                 obj.sxtools.lodmeshes = lod
+
+
+def updateSmoothAngle(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        smoothAngle = objs[0].sxtools.smoothangle * (2*math.pi)/360.0
+        for obj in objs:
+            obj.data.use_auto_smooth = True
+            if obj.data.auto_smooth_angle != smoothAngle:
+                obj.data.auto_smooth_angle = smoothAngle
 
 
 def messageBox(message='', title='SX Tools', icon='INFO'):
@@ -4290,6 +4403,13 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Modifier Visibility',
         default=True,
         update=updateModifierVisibility)
+
+    smoothangle: bpy.props.FloatProperty(
+        name='Normal Smoothing Angle',
+        min=0.0,
+        max=180.0,
+        default=180.0,
+        update=updateSmoothAngle)
 
     xmirror: bpy.props.BoolProperty(
         name='X-Axis',
@@ -5212,6 +5332,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandcrease:
                         col_sds = box_crease.column(align=False)
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
+                        col_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
                         col_sds.label(text='Mesh Mirroring:')
                         row_mirror = box_crease.row()
                         row_mirror.prop(sxtools, 'xmirror')
@@ -5327,7 +5448,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.prop(scene, 'exportfolder', text='')
                         col3_export = box_export.column(align=True)
                         col3_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
-                        if 'sxSubdivision' not in obj.modifiers.keys():
+                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxBevel' not in obj.modifiers.keys()):
                             col3_export.enabled = False
                         split_export = box_export.split(factor=0.1)
                         split_export.operator('sxtools.checklist', text='', icon='INFO')
@@ -6214,14 +6335,16 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
         scene = context.scene.sxtools
         objs = selectionValidator(self, context)
         if len(objs) > 0:
-            export.processObjects(objs)
+            check = validate.validateObjects(objs)
+            if check:
+                export.processObjects(objs)
 
-            sxglobals.composite = True
-            refreshActives(self, context)
+                sxglobals.composite = True
+                refreshActives(self, context)
 
-            scene.shadingmode = 'FULL'
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-            bpy.ops.object.shade_smooth()
+                scene.shadingmode = 'FULL'
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                bpy.ops.object.shade_smooth()
         return {'FINISHED'}
 
 
@@ -6236,6 +6359,7 @@ layers = SXTOOLS_layers()
 setup = SXTOOLS_setup()
 mesh = SXTOOLS_mesh()
 tools = SXTOOLS_tools()
+validate = SXTOOLS_validate()
 export = SXTOOLS_export()
 
 classes = (
@@ -6342,6 +6466,11 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Properly refresh smoothing angle per selection
+# - Content validation steps
+#   - Color count == 1 per layer if paletted
+# - LOD export for high-detail export
+# - Auto-splitting and naming of mirrored geometry
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
 # - Parent under the same collection
 # - Modifier stack occasionally staying hidden?
