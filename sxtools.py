@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 58, 5),
-    'blender': (2, 81, 0),
+    'version': (2, 60, 6),
+    'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'category': 'Development',
@@ -2555,6 +2555,54 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
+    # swap bevel edges to creases and vice versa
+    def creaseBevelToggle(self, objs, hardmode):
+        mode = objs[0].mode
+        creaseDict = {
+            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
+            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
+            'CreaseSet4': 1.0}
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+
+        for obj in objs:
+            bm = bmesh.from_edit_mesh(obj.data)
+            mesh = obj.data
+
+            if 'SubSurfCrease' in bm.edges.layers.crease.keys():
+                creaseLayer = bm.edges.layers.crease['SubSurfCrease']
+            else:
+                creaseLayer = bm.edges.layers.crease.new('SubSurfCrease')
+
+            if 'BevelWeight' in bm.edges.layers.bevel_weight.keys():
+                bevelWeightLayer = bm.edges.layers.bevel_weight['BevelWeight']
+            else:
+                bevelWeightLayer = bm.edges.layers.bevel_weight.new('BevelWeight')
+
+            # hard crease to bevel
+            if hardmode == 'BEVEL':
+                for edge in bm.edges:
+                    if edge[creaseLayer] == 1.0:
+                        edge.smooth = True
+                        mesh.edges[edge.index].use_edge_sharp = False
+                        mesh.edges[edge.index].crease = -1.0
+                        edge[bevelWeightLayer] = 1.0
+                        edge[creaseLayer] = -1.0
+            # bevel to hard crease
+            elif hardmode == 'HARD':
+                for edge in bm.edges:
+                    if edge[bevelWeightLayer] == 1.0:
+                        edge.smooth = False
+                        mesh.edges[edge.index].use_edge_sharp = True
+                        mesh.edges[edge.index].crease = 1.0
+                        edge[bevelWeightLayer] = -1.0
+                        edge[creaseLayer] = 1.0
+
+            bmesh.update_edit_mesh(obj.data)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
     # takes any layers in layerview, translates to copyChannel batches
     def layerCopyManager(self, objs, sourceLayer, targetLayer):
         sourceType = sourceLayer.layerType
@@ -2669,6 +2717,15 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
+            if 'sxWeld' not in obj.modifiers.keys():
+                obj.modifiers.new(type='WELD', name='sxWeld')
+                if obj.sxtools.weldthreshold == 0:
+                    obj.modifiers['sxWeld'].show_viewport = False
+                else:
+                    obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxWeld'].show_expanded = False
+                obj.modifiers['sxWeld'].merge_threshold = obj.sxtools.weldthreshold
             if 'sxDecimate' not in obj.modifiers.keys():
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate')
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
@@ -2717,6 +2774,8 @@ class SXTOOLS_tools(object):
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
+            if 'sxWeld' in obj.modifiers.keys():
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeld')
             if 'sxDecimate' in obj.modifiers.keys():
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate')
@@ -2732,7 +2791,7 @@ class SXTOOLS_tools(object):
 
 
     def removeModifiers(self, objs):
-        modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
+        modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
             for modifier in modifiers:
@@ -2848,12 +2907,12 @@ class SXTOOLS_validate(object):
 
                     if i == 0:
                         if len(colorSet) > 1:
-                            messageBox('Multiple colors in ' + obj.name + ' layer ' + str(i))
+                            messageBox('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             bpy.ops.object.mode_set(mode=mode)
                             return False
                     else:
                         if len(colorSet) > 2:
-                            messageBox('Multiple colors in ' + obj.name + ' layer ' + str(i))
+                            messageBox('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             bpy.ops.object.mode_set(mode=mode)
                             return False
 
@@ -2892,22 +2951,6 @@ class SXTOOLS_validate(object):
         if len(colorArray) == 0:
             color = (0.0, 0.0, 0.0, 1.0)
             colorArray.append(color)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ------------------------------------------------------------------------
@@ -4060,8 +4103,6 @@ def updateModifierVisibility(self, context):
         vis = objs[0].sxtools.modifiervisibility
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.modifiervisibility != vis:
                 obj.sxtools.modifiervisibility = vis
 
@@ -4090,6 +4131,11 @@ def updateModifierVisibility(self, context):
                     obj.modifiers['sxBevel'].show_viewport = True
                 else:
                     obj.modifiers['sxBevel'].show_viewport = False
+            if 'sxWeld' in obj.modifiers.keys():
+                if (obj.sxtools.weldthreshold == 0):
+                    obj.modifiers['sxWeld'].show_viewport = False
+                else:
+                    obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
@@ -4104,8 +4150,6 @@ def updateMirrorModifier(self, context):
         zmirror = objs[0].sxtools.zmirror
 
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.xmirror != xmirror:
                 obj.sxtools.xmirror = xmirror
             if obj.sxtools.ymirror != ymirror:
@@ -4134,10 +4178,10 @@ def updateCreaseModifiers(self, context):
     if len(objs) > 0:
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.hardmode != hardmode:
                 obj.sxtools.hardmode = hardmode
+
+        # tools.creaseBevelToggle(objs, hardmode)
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -4163,8 +4207,6 @@ def updateSubdivisionModifier(self, context):
         hardmode = objs[0].sxtools.hardmode
         subdivLevel = objs[0].sxtools.subdivisionlevel
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.modifiervisibility != vis:
                 obj.sxtools.modifiervisibility = vis
             if obj.sxtools.hardmode != hardmode:
@@ -4199,8 +4241,6 @@ def updateBevelModifier(self, context):
         bevelWidth = objs[0].sxtools.bevelwidth
         bevelSegments = objs[0].sxtools.bevelsegments
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.bevelwidth != bevelWidth:
                 obj.sxtools.bevelwidth = bevelWidth
             if obj.sxtools.bevelsegments != bevelSegments:
@@ -4217,13 +4257,32 @@ def updateBevelModifier(self, context):
         bpy.ops.object.mode_set(mode=mode)
 
 
+def updateWeldModifier(self, context):
+    objs = selectionValidator(self, context)
+    if len(objs) > 0:
+        weldThreshold = objs[0].sxtools.weldthreshold
+        for obj in objs:
+            if obj.sxtools.weldthreshold != weldThreshold:
+                obj.sxtools.weldthreshold = weldThreshold
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        for obj in objs:
+            if 'sxWeld' in obj.modifiers.keys():
+                obj.modifiers['sxWeld'].merge_threshold = weldThreshold
+                if obj.sxtools.weldthreshold == 0:
+                    obj.modifiers['sxWeld'].show_viewport = False
+                elif (obj.sxtools.weldthreshold > 0) and obj.sxtools.modifiervisibility:
+                    obj.modifiers['sxWeld'].show_viewport = True
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
 def updateDecimateModifier(self, context):
     objs = selectionValidator(self, context)
     if len(objs) > 0:
         decimation = objs[0].sxtools.decimation
         for obj in objs:
-            obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
             if obj.sxtools.decimation != decimation:
                 obj.sxtools.decimation = decimation
 
@@ -4456,6 +4515,14 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         max=10,
         default=2,
         update=updateBevelModifier)
+
+    weldthreshold: bpy.props.FloatProperty(
+        name='Weld Threshold',
+        min=0.0,
+        max=10.0,
+        default=0.0,
+        precision=3,
+        update=updateWeldModifier)
 
     decimation: bpy.props.FloatProperty(
         name='Decimation',
@@ -5332,7 +5399,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandcrease:
                         col_sds = box_crease.column(align=False)
                         col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                        col_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
                         col_sds.label(text='Mesh Mirroring:')
                         row_mirror = box_crease.row()
                         row_mirror.prop(sxtools, 'xmirror')
@@ -5347,14 +5413,23 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if obj.sxtools.hardmode == 'BEVEL':
                             col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
                             col3_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
+                        col3_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
+                        col3_sds.prop(sxtools, 'weldthreshold', text='Weld Threshold')
                         if obj.sxtools.subdivisionlevel > 0:
                             col3_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                             col3_sds.label(text='Selection Tri Count: '+mesh.calculateTriangles(objs))
                         col3_sds.separator()
-                        if ('sxBevel' in obj.modifiers.keys()) or ('sxSubdivision' in obj.modifiers.keys()) or ('sxDecimate' in obj.modifiers.keys()) or ('sxDecimate2' in obj.modifiers.keys()) or ('sxEdgeSplit' in obj.modifiers.keys()) or ('sxWeightedNormal' in obj.modifiers.keys()):
-                            col3_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
-                        if ('sxBevel' not in obj.modifiers.keys()) or ('sxSubdivision' not in obj.modifiers.keys()) or ('sxWeightedNormal' not in obj.modifiers.keys()):
-                            col3_sds.operator('sxtools.modifiers', text='Add Modifiers')
+                        col4_sds = box_crease.column(align=True)
+                        modifiers = '\t'.join(obj.modifiers.keys())
+                        if 'sx' in modifiers:
+                            col4_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                        if 'sx' not in modifiers:
+                            col_sds.enabled = False
+                            row_mirror.enabled = False
+                            col2_sds.enabled = False
+                            row_sds.enabled = False
+                            col3_sds.enabled = False
+                            col4_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
                 # Master Palette ---------------------------------------------------
                 box_palette = layout.box()
@@ -6466,9 +6541,10 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Vertex weld to high-detail export
+# weld before AO!
+# bpy.context.object.modifiers["Weld"].merge_threshold = 0.003
 # - Properly refresh smoothing angle per selection
-# - Content validation steps
-#   - Color count == 1 per layer if paletted
 # - LOD export for high-detail export
 # - Auto-splitting and naming of mirrored geometry
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
