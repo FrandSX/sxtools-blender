@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 60, 6),
+    'version': (2, 61, 17),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2490,12 +2490,55 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
 
-    def selectCrease(self, objs, group, clearsel=False):
-        creaseDict = {
-            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
-            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
-            'CreaseSet4': 1.0}
-        weight = creaseDict[group]
+    def assignSet(self, objs, setvalue, setmode):
+        mode = objs[0].mode
+        modeDict = {
+            'CRS': 'SubSurfCrease',
+            'BEV': 'BevelWeight'}
+        weight = setvalue
+        modename = modeDict[setmode]
+
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+
+        for obj in objs:
+            bm = bmesh.from_edit_mesh(obj.data)
+            mesh = obj.data
+
+            if setmode == 'CRS':
+                if modename in bm.edges.layers.crease.keys():
+                    bmlayer = bm.edges.layers.crease[modename]
+                else:
+                    bmlayer = bm.edges.layers.crease.new(modename)
+            else:
+                if modename in bm.edges.layers.bevel_weight.keys():
+                    bmlayer = bm.edges.layers.bevel_weight[modename]
+                else:
+                    bmlayer = bm.edges.layers.bevel_weight.new(modename)
+
+            selectedEdges = [edge for edge in bm.edges if edge.select]
+            for edge in selectedEdges:
+                edge[bmlayer] = weight
+                if setmode == 'CRS':
+                    mesh.edges[edge.index].crease = weight
+                    if weight == 1.0:
+                        edge.smooth = False
+                        mesh.edges[edge.index].use_edge_sharp = True
+                    else:
+                        edge.smooth = True
+                        mesh.edges[edge.index].use_edge_sharp = False
+
+            bmesh.update_edit_mesh(obj.data)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+
+    def selectSet(self, objs, setvalue, setmode, clearsel=False):
+        modeDict = {
+            'CRS': 'SubSurfCrease',
+            'BEV': 'BevelWeight'}
+        weight = setvalue
+        modename = modeDict[setmode]
 
         bpy.context.view_layer.objects.active = objs[0]
 
@@ -2503,104 +2546,29 @@ class SXTOOLS_tools(object):
         bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
         if clearsel:
             bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
         for obj in objs:
-            for edge in obj.data.edges:
-                if math.isclose(edge.crease, weight, abs_tol=0.1):
+            bm = bmesh.from_edit_mesh(obj.data)
+            mesh = obj.data
+
+            if setmode == 'CRS':
+                if modename in bm.edges.layers.crease.keys():
+                    bmlayer = bm.edges.layers.crease[modename]
+                else:
+                    bmlayer = bm.edges.layers.crease.new(modename)
+            else:
+                if modename in bm.edges.layers.bevel_weight.keys():
+                    bmlayer = bm.edges.layers.bevel_weight[modename]
+                else:
+                    bmlayer = bm.edges.layers.bevel_weight.new(modename)
+
+            for edge in bm.edges:
+                if math.isclose(edge[bmlayer], weight, abs_tol=0.1):
                     edge.select = True
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-
-
-    def assignCrease(self, objs, group):
-        mode = objs[0].mode
-        creaseDict = {
-            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
-            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
-            'CreaseSet4': 1.0}
-        weight = creaseDict[group]
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-
-        for obj in objs:
-            bm = bmesh.from_edit_mesh(obj.data)
-            mesh = obj.data
-
-            if 'SubSurfCrease' in bm.edges.layers.crease.keys():
-                creaseLayer = bm.edges.layers.crease['SubSurfCrease']
-            else:
-                creaseLayer = bm.edges.layers.crease.new('SubSurfCrease')
-
-            if 'BevelWeight' in bm.edges.layers.bevel_weight.keys():
-                bevelWeightLayer = bm.edges.layers.bevel_weight['BevelWeight']
-            else:
-                bevelWeightLayer = bm.edges.layers.bevel_weight.new('BevelWeight')
-
-            selectedEdges = [edge for edge in bm.edges if edge.select]
-            for edge in selectedEdges:
-                edge[creaseLayer] = weight
-                mesh.edges[edge.index].crease = weight
-                if weight == 1.0:
-                    edge.smooth = False
-                    mesh.edges[edge.index].use_edge_sharp = True
-                    edge[bevelWeightLayer] = weight
-                else:
-                    edge.smooth = True
-                    mesh.edges[edge.index].use_edge_sharp = False
-                    edge[bevelWeightLayer] = -1.0
-
             bmesh.update_edit_mesh(obj.data)
-
-        bpy.ops.object.mode_set(mode=mode)
-
-
-    # swap bevel edges to creases and vice versa
-    def creaseBevelToggle(self, objs, hardmode):
-        mode = objs[0].mode
-        creaseDict = {
-            'CreaseSet0': -1.0, 'CreaseSet1': 0.25,
-            'CreaseSet2': 0.5, 'CreaseSet3': 0.75,
-            'CreaseSet4': 1.0}
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-
-        for obj in objs:
-            bm = bmesh.from_edit_mesh(obj.data)
-            mesh = obj.data
-
-            if 'SubSurfCrease' in bm.edges.layers.crease.keys():
-                creaseLayer = bm.edges.layers.crease['SubSurfCrease']
-            else:
-                creaseLayer = bm.edges.layers.crease.new('SubSurfCrease')
-
-            if 'BevelWeight' in bm.edges.layers.bevel_weight.keys():
-                bevelWeightLayer = bm.edges.layers.bevel_weight['BevelWeight']
-            else:
-                bevelWeightLayer = bm.edges.layers.bevel_weight.new('BevelWeight')
-
-            # hard crease to bevel
-            if hardmode == 'BEVEL':
-                for edge in bm.edges:
-                    if edge[creaseLayer] == 1.0:
-                        edge.smooth = True
-                        mesh.edges[edge.index].use_edge_sharp = False
-                        mesh.edges[edge.index].crease = -1.0
-                        edge[bevelWeightLayer] = 1.0
-                        edge[creaseLayer] = -1.0
-            # bevel to hard crease
-            elif hardmode == 'HARD':
-                for edge in bm.edges:
-                    if edge[bevelWeightLayer] == 1.0:
-                        edge.smooth = False
-                        mesh.edges[edge.index].use_edge_sharp = True
-                        mesh.edges[edge.index].crease = 1.0
-                        edge[bevelWeightLayer] = -1.0
-                        edge[creaseLayer] = 1.0
-
-            bmesh.update_edit_mesh(obj.data)
-
-        bpy.ops.object.mode_set(mode=mode)
 
 
     # takes any layers in layerview, translates to copyChannel batches
@@ -2702,10 +2670,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].show_on_cage = True
             if 'sxBevel' not in  obj.modifiers.keys():
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
-                if hardmode == 'BEVEL' or obj.sxtools.modifiervisibility:
-                    obj.modifiers['sxBevel'].show_viewport = True
-                else:
-                    obj.modifiers['sxBevel'].show_viewport = False
+                obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxBevel'].show_expanded = False
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
@@ -2713,7 +2678,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].use_clamp_overlap = True
                 obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
-                obj.modifiers['sxBevel'].harden_normals = True
+                obj.modifiers['sxBevel'].harden_normals = False
                 obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
@@ -2961,8 +2926,16 @@ class SXTOOLS_export(object):
         return None
 
 
-    # LOD levels are created according to maximum subdivision level
-    # or bevel segment count found per group
+    # LOD levels:
+    # If subdivision enabled:
+    #   LOD0 - Maximum subdivision and bevels
+    #   LOD1 - Subdiv 1, bevels
+    #   LOD2 - Control cage
+    # If bevels only:
+    #   LOD0 - Maximum bevel segments
+    #   LOD1 - Control cage
+    # NOTE: In case of bevels, prefer even-numbered segment counts!
+    #       Odd-numbered bevels often generate incorrect vertex colors
     def generateLODs(self, objs):
         orgSelArray = objs[:]
         nameArray = list()
@@ -2971,10 +2944,10 @@ class SXTOOLS_export(object):
         lodCount = 1
         for sel in orgSelArray:
             nameArray.append((sel.name[:], sel.data.name[:]))
-            if (sel.sxtools.subdivisionlevel + 1) > lodCount:
-                lodCount = sel.sxtools.subdivisionlevel + 1
-            elif (sel.sxtools.subdivisionlevel == 0) and ((sel.sxtools.bevelsegments + 1) > lodCount):
-                lodCount = sel.sxtools.bevelsegments + 1
+            if sel.sxtools.subdivisionlevel >= 1:
+                lodCount = min(3, sel.sxtools.subdivisionlevel + 1)
+            elif (sel.sxtools.subdivisionlevel == 0) and ((sel.sxtools.bevelsegments) > 0):
+                lodCount = 2
 
         if lodCount > 1:
             for i in range(lodCount):
@@ -2997,23 +2970,33 @@ class SXTOOLS_export(object):
 
                         newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
 
-                        if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True) and (sel.modifiers['sxSubdivision'].levels > 0):
-                            newObj.modifiers['sxSubdivision'].levels  = lodCount - i - 1
-                            newObj.modifiers['sxBevel'].show_viewport = False
-                            if newObj.modifiers['sxSubdivision'].levels == 0:
+                        if i == 1:
+                            if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True) and (sel.modifiers['sxSubdivision'].levels > 0):
+                                newObj.modifiers['sxSubdivision'].levels = 1
+                                newObj.modifiers['sxSubdivision'].show_viewport = True
+                                if ('sxBevel' in sel.modifiers.keys()) and (sel.modifiers['sxBevel'].segments > 0):
+                                    newObj.modifiers['sxBevel'].show_viewport = True
+                                else:
+                                    newObj.modifiers['sxBevel'].show_viewport = False
+                            elif ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].levels == 0):
+                                newObj.modifiers['sxSubdivision'].levels = 0
+                                newObj.modifiers['sxSubdivision'].show_viewport = False
                                 newObj.modifiers['sxDecimate'].show_viewport = False
                                 newObj.modifiers['sxDecimate2'].show_viewport = False
-                        elif ('sxBevel' in sel.modifiers.keys()) and (sel.sxtools.hardmode == 'BEVEL'):
-                            if (lodCount - i - 1) > 0:
-                                newObj.modifiers['sxBevel'].segments  = lodCount - i - 1
-                            else:
+                                if ('sxBevel' in sel.modifiers.keys()):
+                                    newObj.modifiers['sxBevel'].show_viewport = False
+                        else:
+                            if ('sxSubdivision' in sel.modifiers.keys()):
+                                newObj.modifiers['sxSubdivision'].levels = 0
+                            if ('sxWeld' in sel.modifiers.keys()):
+                                newObj.modifiers['sxWeld'].show_viewport = False
+                            if ('sxDecimate' in sel.modifiers.keys()):
+                                newObj.modifiers['sxDecimate'].show_viewport = False
+                                newObj.modifiers['sxDecimate2'].show_viewport = False
+                            if ('sxBevel' in sel.modifiers.keys()):
                                 newObj.modifiers['sxBevel'].show_viewport = False
-                            if newObj.modifiers['sxSubdivision'].levels == 0:
-                                newObj.modifiers['sxDecimate'].show_viewport = False
-                                newObj.modifiers['sxDecimate2'].show_viewport = False
 
                         newObjArray.append(newObj)
-
 
         return orgSelArray, nameArray, newObjArray
 
@@ -4127,10 +4110,10 @@ def updateModifierVisibility(self, context):
                 else:
                     obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxBevel' in obj.modifiers.keys():
-                if hardmode == 'BEVEL' and obj.sxtools.modifiervisibility:
-                    obj.modifiers['sxBevel'].show_viewport = True
-                else:
+                if obj.sxtools.bevelsegments == 0:
                     obj.modifiers['sxBevel'].show_viewport = False
+                else:
+                    obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxWeld' in obj.modifiers.keys():
                 if (obj.sxtools.weldthreshold == 0):
                     obj.modifiers['sxWeld'].show_viewport = False
@@ -4181,16 +4164,9 @@ def updateCreaseModifiers(self, context):
             if obj.sxtools.hardmode != hardmode:
                 obj.sxtools.hardmode = hardmode
 
-        # tools.creaseBevelToggle(objs, hardmode)
-
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
-            if 'sxBevel' in obj.modifiers.keys():
-                if hardmode != 'BEVEL':
-                    obj.modifiers['sxBevel'].show_viewport = False
-                else:
-                    obj.modifiers['sxBevel'].show_viewport = True
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 if hardmode == 'SMOOTH':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
@@ -4221,6 +4197,8 @@ def updateSubdivisionModifier(self, context):
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                 if obj.sxtools.subdivisionlevel == 0:
                     obj.modifiers['sxSubdivision'].show_viewport = False
+                else:
+                    obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
             if 'sxDecimate' in obj.modifiers.keys():
                 if obj.sxtools.subdivisionlevel == 0:
                     obj.modifiers['sxDecimate'].show_viewport = False
@@ -4250,6 +4228,10 @@ def updateBevelModifier(self, context):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         for obj in objs:
             if 'sxBevel' in obj.modifiers.keys():
+                if obj.sxtools.bevelsegments == 0:
+                    obj.modifiers['sxBevel'].show_viewport = False
+                else:
+                    obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
@@ -4490,9 +4472,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         description='Mode for processing edges with maximum crease',
         items=[
             ('SMOOTH', 'Smooth', ''),
-            ('SHARP', 'Sharp', ''),
-            ('BEVEL', 'Beveled', '')],
-        default='BEVEL',
+            ('SHARP', 'Sharp', '')],
+        default='SHARP',
         update=updateCreaseModifiers)
 
     subdivisionlevel: bpy.props.IntProperty(
@@ -4511,7 +4492,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     bevelsegments: bpy.props.IntProperty(
         name='Bevel Segments',
-        min=1,
+        min=0,
         max=10,
         default=2,
         update=updateBevelModifier)
@@ -4954,10 +4935,15 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Creasing Mode',
         description='Display creasing tools or modifier settings',
         items=[
-            ('CRS', 'Creasing', ''),
+            ('CRS', 'Crease', ''),
+            ('BEV', 'Bevel', ''),
             ('SDS', 'Modifiers', '')],
         default='CRS',
         update=expandCrease)
+
+    autocrease: bpy.props.BoolProperty(
+        name='Auto Hard-Crease Bevel Edges',
+        default=True)
 
     expandfill: bpy.props.BoolProperty(
         name='Expand Fill',
@@ -5386,15 +5372,25 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     icon='TRIA_DOWN' if scene.expandcrease else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_crease.prop(scene, 'creasemode', expand=True)
-                if scene.creasemode == 'CRS':
+                if scene.creasemode != 'SDS':
                     if scene.expandcrease:
                         row_sets = box_crease.row(align=True)
-                        row_sets.operator('sxtools.crease1', text='25%')
-                        row_sets.operator('sxtools.crease2', text='50%')
-                        row_sets.operator('sxtools.crease3', text='75%')
-                        row_sets.operator('sxtools.crease4', text='100%')
+                        setbutton = row_sets.operator('sxtools.setgroup', text='25%')
+                        setbutton.setmode = scene.creasemode
+                        setbutton.setvalue = 0.25
+                        setbutton = row_sets.operator('sxtools.setgroup', text='50%')
+                        setbutton.setmode = scene.creasemode
+                        setbutton.setvalue = 0.5
+                        setbutton = row_sets.operator('sxtools.setgroup', text='75%')
+                        setbutton.setmode = scene.creasemode
+                        setbutton.setvalue = 0.75
+                        setbutton = row_sets.operator('sxtools.setgroup', text='100%')
+                        setbutton.setmode = scene.creasemode
+                        setbutton.setvalue = 1.0
                         col_sets = box_crease.column(align=True)
-                        col_sets.operator('sxtools.crease0', text='Uncrease')
+                        setbutton = col_sets.operator('sxtools.setgroup', text='Clear Weights')
+                        setbutton.setmode = scene.creasemode
+                        setbutton.setvalue = -1.0
                 elif scene.creasemode == 'SDS':
                     if scene.expandcrease:
                         col_sds = box_crease.column(align=False)
@@ -5405,14 +5401,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_mirror.prop(sxtools, 'ymirror')
                         row_mirror.prop(sxtools, 'zmirror')
                         col2_sds = box_crease.column(align=False)
+                        col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevel Edges')
                         col2_sds.label(text='100% Creases Are:')
                         row_sds = box_crease.row()
                         row_sds.prop(sxtools, 'hardmode', expand=True)
                         col3_sds = box_crease.column(align=True)
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                        if obj.sxtools.hardmode == 'BEVEL':
-                            col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
-                            col3_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
+                        col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
+                        col3_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
                         col3_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
                         col3_sds.prop(sxtools, 'weldthreshold', text='Weld Threshold')
                         if obj.sxtools.subdivisionlevel > 0:
@@ -5548,6 +5544,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
+                            col_debug.operator('sxtools.generatelods', text='Debug: Create LOD Meshes')
 
         else:
             layout = self.layout
@@ -5981,103 +5978,29 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class SXTOOLS_OT_crease0(bpy.types.Operator):
-    bl_idname = 'sxtools.crease0'
-    bl_label = 'Crease0'
-    bl_description = 'Uncrease selected components'
+class SXTOOLS_OT_setgroup(bpy.types.Operator):
+    bl_idname = 'sxtools.setgroup'
+    bl_label = 'Set Value'
+    bl_description = 'Click to apply modifier weight to selected edges\nShift-click to add edges to selection\nAlt-click to clear selection and select edges'
     bl_options = {'UNDO'}
 
+    setmode: bpy.props.StringProperty()
+    setvalue: bpy.props.FloatProperty()
 
     def invoke(self, context, event):
         objs = selectionValidator(self, context)
+        scene = context.scene.sxtools
         if len(objs) > 0:
-            group = 'CreaseSet0'
+            setmode = self.setmode
+            setvalue = self.setvalue
             if event.shift:
-                tools.selectCrease(objs, group)
+                tools.selectSet(objs, setvalue, setmode)
             elif event.alt:
-                tools.selectCrease(objs, group, True)
+                tools.selectSet(objs, setvalue, setmode, True)
             else:
-                tools.assignCrease(objs, group)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_crease1(bpy.types.Operator):
-    bl_idname = 'sxtools.crease1'
-    bl_label = 'Crease1'
-    bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
-    bl_options = {'UNDO'}
-
-
-    def invoke(self, context, event):
-        objs = selectionValidator(self, context)
-        if len(objs) > 0:
-            group = 'CreaseSet1'
-            if event.shift:
-                tools.selectCrease(objs, group)
-            elif event.alt:
-                tools.selectCrease(objs, group, True)
-            else:
-                tools.assignCrease(objs, group)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_crease2(bpy.types.Operator):
-    bl_idname = 'sxtools.crease2'
-    bl_label = 'Crease2'
-    bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
-    bl_options = {'UNDO'}
-
-
-    def invoke(self, context, event):
-        objs = selectionValidator(self, context)
-        if len(objs) > 0:
-            group = 'CreaseSet2'
-            if event.shift:
-                tools.selectCrease(objs, group)
-            elif event.alt:
-                tools.selectCrease(objs, group, True)
-            else:
-                tools.assignCrease(objs, group)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_crease3(bpy.types.Operator):
-    bl_idname = 'sxtools.crease3'
-    bl_label = 'Crease3'
-    bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
-    bl_options = {'UNDO'}
-
-
-    def invoke(self, context, event):
-        objs = selectionValidator(self, context)
-        if len(objs) > 0:
-            group = 'CreaseSet3'
-            if event.shift:
-                tools.selectCrease(objs, group)
-            elif event.alt:
-                tools.selectCrease(objs, group, True)
-            else:
-                tools.assignCrease(objs, group)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_crease4(bpy.types.Operator):
-    bl_idname = 'sxtools.crease4'
-    bl_label = 'Crease4'
-    bl_description = 'Click to apply edge crease value\nShift-click to select creased edges'
-    bl_options = {'UNDO'}
-
-
-    def invoke(self, context, event):
-        objs = selectionValidator(self, context)
-        if len(objs) > 0:
-            group = 'CreaseSet4'
-            if event.shift:
-                tools.selectCrease(objs, group)
-            elif event.alt:
-                tools.selectCrease(objs, group, True)
-            else:
-                tools.assignCrease(objs, group)
+                tools.assignSet(objs, setvalue, setmode)
+                if scene.autocrease and setmode == 'BEV':
+                    tools.assignSet(objs, 1.0, 'CRS')
         return {'FINISHED'}
 
 
@@ -6327,6 +6250,20 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_generatelods(bpy.types.Operator):
+    bl_idname = 'sxtools.generatelods'
+    bl_label = 'Generate LOD Meshes'
+    bl_description = 'Creates LOD meshes\nfrom selected objects'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            export.generateLODs(objs)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_revertobjects(bpy.types.Operator):
     bl_idname = 'sxtools.revertobjects'
     bl_label = 'Revert to Control Cages'
@@ -6454,11 +6391,7 @@ classes = (
     SXTOOLS_OT_applyramp,
     SXTOOLS_OT_addramp,
     SXTOOLS_OT_delramp,
-    SXTOOLS_OT_crease0,
-    SXTOOLS_OT_crease1,
-    SXTOOLS_OT_crease2,
-    SXTOOLS_OT_crease3,
-    SXTOOLS_OT_crease4,
+    SXTOOLS_OT_setgroup,
     SXTOOLS_OT_applypalette,
     SXTOOLS_OT_applymaterial,
     SXTOOLS_OT_copylayer,
@@ -6478,6 +6411,7 @@ classes = (
     SXTOOLS_OT_setpivots,
     SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
+    SXTOOLS_OT_generatelods,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_checklist,
@@ -6541,9 +6475,7 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Vertex weld to high-detail export
-# weld before AO!
-# bpy.context.object.modifiers["Weld"].merge_threshold = 0.003
+# - Vertex weld to high-detail export, weld before AO
 # - Properly refresh smoothing angle per selection
 # - LOD export for high-detail export
 # - Auto-splitting and naming of mirrored geometry
@@ -6557,8 +6489,6 @@ if __name__ == '__main__':
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
-# - Merge vertices in process/modifier stack
-# - ProcessBuildings Low: windows need hard normals
 # - Investigate SXMaterial auto-regeneration issues
 # - Auto-place pivots during processing?
 # - Absolute path check
