@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 61, 17),
+    'version': (2, 61, 18),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5999,7 +5999,7 @@ class SXTOOLS_OT_setgroup(bpy.types.Operator):
                 tools.selectSet(objs, setvalue, setmode, True)
             else:
                 tools.assignSet(objs, setvalue, setmode)
-                if scene.autocrease and setmode == 'BEV':
+                if (scene.autocrease) and (setmode == 'BEV') and (setvalue != -1.0):
                     tools.assignSet(objs, 1.0, 'CRS')
         return {'FINISHED'}
 
@@ -6475,21 +6475,21 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Vertex weld to high-detail export, weld before AO
 # - Properly refresh smoothing angle per selection
-# - LOD export for high-detail export
-# - Auto-splitting and naming of mirrored geometry
-# - Modifier UI values not properly refreshed upon selection (segments, decimation)
-# - Parent under the same collection
 # - Modifier stack occasionally staying hidden?
+# - Modifier UI values not properly refreshed upon selection (segments, decimation)
+# - LOD export for high-detail export
+# - Vertex weld to high-detail export, weld before AO
+# - Parent under the same collection
+# - Auto-splitting and naming of mirrored geometry
 # - Save new palette from layers
 # - Master palette library save/manage
 # - PBR material library save/manage
-# - Investigate applyColor with partial alpha colors
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
 # - Investigate SXMaterial auto-regeneration issues
+# - Investigate applyColor with partial alpha colors
 # - Auto-place pivots during processing?
 # - Absolute path check
 # - Run from direct github zip download
