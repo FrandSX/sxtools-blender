@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 61, 18),
-    'blender': (2, 82, 0),
+    'version': (2, 62, 5),
+    'blender': (2, 81, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'category': 'Development',
@@ -636,16 +636,10 @@ class SXTOOLS_setup(object):
             pCol.name = 'PaletteColor' + str(i)
             sxmaterial.node_tree.nodes[pCol.name].location = (-900, -200*i)
 
-        # Vertex alpha source
-        if (2, 81, 0) < bpy.app.version:
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
-            sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
-            sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 0)
-
-        # Vertex color source
-        sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
-        sxmaterial.node_tree.nodes['Attribute'].attribute_name = compositeUVSet
-        sxmaterial.node_tree.nodes['Attribute'].location = (-600, 200)
+        # Vertex color and alpha source
+        sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
+        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 200)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
         sxmaterial.node_tree.nodes['Mix'].inputs[0].default_value = 1
@@ -714,13 +708,12 @@ class SXTOOLS_setup(object):
 
         # Node connections
         # Vertex alpha to shader alpha
-        if (2, 81, 0) < bpy.app.version:
-            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Alpha']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Alpha']
-            sxmaterial.node_tree.links.new(input, output)
+        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Alpha']
+        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Alpha']
+        sxmaterial.node_tree.links.new(input, output)
 
         # Vertex color to mixer
-        output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
         input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -3870,11 +3863,11 @@ def shadingMode(self, context):
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
 
             # Disconnect vertex color output from emission
-            attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
+            attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
 
             # Reconnect vertex color to mixer
-            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -3930,7 +3923,7 @@ def shadingMode(self, context):
             sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
 
             # Disconnect base color, metallic and roughness
-            attrLink = sxmaterial.node_tree.nodes['Attribute'].outputs[0].links[0]
+            attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
             sxmaterial.node_tree.links.remove(attrLink)
 
             # Check if already debug
@@ -3952,7 +3945,7 @@ def shadingMode(self, context):
                         sxmaterial.node_tree.links.remove(attrLink)
 
             # Connect vertex color source to emission
-            output = sxmaterial.node_tree.nodes['Attribute'].outputs['Color']
+            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -4932,8 +4925,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default=False)
 
     creasemode: bpy.props.EnumProperty(
-        name='Creasing Mode',
-        description='Display creasing tools or modifier settings',
+        name='Edge Weight Mode',
+        description='Display tools or modifier settings',
         items=[
             ('CRS', 'Crease', ''),
             ('BEV', 'Bevel', ''),
@@ -5545,6 +5538,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
                             col_debug.operator('sxtools.generatelods', text='Debug: Create LOD Meshes')
+                            col_debug.operator('sxtools.resetmaterial', text='Debug: Reset SXMaterial')
 
         else:
             layout = self.layout
@@ -6264,6 +6258,34 @@ class SXTOOLS_OT_generatelods(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
+    bl_idname = 'sxtools.resetmaterial'
+    bl_label = 'Reset SXMaterial'
+    bl_description = 'Removes and regenerates SXMaterial\nand assigns it to objects'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        sxMatObjs = list()
+        if 'SXMaterial' in bpy.data.materials.keys():
+            sxMat = bpy.data.materials.get('SXMaterial')
+
+            for obj in context.scene.objects:
+                if obj.active_material == bpy.data.materials['SXMaterial']:
+                    sxMatObjs.append(obj.name[:])
+
+            sxMat.user_clear()
+            bpy.data.materials.remove(sxMat)
+
+        setup.createSXMaterial()
+
+        for objName in sxMatObjs:
+            context.scene.objects[objName].sxtools.shadingmode = 'FULL'
+            context.scene.objects[objName].active_material = bpy.data.materials['SXMaterial']
+
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_revertobjects(bpy.types.Operator):
     bl_idname = 'sxtools.revertobjects'
     bl_label = 'Revert to Control Cages'
@@ -6412,6 +6434,7 @@ classes = (
     SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_generatelods,
+    SXTOOLS_OT_resetmaterial,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_checklist,
@@ -6488,7 +6511,7 @@ if __name__ == '__main__':
 # - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
 # - Investigate running processes headless from command line
-# - Investigate SXMaterial auto-regeneration issues
+# - Investigate SXMaterial reset fail condition
 # - Investigate applyColor with partial alpha colors
 # - Auto-place pivots during processing?
 # - Absolute path check
