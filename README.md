@@ -47,7 +47,7 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 
 3) Enable the layers and channels you wish to work on. *These settings are scene-specific.*
 
-4) Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary.
+4) Alpha and RGBA overlays are for very specific needs in game projects, it is recommended not to enable them unless necessary. The Layer View refers to Alpha Overlays as Gradient1 and Gradient2.
 
 5) Choose "Erase Existing UV Sets" if you are creating a new mesh object. If you are working with an object with existing UV data, uncheck this option and SX Tools will attempt to preserve existing UV sets if there are enough slots available for the selected options.
 
@@ -60,6 +60,8 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 ![Step Four](/images/sxtools-04.png)
 
 8) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
+
+NOTE: Relative paths may cause issues with export paths in SX Tool. Setting "Save&Load -> Relative Paths" to disabled is recommended.
 
 ## The Interface
 ### Shading Modes
