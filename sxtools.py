@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (2, 62, 5),
-    'blender': (2, 81, 0),
+    'version': (3, 0, 0),
+    'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'category': 'Development',
@@ -263,7 +263,7 @@ class SXTOOLS_files(object):
             if colorspace == 'LIN':
                 export.convertToLinear(selArray)
 
-            if (createLODs is True) and (scene.exportquality == 'LO'):
+            if createLODs:
                 orgSelArray, nameArray, newObjArray = export.generateLODs(selArray)
 
             path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
@@ -294,7 +294,7 @@ class SXTOOLS_files(object):
             group.location = org_loc
 
             if cleanup:
-                if createLODs is True:
+                if createLODs:
                     for i, sel in enumerate(orgSelArray):
                         sel.data.name = nameArray[i][1]
                         sel.name = nameArray[i][0]
@@ -587,6 +587,11 @@ class SXTOOLS_setup(object):
 
 
     def createSXMaterial(self):
+        scene = bpy.context.scene.sxtools
+        numlayers = scene.numlayers
+        numgradients = scene.numalphas
+        numoverlays = scene.numoverlays
+
         for values in sxglobals.layerInitArray:
             if values[0] == 'composite':
                 compositeUVSet = values[9]
@@ -612,31 +617,191 @@ class SXTOOLS_setup(object):
             elif values[0] == 'gradient2':
                 gradient2UVSet = values[10]
                 gradient2 = values[1]
+            elif values[0] == 'overlay':
+                overlayUVSet1 = values[10]
+                overlayUVSet2 = values[14]
+                overlay = values[1]
 
         prefs = bpy.context.preferences
         materialsubsurface = prefs.addons['sxtools'].preferences.materialsubsurface
         materialtransmission = prefs.addons['sxtools'].preferences.materialtransmission
+
+        # print('layers: ', numlayers)
+        # print('gradients: ', numgradients)
+        # print('overlay: ', numoverlays)
+        # print('composite: ', composite)
+        # print('occlusion: ', occlusion)
+        # print('metallic: ', metallic)
+        # print('smoothness: ', smoothness)
+        # print('transmission: ', transmission)
+        # print('emission: ', emission)
+        # print('gradient1: ', gradient1)
+        # print('gradient2: ', gradient2)
+        # print('overlay: ', overlay)
+        # print('mat_sss: ', materialsubsurface)
+        # print('mat_trans: ', materialtransmission)
+        # print(sxglobals.layerInitArray)
 
         sxmaterial = bpy.data.materials.new(name='SXMaterial')
         sxmaterial.use_nodes = True
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = [0.0, 0.0, 0.0, 1.0]
         sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
-        sxmaterial.node_tree.nodes['Principled BSDF'].location = (600, 200)
+        sxmaterial.node_tree.nodes['Principled BSDF'].location = (800, 200)
 
-        sxmaterial.node_tree.nodes['Material Output'].location = (900, 200)
+        sxmaterial.node_tree.nodes['Material Output'].location = (1100, 200)
 
         # Gradient tool color ramp
         sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
-        sxmaterial.node_tree.nodes['ColorRamp'].location = (-900, 200)
+        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1400, 200)
 
         # Palette colors
         for i in range(5):
             pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
             pCol.name = 'PaletteColor' + str(i)
-            sxmaterial.node_tree.nodes[pCol.name].location = (-900, -200*i)
+            pCol.location = (-1400, -200*i)
 
-        # Vertex color and alpha source
+        # Gradient1 and gradient2 source
+        if gradient1 or gradient2:
+            grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            grd.name = 'GradientUV'
+            grd.uv_map = gradient1UVSet
+            grd.location = (-600, -600)
+
+            grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            grdSep.name = 'GradientXYZ'
+            grdSep.location = (-300, -600)
+
+            output = grd.outputs['UV']
+            input = grdSep.inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+        # Overlay source
+        if overlay:
+            ovr1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            ovr1.name = 'OverlayUV1'
+            ovr1.uv_map = overlayUVSet1
+            ovr1.location = (-600, -800)
+
+            ovr2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+            ovr2.name = 'OverlayUV2'
+            ovr2.uv_map = overlayUVSet2
+            ovr2.location = (-600, -1000)
+
+            ovrSep1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            ovrSep1.name = 'OverlayXYZ1'
+            ovrSep1.location = (-300, -800)
+
+            ovrSep2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+            ovrSep2.name = 'OverlayXYZ2'
+            ovrSep2.location = (-300, -1000)
+
+            ovrRGB = sxmaterial.node_tree.nodes.new(type='ShaderNodeCombineRGB')
+            ovrRGB.name = 'OverlayCombine'
+            ovrRGB.location = (0, -900)
+
+            output = ovr1.outputs['UV']
+            input = ovrSep1.inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            output = ovr2.outputs['UV']
+            input = ovrSep2.inputs['Vector']
+            sxmaterial.node_tree.links.new(input, output)
+
+            output = ovrSep1.outputs['X']
+            input = ovrRGB.inputs['R']
+            sxmaterial.node_tree.links.new(input, output)
+
+            output = ovrSep1.outputs['Y']
+            input = ovrRGB.inputs['G']
+            sxmaterial.node_tree.links.new(input, output)
+
+            output = ovrSep2.outputs['X']
+            input = ovrRGB.inputs['B']
+            sxmaterial.node_tree.links.new(input, output)
+
+        # Vertex color and alpha sources
+        for i in range(numlayers + numgradients + numoverlays - 1):
+            if i < numlayers:
+                colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+                colornode.name = 'VertexColor' + str(i + 1)
+                colornode.layer_name = 'VertexColor' + str(i + 1)
+                colornode.location = (i*200-1400, 550)
+
+            mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            mixnode.name = 'Mix ' + str(i + 1)
+            mixnode.inputs[0].default_value = 1
+            mixnode.inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
+            mixnode.blend_type = 'MIX'
+            mixnode.use_clamp = True
+            mixnode.location = (i*200-1200, 400)
+
+            mathnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
+            mathnode.name = 'Opacity ' + str(i + 1)
+            mathnode.operation = 'MULTIPLY'
+            mathnode.use_clamp = True
+            mathnode.inputs[0].default_value = 1
+            mathnode.location = (i*200-1200, 750)
+
+            # Vertex Colors, base layer connection
+            if i == 0:
+                output = colornode.outputs['Color']
+            else:
+                output = sxmaterial.node_tree.nodes['Mix ' + str(i)].outputs['Color']
+            input = mixnode.inputs['Color1']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # Vertex Colors, top layer connection
+            if (i != 0) and (i < numlayers):
+                output = colornode.outputs['Color']
+                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
+                sxmaterial.node_tree.links.new(input, output)
+
+                output = colornode.outputs['Alpha']
+                input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+                sxmaterial.node_tree.links.new(input, output)
+
+                output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
+                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
+                sxmaterial.node_tree.links.new(input, output)
+
+            # Gradient (alpha overlay) base connections
+            if (i >= numlayers) and (i < numlayers + numgradients):
+                output = sxmaterial.node_tree.nodes['PaletteColor' + str(i - numlayers + 3)].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
+                sxmaterial.node_tree.links.new(input, output)
+
+                if (gradient1 or gradient2) and (i == numlayers):
+                    output = grdSep.outputs['X']
+                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+                    sxmaterial.node_tree.links.new(input, output)
+                elif (gradient2) and (i == numlayers + 1):
+                    output = grdSep.outputs['Y']
+                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+                    sxmaterial.node_tree.links.new(input, output)
+
+                output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
+                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
+                sxmaterial.node_tree.links.new(input, output)
+
+            if (i == numlayers + numgradients + numoverlays -2):
+                if overlay:
+                    output = ovrRGB.outputs['Image']
+                    input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Color2']
+                    sxmaterial.node_tree.links.new(input, output)
+
+                    output = ovrSep2.outputs['Y']
+                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].inputs[1]
+                    sxmaterial.node_tree.links.new(input, output)
+
+                    output = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].outputs['Value']
+                    input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Fac']
+                    sxmaterial.node_tree.links.new(input, output)
+
+                    sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].blend_type = 'OVERLAY'
+
+                mixnode.name = 'Final Step'
+
         sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
         sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 200)
@@ -695,17 +860,6 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes['Math'].inputs[0].default_value = 10
             sxmaterial.node_tree.nodes['Math'].location = (0, -400)
 
-        # Gradient1 and gradient2 source
-        if gradient1 or gradient2:
-            grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            grd.name = 'GradientUV'
-            sxmaterial.node_tree.nodes['GradientUV'].uv_map = gradient1UVSet
-            sxmaterial.node_tree.nodes['GradientUV'].location = (-600, -600)
-
-            grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            grdSep.name = 'GradientXYZ'
-            sxmaterial.node_tree.nodes['GradientXYZ'].location = (-300, -600)
-
         # Node connections
         # Vertex alpha to shader alpha
         output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Alpha']
@@ -762,13 +916,13 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['EmissionXYZ'].inputs['Vector']
             sxmaterial.node_tree.links.new(input, output)
 
-        if materialtransmission:
+        if (transmission or emission) and materialtransmission:
             # X to transmission
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
 
-        if materialsubsurface:
+        if (transmission or emission) and materialsubsurface:
             # X to subsurface
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
@@ -791,12 +945,6 @@ class SXTOOLS_setup(object):
             # Mix to emission
             output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-            sxmaterial.node_tree.links.new(input, output)
-
-        if gradient1 or gradient2:
-            # Split gradients
-            output = sxmaterial.node_tree.nodes['GradientUV'].outputs['UV']
-            input = sxmaterial.node_tree.nodes['GradientXYZ'].inputs['Vector']
             sxmaterial.node_tree.links.new(input, output)
 
 
@@ -1206,24 +1354,25 @@ class SXTOOLS_layers(object):
                                     uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
                                     1.0][:]
 
+                            a = top[3] * alpha
                             if blend == 'ALPHA':
                                 for j in range(3):
-                                    base[j] = (top[j] * (top[3] * alpha) + base[j] * (1 - (top[3] * alpha)))
-                                base[3] += top[3] * alpha
+                                    base[j] = top[j] * a + base[j] * (1 - a)
+                                base[3] += a
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
                             elif blend == 'ADD':
                                 for j in range(3):
-                                    base[j] += top[j] * (top[3] * alpha)
-                                base[3] += top[3] * alpha
+                                    base[j] += top[j] * a
+                                base[3] += a
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
                             elif blend == 'MUL':
                                 for j in range(3):
                                     # layer2 lerp with white using (1-alpha), multiply with layer1
-                                    mul = ((top[j] * (top[3] * alpha) + (1.0 * (1 - (top[3] * alpha)))))
+                                    mul = top[j] * a + (1 - a)
                                     base[j] = mul * base[j]
 
                             elif blend == 'OVR':
@@ -1235,7 +1384,7 @@ class SXTOOLS_layers(object):
                                     else:
                                         over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
                                     base[j] = (over[j] * (over[3] * alpha) + base[j] * (1.0 - (over[3] * alpha)))
-                                base[3] += top[3] * alpha
+                                base[3] += a
                                 if base[3] > 1.0:
                                     base[3] = 1.0
 
@@ -2933,6 +3082,7 @@ class SXTOOLS_export(object):
         orgSelArray = objs[:]
         nameArray = list()
         newObjArray = list()
+        activeObjs = bpy.context.view_layer.objects.active
 
         lodCount = 1
         for sel in orgSelArray:
@@ -2963,33 +3113,56 @@ class SXTOOLS_export(object):
 
                         newObj.parent = bpy.context.view_layer.objects[sel.parent.name]
 
+                        bpy.ops.object.select_all(action='DESELECT')
+                        newObj.select_set(True)
+                        bpy.context.view_layer.objects.active = newObj
+
                         if i == 1:
-                            if ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].show_viewport == True) and (sel.modifiers['sxSubdivision'].levels > 0):
-                                newObj.modifiers['sxSubdivision'].levels = 1
-                                newObj.modifiers['sxSubdivision'].show_viewport = True
-                                if ('sxBevel' in sel.modifiers.keys()) and (sel.modifiers['sxBevel'].segments > 0):
-                                    newObj.modifiers['sxBevel'].show_viewport = True
+                            if sel.sxtools.subdivisionlevel > 0:
+                                print('lod1')
+                                newObj.sxtools.subdivisionlevel = 1
+                                newObj.sxtools.weldthreshold = 0
+                                # newObj.modifiers['sxSubdivision'].levels = 1
+                                # newObj.modifiers['sxSubdivision'].show_viewport = True
+                                # newObj.modifiers['sxWeld'].show_viewport = False
+                                # newObj.modifiers['sxDecimate'].show_viewport = False
+                                # newObj.modifiers['sxDecimate2'].show_viewport = False
+                                if sel.sxtools.bevelsegments > 0:
+                                    newObj.sxtools.bevelsegments = sel.sxtools.bevelsegments
+                                    # newObj.modifiers['sxBevel'].show_viewport = True
                                 else:
-                                    newObj.modifiers['sxBevel'].show_viewport = False
-                            elif ('sxSubdivision' in sel.modifiers.keys()) and (sel.modifiers['sxSubdivision'].levels == 0):
-                                newObj.modifiers['sxSubdivision'].levels = 0
-                                newObj.modifiers['sxSubdivision'].show_viewport = False
-                                newObj.modifiers['sxDecimate'].show_viewport = False
-                                newObj.modifiers['sxDecimate2'].show_viewport = False
-                                if ('sxBevel' in sel.modifiers.keys()):
-                                    newObj.modifiers['sxBevel'].show_viewport = False
+                                    newObj.sxtools.bevelsegments = 0
+                                    # newObj.modifiers['sxBevel'].show_viewport = False
+                                # if ('sxBevel' in sel.modifiers.keys()) and (sel.modifiers['sxBevel'].segments > 0):
+                                #     newObj.modifiers['sxBevel'].show_viewport = True
+                                # else:
+                                #     newObj.sxtools.bevelsegments = 0
+                                #     newObj.modifiers['sxBevel'].show_viewport = False
+                            elif sel.sxtools.subdivisionlevel == 0:
+                                newObj.sxtools.subdivisionlevel = 0
+                                newObj.sxtools.bevelsegments = 0
+                                newObj.sxtools.weldthreshold = 0
+                                # newObj.modifiers['sxSubdivision'].levels = 0
+                                # newObj.modifiers['sxSubdivision'].show_viewport = False
+                                # newObj.modifiers['sxWeld'].show_viewport = False
+                                # newObj.modifiers['sxDecimate'].show_viewport = False
+                                # newObj.modifiers['sxDecimate2'].show_viewport = False
+                                # newObj.modifiers['sxBevel'].show_viewport = False
                         else:
-                            if ('sxSubdivision' in sel.modifiers.keys()):
-                                newObj.modifiers['sxSubdivision'].levels = 0
-                            if ('sxWeld' in sel.modifiers.keys()):
-                                newObj.modifiers['sxWeld'].show_viewport = False
-                            if ('sxDecimate' in sel.modifiers.keys()):
-                                newObj.modifiers['sxDecimate'].show_viewport = False
-                                newObj.modifiers['sxDecimate2'].show_viewport = False
-                            if ('sxBevel' in sel.modifiers.keys()):
-                                newObj.modifiers['sxBevel'].show_viewport = False
+                            print('lod2')
+                            newObj.sxtools.subdivisionlevel = 0
+                            newObj.sxtools.bevelsegments = 0
+                            newObj.sxtools.weldthreshold = 0
+                            # newObj.modifiers['sxSubdivision'].levels = 0
+                            # newObj.modifiers['sxBevel'].show_viewport = False
+                            # newObj.modifiers['sxWeld'].show_viewport = False
+                            # newObj.modifiers['sxDecimate'].show_viewport = False
+                            # newObj.modifiers['sxDecimate2'].show_viewport = False
 
                         newObjArray.append(newObj)
+
+        activeObjs.select_set(True)
+        bpy.context.view_layer.objects.active = activeObjs
 
         return orgSelArray, nameArray, newObjArray
 
@@ -3061,7 +3234,7 @@ class SXTOOLS_export(object):
                 bpy.context.scene.collection.objects.link(newObj)
                 sxglobals.exportObjects.append(newObj)
 
-                if createLODs is True:
+                if createLODs:
                     orgObjArray, nameArray, newObjArray = export.generateLODs([newObj, ])
                     for newObj in newObjArray:
                         newObjs.append(newObj)
@@ -3754,6 +3927,8 @@ def updateLayers(self, context):
     if 'SXMaterial' not in bpy.data.materials.keys():
         setup.createSXMaterial()
 
+    sxmaterial = bpy.data.materials['SXMaterial'].node_tree.nodes
+
     if not sxglobals.refreshInProgress:
         shadingMode(self, context)
         objs = selectionValidator(self, context)
@@ -3777,8 +3952,9 @@ def updateLayers(self, context):
                 sxglobals.refreshInProgress = False
 
             # setup.setupGeometry(objs)
-            sxglobals.composite = True
-            layers.compositeLayers(objs)
+            if not context.scene.sxtools.gpucomposite:
+                sxglobals.composite = True
+                layers.compositeLayers(objs)
 
 
 def refreshActives(self, context):
@@ -3805,9 +3981,10 @@ def refreshActives(self, context):
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
             # Update VertexColor0 to reflect latest layer changes
-            if mode != 'FULL':
-                sxglobals.composite = True
-            layers.compositeLayers(objs)
+            if not context.scene.sxtools.gpucomposite:
+                if mode != 'FULL':
+                    sxglobals.composite = True
+                layers.compositeLayers(objs)
             sxglobals.refreshInProgress = False
 
             # Refresh SX Tools UI to latest selection
@@ -4320,6 +4497,11 @@ def messageBox(message='', title='SX Tools', icon='INFO'):
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
+def expandLayer(self, context):
+    if context.scene.sxtools.expandlayer is False:
+        context.scene.sxtools.expandlayer = True
+
+
 def expandFill(self, context):
     if context.scene.sxtools.expandfill is False:
         context.scene.sxtools.expandfill = True
@@ -4330,15 +4512,21 @@ def expandCrease(self, context):
         context.scene.sxtools.expandcrease = True
 
 
-def expandPalette(self, context):
-    if context.scene.sxtools.expandpalette is False:
-        context.scene.sxtools.expandpalette = True
-
-
 def expandExport(self, context):
     if context.scene.sxtools.expandexport is False:
         context.scene.sxtools.expandexport = True
 
+
+def compositingMode(self, context):
+    sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+    swoutput = sxmaterial.nodes['Vertex Color'].outputs['Color']
+    hwoutput = sxmaterial.nodes['Final Step'].outputs['Color']
+    input = sxmaterial.nodes['Mix'].inputs['Color1']
+
+    if context.scene.sxtools.gpucomposite:
+        sxmaterial.links.new(input, hwoutput)
+    else:
+        sxmaterial.links.new(input, swoutput)
 
 @persistent
 def load_post_handler(dummy):
@@ -4506,7 +4694,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         update=updateDecimateModifier)
 
     staticvertexcolors: bpy.props.EnumProperty(
-        name='Static Vertex Colors Export Flag',
+        name='Vertex Color Processing Mode',
         description='Choose how to export vertex colors to a game engine\nStatic bakes all color layers to VertexColor0\nPaletted leaves overlays in alpha channels',
         items=[
             ('1', 'Static', ''),
@@ -4685,10 +4873,12 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     toolmode: bpy.props.EnumProperty(
         name='Tool Mode',
-        description='Display color or gradient fill tool',
+        description='Select tool',
         items=[
             ('COL', 'Color', ''),
-            ('GRD', 'Gradient', '')],
+            ('GRD', 'Gradient', ''),
+            ('PAL', 'Palettes', ''),
+            ('MAT', 'Materials', '')],
         default='COL',
         update=expandFill)
 
@@ -4926,7 +5116,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     creasemode: bpy.props.EnumProperty(
         name='Edge Weight Mode',
-        description='Display tools or modifier settings',
+        description='Display weight tools or modifier settings',
         items=[
             ('CRS', 'Crease', ''),
             ('BEV', 'Bevel', ''),
@@ -4937,6 +5127,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     autocrease: bpy.props.BoolProperty(
         name='Auto Hard-Crease Bevel Edges',
         default=True)
+
+    expandlayer: bpy.props.BoolProperty(
+        name='Expand Layer Controls',
+        default=False)
 
     expandfill: bpy.props.BoolProperty(
         name='Expand Fill',
@@ -4950,30 +5144,18 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Export',
         default=False)
 
-    palettemode: bpy.props.EnumProperty(
-        name='Palette Mode',
-        description='Display palettes or PBR materials',
-        items=[
-            ('PAL', 'Palettes', ''),
-            ('MAT', 'Materials', '')],
-        default='PAL',
-        update=expandPalette)
-
-    expandpalette: bpy.props.BoolProperty(
-        name='Expand Palette',
-        default=False)
-
     expanddebug: bpy.props.BoolProperty(
         name='Expand Debug',
         default=False)
 
     exportmode: bpy.props.EnumProperty(
         name='Export Mode',
-        description='Display utils or export settings',
+        description='Display magic processing, misc utils, or export settings',
         items=[
-            ('EXPORT', 'Export', ''),
-            ('UTILS', 'Utilities', '')],
-        default='EXPORT',
+            ('MAGIC', 'Magic', ''),
+            ('UTILS', 'Utilities', ''),
+            ('EXPORT', 'Export', '')],
+        default='MAGIC',
         update=expandExport)
 
     exportquality: bpy.props.EnumProperty(
@@ -4990,6 +5172,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default='',
         maxlen=1024,
         subtype='DIR_PATH')
+
+    gpucomposite: bpy.props.BoolProperty(
+        name='GPU Compositing',
+        default=False,
+        update=compositingMode)
 
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
@@ -5259,26 +5446,48 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
 
-                row_blend = self.layout.row(align=True)
-                row_blend.prop(sxtools, 'activeLayerVisibility')
-                row_blend.prop(sxtools, 'activeLayerBlendMode', text='Blend')
-                row_alpha = self.layout.row(align=True)
-                row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
-
-                row_palette = self.layout.row(align=True)
-                for i in range(8):
-                    row_palette.prop(scene, 'layerpalette' + str(i+1), text='')
+                # Layer Controls -----------------------------------------------
+                box_layer = self.layout.box()
+                row_layer = box_layer.row()
+                row_layer.prop(scene, 'expandlayer',
+                    icon='TRIA_DOWN' if scene.expandlayer else 'TRIA_RIGHT',
+                    icon_only=True, emboss=False)
+                split_layer = row_layer.split()
+                split_layer.label(text='Layer Blend Mode')
+                split_layer.prop(sxtools, 'activeLayerBlendMode', text='')
 
                 if ((layer.name == 'occlusion') or
                    (layer.name == 'smoothness') or
                    (layer.name == 'metallic') or
                    (layer.name == 'transmission') or
                    (layer.name == 'emission')):
-                    row_blend.enabled = False
-                    row_alpha.enabled = False
+                    split_layer.enabled = False
 
-                if (scene.shadingmode == 'DEBUG') or (scene.shadingmode == 'ALPHA'):
-                    row_alpha.enabled = False
+                if scene.expandlayer:
+                    row_blend = box_layer.row(align=True)
+                    row_blend.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
+                    row_alpha = box_layer.row(align=True)
+                    row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
+                    col_misc = box_layer.row(align=True)
+                    if obj.mode == 'OBJECT':
+                        col_misc.prop(scene, 'lightnessvalue', slider=True, text='Layer Lightness')
+                    else:
+                        col_misc.prop(scene, 'lightnessvalue', slider=True, text='Selection Lightness')
+
+                    if ((layer.name == 'occlusion') or
+                       (layer.name == 'smoothness') or
+                       (layer.name == 'metallic') or
+                       (layer.name == 'transmission') or
+                       (layer.name == 'emission')):
+                        row_blend.enabled = False
+                        row_alpha.enabled = False
+
+                    if (scene.shadingmode == 'DEBUG') or (scene.shadingmode == 'ALPHA'):
+                        row_alpha.enabled = False
+
+                row_palette = self.layout.row(align=True)
+                for i in range(8):
+                    row_palette.prop(scene, 'layerpalette' + str(i+1), text='')
 
                 layout.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
                 # layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', scene, 'listIndex', type='DEFAULT')
@@ -5293,12 +5502,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_misc2.operator('sxtools.mergedown')
                 row_misc2.operator('sxtools.pastelayer', text='Paste')
                 row_misc2.operator('sxtools.selmask', text='Select Mask')
-
-                col_misc = self.layout.row(align=True)
-                if obj.mode == 'OBJECT':
-                    col_misc.prop(scene, 'lightnessvalue', slider=True, text='Layer Lightness')
-                else:
-                    col_misc.prop(scene, 'lightnessvalue', slider=True, text='Selection Lightness')
 
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
@@ -5358,6 +5561,62 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                                 col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
 
+                # Master Palettes -----------------------------------------------
+                elif scene.toolmode == 'PAL':
+                    palettes = context.scene.sxpalettes
+
+                    if scene.expandfill:
+                        category = scene.palettecategories
+                        row_category = box_fill.row(align=True)
+                        row_category.prop(scene, 'palettecategories', text='Category')
+                        row_category.separator()
+                        for palette in palettes:
+                            name = palette.name
+                            if palette.category.replace(" ", "_").upper() == category:
+                                row_mpalette = box_fill.row(align=True)
+                                split_mpalette = row_mpalette.split(factor=0.33)
+                                split_mpalette.label(text=name)
+                                split2_mpalette = split_mpalette.split()
+                                row2_mpalette = split2_mpalette.row(align=True)
+                                for i in range(5):
+                                    row2_mpalette.prop(palette, 'color'+str(i), text='')
+                                mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
+                                mp_button.label = name
+
+                        row_mnoise = box_fill.row(align=True)
+                        row_mnoise.prop(scene, 'palettenoise', slider=True)
+                        col_mcolor = box_fill.column(align=True)
+                        col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
+
+                # PBR Materials -------------------------------------------------
+                elif scene.toolmode == 'MAT':
+                    materials = context.scene.sxmaterials
+
+                    if scene.expandfill:
+                        category = scene.materialcategories
+                        row_category = box_fill.row(align=True)
+                        row_category.prop(scene, 'materialcategories', text='Category')
+                        row_category.separator()
+                        for material in materials:
+                            name = material.name
+                            if material.category.replace(" ", "_").upper() == category:
+                                row_mat = box_fill.row(align=True)
+                                split_mat = row_mat.split(factor=0.33)
+                                split_mat.label(text=name)
+                                split2_mat = split_mat.split()
+                                row2_mat = split2_mat.row(align=True)
+                                for i in range(3):
+                                    row2_mat.prop(material, 'color'+str(i), text='')
+                                mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
+                                mat_button.label = name
+
+                        row_pbrnoise = box_fill.row(align=True)
+                        row_pbrnoise.prop(scene, 'materialnoise', slider=True)
+                        col_matcolor = box_fill.column(align=True)
+                        col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
+                        if mode == 'OBJECT':
+                            col_matcolor.prop(scene, 'materialalpha')
+
                 # Crease Sets ---------------------------------------------------
                 box_crease = layout.box()
                 row_crease = box_crease.row()
@@ -5394,10 +5653,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_mirror.prop(sxtools, 'ymirror')
                         row_mirror.prop(sxtools, 'zmirror')
                         col2_sds = box_crease.column(align=False)
-                        col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevel Edges')
-                        col2_sds.label(text='100% Creases Are:')
-                        row_sds = box_crease.row()
-                        row_sds.prop(sxtools, 'hardmode', expand=True)
+                        col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevels')
+                        split_sds = col2_sds.split()
+                        split_sds.label(text='Max Crease Mode:')
+                        split_sds.prop(sxtools, 'hardmode', text='')
                         col3_sds = box_crease.column(align=True)
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                         col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
@@ -5412,84 +5671,21 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         modifiers = '\t'.join(obj.modifiers.keys())
                         if 'sx' in modifiers:
                             col4_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
-                        if 'sx' not in modifiers:
+                        else:
                             col_sds.enabled = False
                             row_mirror.enabled = False
                             col2_sds.enabled = False
-                            row_sds.enabled = False
                             col3_sds.enabled = False
                             col4_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
-                # Master Palette ---------------------------------------------------
-                box_palette = layout.box()
-                row_palette = box_palette.row()
-                row_palette.prop(scene, 'expandpalette',
-                    icon='TRIA_DOWN' if scene.expandpalette else 'TRIA_RIGHT',
-                    icon_only=True, emboss=False)
-                row_palette.prop(scene, 'palettemode', expand=True)
-                if scene.palettemode == 'PAL':
-                    palettes = context.scene.sxpalettes
-
-                    if scene.expandpalette:
-                        category = scene.palettecategories
-                        row_category = box_palette.row(align=True)
-                        row_category.prop(scene, 'palettecategories', text='Category')
-                        row_category.separator()
-                        for palette in palettes:
-                            name = palette.name
-                            if palette.category.replace(" ", "_").upper() == category:
-                                row_mpalette = box_palette.row(align=True)
-                                split_mpalette = row_mpalette.split(factor=0.33)
-                                split_mpalette.label(text=name)
-                                split2_mpalette = split_mpalette.split()
-                                row2_mpalette = split2_mpalette.row(align=True)
-                                for i in range(5):
-                                    row2_mpalette.prop(palette, 'color'+str(i), text='')
-                                mp_button = split2_mpalette.operator('sxtools.applypalette', text='Apply')
-                                mp_button.label = name
-
-                        row_mnoise = box_palette.row(align=True)
-                        row_mnoise.prop(scene, 'palettenoise', slider=True)
-                        col_mcolor = box_palette.column(align=True)
-                        col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
-
-                # PBR Materials ---------------------------------------------------
-                elif scene.palettemode == 'MAT':
-                    materials = context.scene.sxmaterials
-
-                    if scene.expandpalette:
-                        category = scene.materialcategories
-                        row_category = box_palette.row(align=True)
-                        row_category.prop(scene, 'materialcategories', text='Category')
-                        row_category.separator()
-                        for material in materials:
-                            name = material.name
-                            if material.category.replace(" ", "_").upper() == category:
-                                row_mat = box_palette.row(align=True)
-                                split_mat = row_mat.split(factor=0.33)
-                                split_mat.label(text=name)
-                                split2_mat = split_mat.split()
-                                row2_mat = split2_mat.row(align=True)
-                                for i in range(3):
-                                    row2_mat.prop(material, 'color'+str(i), text='')
-                                mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
-                                mat_button.label = name
-
-                        row_pbrnoise = box_palette.row(align=True)
-                        row_pbrnoise.prop(scene, 'materialnoise', slider=True)
-                        col_matcolor = box_palette.column(align=True)
-                        col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
-                        if mode == 'OBJECT':
-                            col_matcolor.prop(scene, 'materialalpha')
-
-                # Exporting and Miscellaneous ------------------------------------
+                # Processing, Utils, and Export ------------------------------------
                 box_export = layout.box()
                 row_export = box_export.row()
                 row_export.prop(scene, 'expandexport',
                     icon='TRIA_DOWN' if scene.expandexport else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_export.prop(scene, 'exportmode', expand=True)
-                if scene.exportmode == 'EXPORT':
+                if scene.exportmode == 'MAGIC':
                     if scene.expandexport:
                         col_export = box_export.column(align=True)
                         if (obj.sxtools.category != 'DEFAULT') and (obj.sxtools.category != 'PALETTED'):
@@ -5498,27 +5694,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if obj.sxtools.staticvertexcolors == '0':
                             col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
-                        col_export.separator()
-                        row3_export = box_export.row(align=True)
-                        row3_export.prop(sxtools, 'staticvertexcolors', expand=True)
+                        # col_export.separator()
                         row2_export = box_export.row(align=True)
-                        row2_export.prop(scene, 'exportquality', expand=True)
+                        row2_export.prop(sxtools, 'staticvertexcolors', text='')
+                        row2_export.prop(scene, 'exportquality', text='')
                         col2_export = box_export.column(align=True)
                         col2_export.operator('sxtools.macro', text='Magic Button')
                         if len(sxglobals.exportObjects) > 0:
                             col2_export.operator('sxtools.removeexports', text='Remove Exports')
-                        col2_export.separator()
-                        col2_export.label(text='Set Export Folder:')
-                        col2_export.prop(scene, 'exportfolder', text='')
-                        col3_export = box_export.column(align=True)
-                        col3_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
-                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxBevel' not in obj.modifiers.keys()):
-                            col3_export.enabled = False
-                        split_export = box_export.split(factor=0.1)
-                        split_export.operator('sxtools.checklist', text='', icon='INFO')
-                        split_export.operator('sxtools.exportfiles', text='Export Selected')
-                        if mode == 'EDIT':
-                            split_export.enabled = False
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
@@ -5533,19 +5716,33 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_debug.label(text='Debug Tools')
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
+                            # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
                             col_debug.operator('sxtools.generatelods', text='Debug: Create LOD Meshes')
                             col_debug.operator('sxtools.resetmaterial', text='Debug: Reset SXMaterial')
+                            col_debug.operator('sxtools.resetscene', text='Debug: Reset scene (warning!)')
+
+                elif scene.exportmode == 'EXPORT':
+                    if scene.expandexport:
+                        col2_export = box_export.column(align=True)
+                        col2_export.label(text='Set Export Folder:')
+                        col2_export.prop(scene, 'exportfolder', text='')
+                        col3_export = box_export.column(align=True)
+                        col3_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
+                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxBevel' not in obj.modifiers.keys()):
+                            col3_export.enabled = False
+                        split_export = box_export.split(factor=0.1)
+                        split_export.operator('sxtools.checklist', text='', icon='INFO')
+                        split_export.operator('sxtools.exportfiles', text='Export Selected')
+                        if mode == 'EDIT':
+                            split_export.enabled = False
 
         else:
             layout = self.layout
             col = self.layout.column()
-            if 'SXMaterial' in bpy.data.materials.keys():
-                col.operator('sxtools.resetscene', text='Reset scene')
-                col.separator()
             if sxglobals.librariesLoaded:
                 col.label(text='Select a mesh to continue')
             else:
@@ -6272,11 +6469,14 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
 
             for obj in context.scene.objects:
                 if obj.active_material == bpy.data.materials['SXMaterial']:
-                    sxMatObjs.append(obj.name[:])
+                    sxMatObjs.append(obj.name)
+                    obj.data.materials.clear()
 
             sxMat.user_clear()
             bpy.data.materials.remove(sxMat)
 
+        bpy.context.view_layer.update()
+        setup.updateInitArray()
         setup.createSXMaterial()
 
         for objName in sxMatObjs:
@@ -6327,6 +6527,60 @@ class SXTOOLS_OT_checklist(bpy.types.Operator):
 
     def invoke(self, context, event):
         messageBox('1) Choose category\n2) Paint color layers\n2) Crease edges\n3) Set object pivots\n4) Objects must be in groups\n5) Set subdivision\n6) Set base smoothness and overlay strength\n7) Press Magic Button\n8) Set folder, Export Selected')
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_selectup(bpy.types.Operator):
+    bl_idname = 'sxtools.selectup'
+    bl_label = 'Select Layer Up'
+    bl_description = 'Selects the layer above'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            listLength = len(sxglobals.listItems)
+            idx = objs[0].sxtools.selectedlayer
+            sourceLayer = utils.findLayerFromIndex(objs[0], idx)
+            listIndex = utils.findListIndex(objs[0], sourceLayer)
+            if listIndex > 1:
+                targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex - 1])
+            else:
+                targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[0])
+
+            for obj in objs:
+                obj.sxtools.selectedlayer = targetLayer.index
+
+            sxglobals.composite = True
+            refreshActives(self, context)
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_selectdown(bpy.types.Operator):
+    bl_idname = 'sxtools.selectdown'
+    bl_label = 'Select Layer Down'
+    bl_description = 'Selects the layer below'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selectionValidator(self, context)
+        if len(objs) > 0:
+            listLength = len(sxglobals.listItems)
+            idx = objs[0].sxtools.selectedlayer
+            sourceLayer = utils.findLayerFromIndex(objs[0], idx)
+            listIndex = utils.findListIndex(objs[0], sourceLayer)
+            if listIndex < (listLength - 1):
+                targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listIndex + 1])
+            else:
+                targetLayer = utils.findLayerFromIndex(objs[0], sxglobals.listItems[listLength - 1])
+
+            for obj in objs:
+                obj.sxtools.selectedlayer = targetLayer.index
+
+            sxglobals.composite = True
+            refreshActives(self, context)
         return {'FINISHED'}
 
 
@@ -6438,6 +6692,8 @@ classes = (
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
     SXTOOLS_OT_checklist,
+    SXTOOLS_OT_selectup,
+    SXTOOLS_OT_selectdown,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -6462,7 +6718,10 @@ def register():
         kmi = km.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift=True)
         kmi.properties.name = SXTOOLS_MT_piemenu.bl_idname
         addon_keymaps.append((km, kmi))
-
+        kmi = km.keymap_items.new('SXTOOLS_OT_selectup', 'UP_ARROW', 'PRESS', shift=True, ctrl=True)
+        addon_keymaps.append((km, kmi))
+        kmi = km.keymap_items.new('SXTOOLS_OT_selectdown', 'DOWN_ARROW', 'PRESS', shift=True, ctrl=True)
+        addon_keymaps.append((km, kmi))
 
 def unregister():
     from bpy.utils import unregister_class
@@ -6498,26 +6757,32 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - DONE Investigate SXMaterial reset fail condition
+# - Wrong palette after sxtools restart -> remember last palette?
+# - Clean up high detail LOD
+# - Fix LOD enable switch, prevent accidental LOD creations
+# - High detail magic button gives an error if object not in group
+# - LOD export for high-detail export
+#   - Generate LOD meshes
+#   - Hi-bake all _lod* objects
+# - Vertex weld to high-detail export, weld before AO
 # - Properly refresh smoothing angle per selection
 # - Modifier stack occasionally staying hidden?
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
-# - LOD export for high-detail export
-# - Vertex weld to high-detail export, weld before AO
 # - Parent under the same collection
 # - Auto-splitting and naming of mirrored geometry
 # - Save new palette from layers
 # - Master palette library save/manage
 # - PBR material library save/manage
-# - Move decimation controls to export settings?
 # - Improve indication of when magic button is necessary
-# - Investigate running processes headless from command line
-# - Investigate SXMaterial reset fail condition
-# - Investigate applyColor with partial alpha colors
 # - Auto-place pivots during processing?
 # - Absolute path check
 # - Run from direct github zip download
 #   - Split to multiple python files
 #   - Default path to find libraries in the zip?
-# - mask/adjustment indication
-# - Skinning support?
+# - Skinning support
 # - Submesh support
+# - Investigate running processes headless from command line
+# - Drive SXMaterial with custom props
+# - GPU alpha accumulation
+# - GPU debug mode
