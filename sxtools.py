@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 0),
+    'version': (3, 0, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1372,18 +1372,18 @@ class SXTOOLS_layers(object):
                             elif blend == 'MUL':
                                 for j in range(3):
                                     # layer2 lerp with white using (1-alpha), multiply with layer1
-                                    mul = top[j] * a + (1 - a)
-                                    base[j] = mul * base[j]
+                                    base[j] *= top[j] * a + (1 - a)
 
                             elif blend == 'OVR':
                                 over = [0.0, 0.0, 0.0, 0.0]
                                 over[3] += top[3]
+                                b = over[3] * alpha
                                 for j in range(3):
                                     if base[j] < midpoint:
                                         over[j] = 2.0 * base[j] * top[j]
                                     else:
                                         over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
-                                    base[j] = (over[j] * (over[3] * alpha) + base[j] * (1.0 - (over[3] * alpha)))
+                                    base[j] = (over[j] * b + base[j] * (1.0 - b))
                                 base[3] += a
                                 if base[3] > 1.0:
                                     base[3] = 1.0
@@ -2985,12 +2985,23 @@ class SXTOOLS_validate(object):
 
 
     def validateObjects(self, objs):
-        ok = True
         ok = self.testPaletteLayers(objs)
-        if ok:
-            print('SX Tools: Selected objects passed validation checks')
 
-        return ok
+        if ok:
+            print('SX Tools: Selected objects passed validation tests')
+            return True
+        else:
+            print('SX Tools: Selected objects failed validation tests')
+            return False
+
+    # Check that objects are grouped
+    def testParents(self, objs):
+        for obj in objs:
+            if obj.parent == None:
+                messageBox('Object is not in a group: ' + obj.name)
+                return False
+
+        return True
 
 
     # if paletted, fail if layer colorcount > 1
@@ -3186,6 +3197,13 @@ class SXTOOLS_export(object):
         orgObjNames = {}
         createLODs = False
 
+        # Make sure objects are in groups
+        for obj in objs:
+            if obj.parent == None:
+                obj.hide_viewport = False
+                bpy.context.view_layer.objects.active = obj
+                tools.groupObjects([obj, ])
+
         # Make sure auto-smooth is on
         for obj in objs:
             obj.data.use_auto_smooth = True
@@ -3278,10 +3296,6 @@ class SXTOOLS_export(object):
 
             if len(categoryObjs) > 0:
                 for obj in categoryObjs:
-                    if obj.parent == None:
-                        obj.hide_viewport = False
-                        bpy.context.view_layer.objects.active = obj
-                        tools.groupObjects([obj, ])
                     obj.hide_viewport = True
 
                 groupList = utils.findGroups(categoryObjs)
