@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 1),
+    'version': (3, 0, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1230,165 +1230,207 @@ class SXTOOLS_layers(object):
                 self.blendDebug(objs, layer, shadingmode)
 
             sxglobals.composite = False
-            # now = time.time()
-            # print('Compositing duration: ', now-then, ' seconds')
+            #now = time.time()
+            #print('Compositing duration: ', now-then, ' seconds')
 
 
     def blendDebug(self, objs, layer, shadingmode):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        fillMode = layer.layerType
+        fillmode = layer.layerType
         channels = {'U': 0, 'V':1}
 
         for obj in objs:
             vertexColors = obj.data.vertex_colors
             vertexUVs = obj.data.uv_layers
-            resultLayer = vertexColors[obj.sxlayers['composite'].vertexColorLayer].data
-            for poly in obj.data.polygons:
-                for loop_idx in poly.loop_indices:
-                    if shadingmode == 'DEBUG':
-                        if fillMode == 'COLOR':
-                            top = [
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[0],
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[1],
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[2],
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[3]][:]
-                            top[0] *= top[3]
-                            top[1] *= top[3]
-                            top[2] *= top[3]
-                            top[3] = 1.0
-                        elif fillMode == 'UV4':
-                            top = [
-                                vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]],
-                                vertexUVs[layer.uvLayer1].data[loop_idx].uv[channels[layer.uvChannel1]],
-                                vertexUVs[layer.uvLayer2].data[loop_idx].uv[channels[layer.uvChannel2]],
-                                vertexUVs[layer.uvLayer3].data[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                            top[0] *= top[3]
-                            top[1] *= top[3]
-                            top[2] *= top[3]
-                            top[3] = 1.0
-                        elif fillMode == 'UV':
-                            value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
-                            top = [value, value, value, 1.0]
-                    elif shadingmode == 'ALPHA':
-                        if fillMode == 'COLOR':
-                            top = [
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[3],
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[3],
-                                vertexColors[layer.vertexColorLayer].data[loop_idx].color[3],
-                                1.0][:]
-                        elif fillMode == 'UV4':
-                            value3 = vertexUVs[layer.uvLayer3].data[loop_idx].uv[channels[layer.uvChannel3]]
-                            top = [value3, value3, value3, 1.0]
-                        elif fillMode == 'UV':
-                            value = vertexUVs[layer.uvLayer0].data[loop_idx].uv[channels[layer.uvChannel0]]
-                            top = [value, value, value, 1.0]
+            resultColors = vertexColors[obj.sxlayers['composite'].vertexColorLayer].data
+            count = len(resultColors)
+            colors = [None] * count * 4
 
-                    resultLayer[loop_idx].color = top[:]
+            if fillmode == 'COLOR':
+                layerColors = vertexColors[layer.vertexColorLayer].data
+                layerColors.foreach_get('color', colors)
 
+                if shadingmode == 'DEBUG':
+                    for i in range(count):
+                        color = colors[(0+i*4):(4+i*4)]
+                        a = color[3]
+                        colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
+                elif shadingmode == 'ALPHA':
+                    for i in range(count):
+                        color = colors[(0+i*4):(4+i*4)]
+                        colors[(0+i*4):(4+i*4)] = [color[3], color[3], color[3], 1.0]
+
+            # no difference between DEBUG and ALPHA for UV fillmode
+            elif fillmode == 'UV':
+                layerUVs = vertexUVs[layer.uvLayer0].data
+                uv = channels[layer.uvChannel0]
+                uvs = [None] * count * 2
+                layerUVs.foreach_get('uv', uvs)
+
+                for i in range(count):
+                    value = uvs[(uv+i*2)]
+                    colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
+
+            elif fillmode == 'UV4':
+                if shadingmode == 'DEBUG':
+                    layerUVs0 = vertexUVs[layer.uvLayer0].data
+                    layerUVs1 = vertexUVs[layer.uvLayer1].data
+                    layerUVs2 = vertexUVs[layer.uvLayer2].data
+                    layerUVs3 = vertexUVs[layer.uvLayer3].data
+
+                    uvs0 = [None] * count * 2
+                    uvs1 = [None] * count * 2
+                    uvs2 = [None] * count * 2
+                    uvs3 = [None] * count * 2
+
+                    layerUVs0.foreach_get('uv', uvs0)
+                    layerUVs1.foreach_get('uv', uvs1)
+                    layerUVs2.foreach_get('uv', uvs2)
+                    layerUVs3.foreach_get('uv', uvs3)
+
+                    uv0 = channels[layer.uvChannel0]
+                    uv1 = channels[layer.uvChannel1]
+                    uv2 = channels[layer.uvChannel2]
+                    uv3 = channels[layer.uvChannel3]
+
+                    for i in range(count):
+                        color = [uvs0[(uv0+i*2)], uvs1[(uv1+i*2)], uvs2[(uv2+i*2)], uvs3[(uv3+i*2)]]
+                        a = color[3]
+                        colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
+
+                elif shadingmode == 'ALPHA':
+                    layerUVs = vertexUVs[layer.uvLayer3].data
+                    uv = channels[layer.uvChannel3]
+                    uvs = [None] * count * 2
+                    layerUVs.foreach_get('uv', uvs)
+
+                    for i in range(count):
+                        value = uvs[(uv+i*2)]
+                        colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
+
+            resultColors.foreach_set('color', colors)
+            # bpy.context.view_layer.update()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode=mode)
 
 
     def blendLayers(self, objs, topLayerArray, baseLayer, resultLayer):
         mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         channels = {'U': 0, 'V': 1}
         midpoint = 0.5 # convert.srgbToLinear([0.5, 0.5, 0.5, 1.0])[0]
 
         for obj in objs:
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             vertexColors = obj.data.vertex_colors
-            uvValues = obj.data.uv_layers
+            vertexUVs = obj.data.uv_layers
             resultColors = vertexColors[resultLayer.vertexColorLayer].data
-            baseColors = vertexColors[baseLayer.vertexColorLayer].data
+            baseLayerColors = vertexColors[baseLayer.vertexColorLayer].data
             baseAlpha = getattr(baseLayer, 'alpha')
+            count = len(baseLayerColors)
+            baseColors = [None] * count * 4
+            baseLayerColors.foreach_get('color', baseColors)
+            # colors = np.empty(count*4, dtype=np.float32)
 
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    base = [
-                        baseColors[idx].color[0],
-                        baseColors[idx].color[1],
-                        baseColors[idx].color[2],
-                        baseColors[idx].color[3]][:]
-                    for layer in topLayerArray:
-                        layerIdx = layer.index
-                        if not getattr(obj.sxlayers[layerIdx], 'visibility'):
-                            continue
-                        else:
-                            blend = getattr(obj.sxlayers[layerIdx], 'blendMode')
-                            alpha = getattr(obj.sxlayers[layerIdx], 'alpha')
-                            fillmode = getattr(obj.sxlayers[layerIdx], 'layerType')
+            for layer in topLayerArray:
+                colors = [None] * count * 4
+                layerIdx = layer.index
 
-                            if fillmode == 'COLOR':
-                                top = [
-                                    vertexColors[layer.vertexColorLayer].data[idx].color[0],
-                                    vertexColors[layer.vertexColorLayer].data[idx].color[1],
-                                    vertexColors[layer.vertexColorLayer].data[idx].color[2],
-                                    vertexColors[layer.vertexColorLayer].data[idx].color[3]][:]
+                if not getattr(obj.sxlayers[layerIdx], 'visibility'):
+                    continue
+                else:
+                    blend = getattr(obj.sxlayers[layerIdx], 'blendMode')
+                    alpha = getattr(obj.sxlayers[layerIdx], 'alpha')
+                    fillmode = getattr(obj.sxlayers[layerIdx], 'layerType')
 
-                            elif layer.name == 'gradient1':
-                                top = [
-                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[0],
-                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[1],
-                                    sxmaterial.nodes['PaletteColor3'].outputs[0].default_value[2],
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
+                    if fillmode == 'COLOR':
+                        layerColors = vertexColors[layer.vertexColorLayer].data
+                        layerColors.foreach_get('color', colors)
 
-                            elif layer.name == 'gradient2':
-                                top = [
-                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[0],
-                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[1],
-                                    sxmaterial.nodes['PaletteColor4'].outputs[0].default_value[2],
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]]]
+                    elif fillmode == 'UV':
+                        if layer.name == 'gradient1':
+                            dv = sxmaterial.nodes['PaletteColor3'].outputs[0].default_value
+                        elif layer.name == 'gradient2':
+                            dv = sxmaterial.nodes['PaletteColor4'].outputs[0].default_value
+                        layerUVs = vertexUVs[layer.uvLayer0].data
 
-                            elif fillmode == 'UV4':
-                                top = [
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
-                                    uvValues[layer.uvLayer1].data[idx].uv[channels[layer.uvChannel1]],
-                                    uvValues[layer.uvLayer2].data[idx].uv[channels[layer.uvChannel2]],
-                                    uvValues[layer.uvLayer3].data[idx].uv[channels[layer.uvChannel3]]][:]
+                        uvs = [None] * count * 2
+                        layerUVs.foreach_get('uv', uvs)
+                        uv = channels[layer.uvChannel0]
 
-                            elif fillmode == 'UV':
-                                top = [
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
-                                    uvValues[layer.uvLayer0].data[idx].uv[channels[layer.uvChannel0]],
-                                    1.0][:]
+                        for i in range(count):
+                            value = uvs[(uv+i*2)]
+                            colors[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], value]
 
-                            a = top[3] * alpha
-                            if blend == 'ALPHA':
-                                for j in range(3):
-                                    base[j] = top[j] * a + base[j] * (1 - a)
-                                base[3] += a
-                                if base[3] > 1.0:
-                                    base[3] = 1.0
+                    elif fillmode == 'UV4':
+                        layerUVs0 = vertexUVs[layer.uvLayer0].data
+                        layerUVs1 = vertexUVs[layer.uvLayer1].data
+                        layerUVs2 = vertexUVs[layer.uvLayer2].data
+                        layerUVs3 = vertexUVs[layer.uvLayer3].data
 
-                            elif blend == 'ADD':
-                                for j in range(3):
-                                    base[j] += top[j] * a
-                                base[3] += a
-                                if base[3] > 1.0:
-                                    base[3] = 1.0
+                        uvs0 = [None] * count * 2
+                        uvs1 = [None] * count * 2
+                        uvs2 = [None] * count * 2
+                        uvs3 = [None] * count * 2
 
-                            elif blend == 'MUL':
-                                for j in range(3):
-                                    # layer2 lerp with white using (1-alpha), multiply with layer1
-                                    base[j] *= top[j] * a + (1 - a)
+                        layerUVs0.foreach_get('uv', uvs0)
+                        layerUVs1.foreach_get('uv', uvs1)
+                        layerUVs2.foreach_get('uv', uvs2)
+                        layerUVs3.foreach_get('uv', uvs3)
 
-                            elif blend == 'OVR':
-                                over = [0.0, 0.0, 0.0, 0.0]
-                                over[3] += top[3]
-                                b = over[3] * alpha
-                                for j in range(3):
-                                    if base[j] < midpoint:
-                                        over[j] = 2.0 * base[j] * top[j]
-                                    else:
-                                        over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
-                                    base[j] = (over[j] * b + base[j] * (1.0 - b))
-                                base[3] += a
-                                if base[3] > 1.0:
-                                    base[3] = 1.0
+                        uv0 = channels[layer.uvChannel0]
+                        uv1 = channels[layer.uvChannel1]
+                        uv2 = channels[layer.uvChannel2]
+                        uv3 = channels[layer.uvChannel3]
 
-                    resultColors[idx].color = [base[0], base[1], base[2], base[3] * baseAlpha] # base[:]
+                        for i in range(count):
+                            color = [uvs0[(uv0+i*2)], uvs1[(uv1+i*2)], uvs2[(uv2+i*2)], uvs3[(uv3+i*2)]]
+                            a = color[3]
+                            colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
+
+                    for i in range(count):
+                        top = Vector(colors[(0+i*4):(4+i*4)])
+                        base = Vector(baseColors[(0+i*4):(4+i*4)])
+                        a = top[3] * alpha
+
+                        if blend == 'ALPHA':
+                            base = top * a + base * (1 - a)
+                            base[3] += a
+                            if base[3] > 1.0:
+                                base[3] = 1.0
+
+                        elif blend == 'ADD':
+                            base += top * a
+                            base[3] += a
+                            if base[3] > 1.0:
+                                base[3] = 1.0
+
+                        elif blend == 'MUL':
+                            for j in range(3):
+                                # layer2 lerp with white using (1-alpha), multiply with layer1
+                                base[j] *= top[j] * a + (1 - a)
+
+                        elif blend == 'OVR':
+                            over = [0.0, 0.0, 0.0, 0.0]
+                            over[3] += top[3]
+                            b = over[3] * alpha
+                            for j in range(3):
+                                if base[j] < midpoint:
+                                    over[j] = 2.0 * base[j] * top[j]
+                                else:
+                                    over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
+                                base[j] = (over[j] * b + base[j] * (1.0 - b))
+                            base[3] += a
+                            if base[3] > 1.0:
+                                base[3] = 1.0
+
+                        baseColors[(0+i*4):(4+i*4)] = [base[0], base[1], base[2], base[3]]
+                    resultColors.foreach_set('color', baseColors)
+            # bpy.context.view_layer.update()
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode=mode)
 
 
@@ -6771,7 +6813,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - DONE Investigate SXMaterial reset fail condition
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Clean up high detail LOD
 # - Fix LOD enable switch, prevent accidental LOD creations
