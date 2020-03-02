@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 5),
+    'version': (3, 0, 9),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -376,29 +376,39 @@ class SXTOOLS_utils(object):
         for uvSet in uvSets:
             values = [uvSet, None, None]
             for sxLayer in obj.sxlayers:
-                if sxLayer.uvLayer0 == uvSet:
-                    if sxLayer.uvChannel0 == 'U':
-                        values[1] = sxLayer.defaultValue
-                    else:
-                        values[2] = sxLayer.defaultValue
+                if sxLayer.layerType == 'UV4':
+                    if sxLayer.uvLayer0 == uvSet:
+                        values[1] = sxLayer.defaultColor[0]
+                    if sxLayer.uvLayer1 == uvSet:
+                        values[2] = sxLayer.defaultColor[1]
+                    if sxLayer.uvLayer2 == uvSet:
+                        values[1] = sxLayer.defaultColor[2]
+                    if sxLayer.uvLayer3 == uvSet:
+                        values[2] = sxLayer.defaultColor[3]
+                else:
+                    if sxLayer.uvLayer0 == uvSet:
+                        if sxLayer.uvChannel0 == 'U':
+                            values[1] = sxLayer.defaultValue
+                        else:
+                            values[2] = sxLayer.defaultValue
 
-                if sxLayer.uvLayer1 == uvSet:
-                    if sxLayer.uvChannel1 == 'U':
-                        values[1] = sxLayer.defaultValue
-                    else:
-                        values[2] = sxLayer.defaultValue
+                    if sxLayer.uvLayer1 == uvSet:
+                        if sxLayer.uvChannel1 == 'U':
+                            values[1] = sxLayer.defaultValue
+                        else:
+                            values[2] = sxLayer.defaultValue
 
-                if sxLayer.uvLayer2 == uvSet:
-                    if sxLayer.uvChannel2 == 'U':
-                        values[1] = sxLayer.defaultValue
-                    else:
-                        values[2] = sxLayer.defaultValue
+                    if sxLayer.uvLayer2 == uvSet:
+                        if sxLayer.uvChannel2 == 'U':
+                            values[1] = sxLayer.defaultValue
+                        else:
+                            values[2] = sxLayer.defaultValue
 
-                if sxLayer.uvLayer3 == uvSet:
-                    if sxLayer.uvChannel3 == 'U':
-                        values[1] = sxLayer.defaultValue
-                    else:
-                        values[2] = sxLayer.defaultValue
+                    if sxLayer.uvLayer3 == uvSet:
+                        if sxLayer.uvChannel3 == 'U':
+                            values[1] = sxLayer.defaultValue
+                        else:
+                            values[2] = sxLayer.defaultValue
 
             valueDict[uvSet] = (values[1], values[2])
             valueArray.append(values)
@@ -1143,10 +1153,9 @@ class SXTOOLS_layers(object):
 
 
     def clearLayers(self, objs, targetLayer=None):
-        sxLayers = utils.findColorLayers(objs[0])
-
         if targetLayer is None:
             print('SX Tools: Clearing all layers')
+            sxLayers = utils.findColorLayers(objs[0])
             for obj in objs:
                 for sxLayer in sxLayers:
                     color = sxLayer.defaultColor
@@ -1209,7 +1218,10 @@ class SXTOOLS_layers(object):
                     for loop_idx in loop_indices:
                         for i, uvName in enumerate(uvNames):
                             if uvName != '':
-                                mesh.uv_layers[uvName].data[loop_idx].uv[fillChannels[i]] = uvValue
+                                if targetLayer.layerType == 'UV4':
+                                    mesh.uv_layers[uvName].data[loop_idx].uv = sxUVs[uvName]
+                                else:
+                                    mesh.uv_layers[uvName].data[loop_idx].uv[fillChannels[i]] = uvValue
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -1349,11 +1361,12 @@ class SXTOOLS_layers(object):
                         layerColors = vertexColors[layer.vertexColorLayer].data
                         layerColors.foreach_get('color', colors)
 
-                    elif fillmode == 'UV':
+                    elif (layer.name == 'gradient1') or (layer.name == 'gradient2'):
                         if layer.name == 'gradient1':
                             dv = sxmaterial.nodes['PaletteColor3'].outputs[0].default_value
-                        elif layer.name == 'gradient2':
+                        else:
                             dv = sxmaterial.nodes['PaletteColor4'].outputs[0].default_value
+
                         layerUVs = vertexUVs[layer.uvLayer0].data
 
                         uvs = [None] * count * 2
@@ -1363,6 +1376,17 @@ class SXTOOLS_layers(object):
                         for i in range(count):
                             value = uvs[(uv+i*2)]
                             colors[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], value]
+
+                    elif fillmode == 'UV':
+                        layerUVs = vertexUVs[layer.uvLayer0].data
+
+                        uvs = [None] * count * 2
+                        layerUVs.foreach_get('uv', uvs)
+                        uv = channels[layer.uvChannel0]
+
+                        for i in range(count):
+                            value = uvs[(uv+i*2)]
+                            colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
 
                     elif fillmode == 'UV4':
                         layerUVs0 = vertexUVs[layer.uvLayer0].data
@@ -4590,6 +4614,7 @@ def load_post_handler(dummy):
     sxglobals.librariesLoaded = False
     sxglobals.exportObjects = []
     sxglobals.sourceObjects = []
+
     setup.startModal()
 
 
@@ -6813,6 +6838,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Clean up high detail LOD
 # - Fix LOD enable switch, prevent accidental LOD creations
