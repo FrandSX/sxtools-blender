@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 10),
+    'version': (3, 0, 11),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -240,6 +240,7 @@ class SXTOOLS_files(object):
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             selArray = bpy.context.view_layer.objects.selected
+            category = selArray[0].sxtools.category.lower()
 
             # Create palette masks
             layers.generateMasks(selArray)
@@ -266,8 +267,8 @@ class SXTOOLS_files(object):
             if createLODs:
                 orgSelArray, nameArray, newObjArray = export.generateLODs(selArray)
 
-            path = bpy.context.scene.sxtools.exportfolder + selArray[0].sxtools.category.lower()
-            pathlib.Path(path).mkdir(exist_ok=True) 
+            path = bpy.context.scene.sxtools.exportfolder + category
+            pathlib.Path(path).mkdir(exist_ok=True)
 
             if '/' in bpy.context.scene.sxtools.exportfolder:
                 slash = '/'
