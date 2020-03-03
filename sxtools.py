@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 9),
+    'version': (3, 0, 10),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -316,11 +316,11 @@ class SXTOOLS_utils(object):
     def findGroups(self, objs):
         groups = list()
         for obj in objs:
-            if (obj.type == 'EMPTY') and (obj.parent == None):
+            if (obj.type == 'EMPTY') and (obj.parent is None):
                 groups.append(obj)
 
             parent = obj.parent
-            if (parent is not None) and (parent.type == 'EMPTY') and (parent.parent == None):
+            if (parent is not None) and (parent.type == 'EMPTY') and (parent.parent is None):
                 groups.append(obj.parent)
 
         return set(groups)
@@ -422,7 +422,7 @@ class SXTOOLS_utils(object):
     def findCompLayers(self, obj, staticExport=True):
         compLayers = []
         for sxLayer in obj.sxlayers:
-            if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled == True) and (sxLayer.index != 1):
+            if (sxLayer.layerType == 'COLOR') and (sxLayer.enabled is True) and (sxLayer.index != 1):
                 compLayers.append(sxLayer)
         compLayers.sort(key=lambda x: x.index)
         if staticExport:
@@ -1330,12 +1330,14 @@ class SXTOOLS_layers(object):
 
     def blendLayers(self, objs, topLayerArray, baseLayer, resultLayer):
         mode = objs[0].mode
+        active = bpy.context.view_layer.objects.active
+        bpy.context.view_layer.objects.active = objs[0]
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         channels = {'U': 0, 'V': 1}
         midpoint = 0.5 # convert.srgbToLinear([0.5, 0.5, 0.5, 1.0])[0]
 
         for obj in objs:
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
             vertexColors = obj.data.vertex_colors
             vertexUVs = obj.data.uv_layers
             resultColors = vertexColors[resultLayer.vertexColorLayer].data
@@ -1456,6 +1458,7 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         bpy.ops.object.mode_set(mode=mode)
+        bpy.context.view_layer.objects.active = active
 
 
     # Takes vertex color set names, uv map names, and channel IDs as input.
@@ -3063,7 +3066,7 @@ class SXTOOLS_validate(object):
     # Check that objects are grouped
     def testParents(self, objs):
         for obj in objs:
-            if obj.parent == None:
+            if obj.parent is None:
                 messageBox('Object is not in a group: ' + obj.name)
                 return False
 
@@ -3196,7 +3199,7 @@ class SXTOOLS_export(object):
 
                         if i == 1:
                             if sel.sxtools.subdivisionlevel > 0:
-                                print('lod1')
+                                # print('lod1')
                                 newObj.sxtools.subdivisionlevel = 1
                                 newObj.sxtools.weldthreshold = 0
                                 # newObj.modifiers['sxSubdivision'].levels = 1
@@ -3226,7 +3229,7 @@ class SXTOOLS_export(object):
                                 # newObj.modifiers['sxDecimate2'].show_viewport = False
                                 # newObj.modifiers['sxBevel'].show_viewport = False
                         else:
-                            print('lod2')
+                            # print('lod2')
                             newObj.sxtools.subdivisionlevel = 0
                             newObj.sxtools.bevelsegments = 0
                             newObj.sxtools.weldthreshold = 0
@@ -3265,7 +3268,7 @@ class SXTOOLS_export(object):
 
         # Make sure objects are in groups
         for obj in objs:
-            if obj.parent == None:
+            if obj.parent is None:
                 obj.hide_viewport = False
                 bpy.context.view_layer.objects.active = obj
                 tools.groupObjects([obj, ])
@@ -6190,7 +6193,7 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
             else:
                 mode = False
 
-            if sourceLayer == None:
+            if sourceLayer is None:
                 messageBox('Nothing to paste!')
                 return {'FINISHED'}
             elif (targetLayer.layerType != 'COLOR') and (mode == 'merge'):
