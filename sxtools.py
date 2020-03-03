@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 0, 11),
+    'version': (3, 0, 12),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -266,6 +266,9 @@ class SXTOOLS_files(object):
 
             if createLODs:
                 orgSelArray, nameArray, newObjArray = export.generateLODs(selArray)
+                bpy.ops.object.select_all(action='DESELECT')
+                group.select_set(True)
+                bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             path = bpy.context.scene.sxtools.exportfolder + category
             pathlib.Path(path).mkdir(exist_ok=True)
