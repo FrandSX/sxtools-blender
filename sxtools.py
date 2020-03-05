@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 1, 2),
+    'version': (3, 1, 4),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1226,8 +1226,8 @@ class SXTOOLS_layers(object):
                 self.blend_debug(objs, layer, shadingmode)
 
             sxglobals.composite = False
-            #now = time.time()
-            #print('Compositing duration: ', now-then, ' seconds')
+            # now = time.time()
+            # print('Compositing duration: ', now-then, ' seconds')
 
 
     def blend_debug(self, objs, layer, shadingmode):
@@ -1256,8 +1256,8 @@ class SXTOOLS_layers(object):
                         colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
                 elif shadingmode == 'ALPHA':
                     for i in range(count):
-                        color = colors[(0+i*4):(4+i*4)]
-                        colors[(0+i*4):(4+i*4)] = [color[3], color[3], color[3], 1.0]
+                        a = colors[3+i*4]
+                        colors[(0+i*4):(4+i*4)] = [a, a, a, 1.0]
 
             # no difference between DEBUG and ALPHA for UV fillmode
             elif fillmode == 'UV':
@@ -1426,15 +1426,15 @@ class SXTOOLS_layers(object):
                                 base[j] *= top[j] * a + (1 - a)
 
                         elif blend == 'OVR':
-                            over = [0.0, 0.0, 0.0, 0.0]
-                            over[3] += top[3]
+                            over = Vector([0.0, 0.0, 0.0, top[3]])
+                            # over[3] += top[3]
                             b = over[3] * alpha
                             for j in range(3):
                                 if base[j] < midpoint:
                                     over[j] = 2.0 * base[j] * top[j]
                                 else:
                                     over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
-                                base[j] = (over[j] * b + base[j] * (1.0 - b))
+                            base = over * b + base * (1.0 - b)
                             base[3] += a
                             if base[3] > 1.0:
                                 base[3] = 1.0
@@ -3408,10 +3408,11 @@ class SXTOOLS_export(object):
         if scene.exportquality == 'LO':
             nonLodObjs = []
             for obj in objs:
-                # obj.select_set(True)
                 if obj.sxtools.lodmeshes is True:
                     if '_LOD' not in obj.name:
                         nonLodObjs.append(obj)
+                else:
+                    obj.select_set(True)
 
             if len(nonLodObjs) > 0:
                 orgSelArray, nameArray, newObjArray = export.generate_lods(nonLodObjs)
@@ -6165,7 +6166,7 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
             sxglobals.copyLayer = layer
         return {'FINISHED'}
 
-
+ 
 class SXTOOLS_OT_pastelayer(bpy.types.Operator):
     bl_idname = 'sxtools.pastelayer'
     bl_label = 'Paste Layer'
@@ -6839,6 +6840,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Bevels remain in LOD2 in high-detail export?
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Clean up high detail LOD
