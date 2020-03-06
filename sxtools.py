@@ -3290,6 +3290,7 @@ class SXTOOLS_export(object):
             objs = newObjs
 
         for obj in objs:
+            print(obj.name)
             obj.select_set(False)
 
         viewlayer.objects.active = objs[0]
@@ -3336,7 +3337,7 @@ class SXTOOLS_export(object):
                         if obj.sxtools.lodmeshes:
                             createLODs = True
                         obj.hide_viewport = False
-                        # obj.select_set(True)
+                        obj.select_set(True)
 
                     if category == 'DEFAULT':
                         if scene.exportquality == 'HI':
@@ -3389,7 +3390,7 @@ class SXTOOLS_export(object):
                         self.process_default(groupObjs)
 
                     for obj in groupObjs:
-                        # obj.select_set(False)
+                        obj.select_set(False)
                         obj.hide_viewport = True
 
                 now = time.time()
@@ -6840,6 +6841,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Undo does not clear exportObjectsArray
 # - Bevels remain in LOD2 in high-detail export?
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
