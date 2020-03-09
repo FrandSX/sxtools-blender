@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 1, 4),
+    'version': (3, 2, 10),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -43,8 +43,6 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
-        self.exportObjects = []
-        self.sourceObjects = []
 
         # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
@@ -2929,9 +2927,15 @@ class SXTOOLS_tools(object):
                 else:
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
+                if obj.sxtools.bevelsegments == 0:
+                    bpy.ops.object.modifier_remove(modifier='sxBevel')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
             if 'sxWeld' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeld')
+                if obj.sxtools.weldthreshold == 0:
+                    bpy.ops.object.modifier_remove(modifier='sxWeld')
+                else:
+                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeld')
             if 'sxDecimate' in obj.modifiers.keys():
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate')
@@ -2986,16 +2990,12 @@ class SXTOOLS_tools(object):
                 print('SX Tools: ', obj.name, ' has no UV Sets')
             elif setCount > 6:
                 base = obj.data.uv_layers[0]
-                if base.name == 'UVSet0':
-                    print('SX Tools: UVSet0 already on ', obj.name)
-                else:
+                if base.name != 'UVSet0':
                     print('SX Tools: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
             else:
                 base = obj.data.uv_layers[0]
                 if 'UVSet' not in base.name:
                     base.name = 'UVSet0'
-                elif base.name == 'UVSet0':
-                    print('SX Tools: UVSet0 already on ', obj.name)
                 elif base.name == 'UVSet1':
                     obj.data.uv_layers.new(name='UVSet0')
                     for i in range(setCount):
@@ -3116,10 +3116,38 @@ class SXTOOLS_export(object):
     # NOTE: In case of bevels, prefer even-numbered segment counts!
     #       Odd-numbered bevels often generate incorrect vertex colors
     def generate_lods(self, objs):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
         orgObjArray = objs[:]
         nameArray = []
         newObjArray = []
         activeObj = bpy.context.view_layer.objects.active
+        scene = bpy.context.scene.sxtools
+
+        bbx_x = []
+        bbx_y = []
+        bbx_z = []
+        for obj in orgObjArray:
+            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            for corner in corners:
+                bbx_x.append(corner[0])
+                bbx_y.append(corner[1])
+                bbx_z.append(corner[2])
+        xmin, xmax = min(bbx_x), max(bbx_x)
+        ymin, ymax = min(bbx_y), max(bbx_y)
+        zmin, zmax = min(bbx_z), max(bbx_z)
+
+        bbxheight = zmax - zmin
+
+        # Make sure source and export Collections exist
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SourceObjects' not in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections.new('SourceObjects')
+        else:
+            sourceObjects = bpy.data.collections['SourceObjects']
 
         lodCount = 1
         for obj in orgObjArray:
@@ -3137,6 +3165,8 @@ class SXTOOLS_export(object):
                         obj.data.name = obj.data.name + '_LOD' + str(i)
                         obj.name = obj.name + '_LOD' + str(i)
                         newObjArray.append(obj)
+                        if scene.exportquality == 'LO':
+                            sourceObjects.objects.link(obj)
                 else:
                     for j, obj in enumerate(orgObjArray):
                         newObj = obj.copy()
@@ -3145,8 +3175,10 @@ class SXTOOLS_export(object):
                         newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
                         newObj.name = nameArray[j][0] + '_LOD' + str(i)
 
+                        newObj.location += Vector((0.0, 0.0, (bbxheight+prefs.lodoffset)*i))
+
                         bpy.context.scene.collection.objects.link(newObj)
-                        sxglobals.exportObjects.append(newObj)
+                        exportObjects.objects.link(newObj)
 
                         newObj.parent = bpy.context.view_layer.objects[obj.parent.name]
 
@@ -3156,9 +3188,8 @@ class SXTOOLS_export(object):
 
                         if i == 1:
                             if obj.sxtools.subdivisionlevel > 0:
-                                # print('lod1')
                                 newObj.sxtools.subdivisionlevel = 1
-                                newObj.sxtools.weldthreshold = 0
+                                # newObj.sxtools.weldthreshold = 0
                                 # newObj.modifiers['sxSubdivision'].levels = 1
                                 # newObj.modifiers['sxSubdivision'].show_viewport = True
                                 # newObj.modifiers['sxWeld'].show_viewport = False
@@ -3186,7 +3217,6 @@ class SXTOOLS_export(object):
                                 # newObj.modifiers['sxDecimate2'].show_viewport = False
                                 # newObj.modifiers['sxBevel'].show_viewport = False
                         else:
-                            # print('lod2')
                             newObj.sxtools.subdivisionlevel = 0
                             newObj.sxtools.bevelsegments = 0
                             newObj.sxtools.weldthreshold = 0
@@ -3223,6 +3253,17 @@ class SXTOOLS_export(object):
         viewlayer = bpy.context.view_layer
         orgObjNames = {}
 
+        # Make sure export and source Collections exist
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SourceObjects' not in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections.new('SourceObjects')
+        else:
+            sourceObjects = bpy.data.collections['SourceObjects']
+
         # Make sure objects are in groups
         for obj in objs:
             if obj.parent is None:
@@ -3245,6 +3286,9 @@ class SXTOOLS_export(object):
             if sel.type != 'MESH':
                 sel.select_set(False)
 
+        # Create modifiers
+        tools.add_modifiers(objs)
+
         # Create high-poly bake meshes
         if scene.exportquality == 'HI':
             newObjs = []
@@ -3259,11 +3303,11 @@ class SXTOOLS_export(object):
                 orgGroup.location = group.location
                 orgGroup.name = group.name + '_org'
                 orgGroup.hide_viewport = True
-                sxglobals.sourceObjects.append(orgGroup)
-                sxglobals.exportObjects.append(group)
+                sourceObjects.objects.link(orgGroup)
+                exportObjects.objects.link(group)
 
             for obj in objs:
-                sxglobals.sourceObjects.append(obj)
+                sourceObjects.objects.link(obj)
                 orgObjNames[obj] = [obj.name, obj.data.name][:]
                 obj.data.name = obj.data.name + '_org'
                 obj.name = obj.name + '_org'
@@ -3273,7 +3317,7 @@ class SXTOOLS_export(object):
                 newObj.name = orgObjNames[obj][0]
                 newObj.data.name = orgObjNames[obj][1]
                 bpy.context.scene.collection.objects.link(newObj)
-                sxglobals.exportObjects.append(newObj)
+                exportObjects.objects.link(newObj)
 
                 if obj.sxtools.lodmeshes:
                     lodObjs.append(newObj)
@@ -3290,13 +3334,9 @@ class SXTOOLS_export(object):
             objs = newObjs
 
         for obj in objs:
-            print(obj.name)
             obj.select_set(False)
 
         viewlayer.objects.active = objs[0]
-
-        # Create modifiers
-        tools.add_modifiers(objs)
 
         # Begin category-specific compositing operations
         for obj in objs:
@@ -3310,9 +3350,6 @@ class SXTOOLS_export(object):
         # Mandatory to update visibility?
         viewlayer.update()
 
-        # now = time.time()
-        # print('hide objects duration: ', now-then, ' seconds')
-
         categoryList = list(sxglobals.categoryDict.keys())
         categories = []
         for category in categoryList:
@@ -3324,9 +3361,6 @@ class SXTOOLS_export(object):
                     categoryObjs.append(obj)
 
             if len(categoryObjs) > 0:
-                # for obj in categoryObjs:
-                #     obj.hide_viewport = True
-
                 groupList = utils.find_groups(categoryObjs)
 
                 for group in groupList:
@@ -3422,10 +3456,6 @@ class SXTOOLS_export(object):
                     obj.select_set(True)
                 for obj in newObjArray:
                     obj.select_set(True)
-                # bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
-
-        # now = time.time()
-        # print('masks and alphas duration: ', now-then, ' seconds')
 
         if scene.exportquality == 'HI':
             for obj in objs:
@@ -3979,19 +4009,22 @@ class SXTOOLS_export(object):
 
 
     def remove_exports(self):
-        objs = sxglobals.exportObjects
-        for obj in objs:
+        sourceObjects = bpy.data.collections['SourceObjects'].objects
+        exportObjects = bpy.data.collections['ExportObjects'].objects
+        for obj in exportObjects:
             bpy.data.objects.remove(obj, do_unlink=True)
-        sxglobals.exportObjects = []
 
-        for obj in sxglobals.sourceObjects:
+        for obj in sourceObjects:
             if obj.name.endswith('_org'):
                 obj.name = obj.name[:-4]
+            elif obj.name.endswith('_LOD0'):
+                obj.name = obj.name[:-5]
             if obj.data and obj.data.name.endswith('_org'):
                 obj.data.name = obj.data.name[:-4]
+            elif obj.data and obj.data.name.endswith('_LOD0'):
+                obj.data.name = obj.data.name[:-5]
             obj.hide_viewport = False
-
-        sxglobals.sourceObjects = []
+            sourceObjects.unlink(obj)
 
 
     def __del__(self):
@@ -4212,6 +4245,7 @@ def selection_validator(self, context):
     for obj in context.view_layer.objects.selected:
         if obj.type == 'MESH' and obj.hide_viewport == False:
             selObjs.append(obj)
+
     return selObjs
 
 
@@ -4606,12 +4640,11 @@ def compositing_mode(self, context):
     else:
         sxmaterial.links.new(input, swoutput)
 
+
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
     sxglobals.librariesLoaded = False
-    sxglobals.exportObjects = []
-    sxglobals.sourceObjects = []
 
     setup.start_modal()
 
@@ -4648,6 +4681,17 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
             ('LIN', 'Linear', '')],
         default='SRGB')
 
+    removelods: bpy.props.BoolProperty(
+        name='Remove LOD Meshes After Export',
+        description='Remove LOD meshes from the scene after exporting to FBX',
+        default=True)
+
+    lodoffset: bpy.props.FloatProperty(
+        name='LOD Mesh Preview Z-Offset',
+        min=0.0,
+        max=10.0,
+        default=1.0)
+
 
     def draw(self, context):
         layout = self.layout
@@ -4660,8 +4704,14 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         layout_split3.label(text='Color Space for Exports:')
         layout_split3.prop(self, 'colorspace', text='')
         layout_split4 = layout.split()
-        layout_split4.label(text='Library Folder:')
-        layout_split4.prop(self, 'libraryfolder', text='')
+        layout_split4.label(text='LOD Mesh Preview Z-Offset')
+        layout_split4.prop(self, 'lodoffset', text='')
+        layout_split5 = layout.split()
+        layout_split5.label(text='Clear LOD Meshes After Export')
+        layout_split5.prop(self, 'removelods', text='')
+        layout_split6 = layout.split()
+        layout_split6.label(text='Library Folder:')
+        layout_split6.prop(self, 'libraryfolder', text='')
 
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
@@ -5780,7 +5830,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row2_export.prop(scene, 'exportquality', text='')
                         col2_export = box_export.column(align=True)
                         col2_export.operator('sxtools.macro', text='Magic Button')
-                        if len(sxglobals.exportObjects) > 0:
+                        if ('ExportObjects' in bpy.data.collections.keys()) and (len(bpy.data.collections['ExportObjects'].objects) > 0):
                             col2_export.operator('sxtools.removeexports', text='Remove LOD Meshes')
 
                 elif scene.exportmode == 'UTILS':
@@ -5802,6 +5852,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
                             col_debug.operator('sxtools.generatelods', text='Debug: Create LOD Meshes')
+                            col_debug.operator('sxtools.resetoverlay', text='Debug: Reset Overlay Layer')
                             col_debug.operator('sxtools.resetmaterial', text='Debug: Reset SXMaterial')
                             col_debug.operator('sxtools.resetscene', text='Debug: Reset scene (warning!)')
 
@@ -6244,7 +6295,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
-            bpy.context.view_layer.objects.active = objs[0]
+            # bpy.context.view_layer.objects.active = objs[0]
             tools.select_mask(objs, [layer, ], inverse)
         return {'FINISHED'}
 
@@ -6444,9 +6495,12 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
         selected = context.view_layer.objects.selected
         groups = utils.find_groups(selected)
         files.export_files(groups)
+        if prefs.removelods:
+            export.remove_exports()
         sxglobals.composite = True
         refresh_actives(self, context)
         return {'FINISHED'}
@@ -6454,17 +6508,15 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
 class SXTOOLS_OT_removeexports(bpy.types.Operator):
     bl_idname = 'sxtools.removeexports'
-    bl_label = 'Remove Exports'
-    bl_description = 'Deletes generated high-poly objects\nReturns the source object to its original state'
+    bl_label = 'Remove LOD Meshes'
+    bl_description = 'Deletes generated LOD meshes'
     bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
         scene = bpy.context.scene.sxtools
         export.remove_exports()
-
         scene.shadingmode = 'FULL'
-        bpy.ops.object.shade_flat()
         return {'FINISHED'}
 
 
@@ -6566,6 +6618,24 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
         for objName in sxMatObjs:
             context.scene.objects[objName].sxtools.shadingmode = 'FULL'
             context.scene.objects[objName].active_material = bpy.data.materials['SXMaterial']
+
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_resetoverlay(bpy.types.Operator):
+    bl_idname = 'sxtools.resetoverlay'
+    bl_label = 'Reset Overlay'
+    bl_description = 'Sets overlay default color to 0.5 gray'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        for obj in objs:
+            obj.sxlayers['overlay'].defaultColor = [0.5, 0.5, 0.5, 1.0]
+
+        layers.clear_uvs(objs, objs[0].sxlayers['overlay'])
+        bpy.context.view_layer.update()
 
         return {'FINISHED'}
 
@@ -6707,6 +6777,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
         if len(objs) > 0:
+            bpy.context.view_layer.objects.active = objs[0]
             check = validate.validate_objects(objs)
             if check:
                 export.process_objects(objs)
@@ -6772,6 +6843,7 @@ classes = (
     SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
     SXTOOLS_OT_generatelods,
+    SXTOOLS_OT_resetoverlay,
     SXTOOLS_OT_resetmaterial,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
@@ -6807,6 +6879,7 @@ def register():
         kmi = km.keymap_items.new('SXTOOLS_OT_selectdown', 'DOWN_ARROW', 'PRESS', shift=True, ctrl=True)
         addon_keymaps.append((km, kmi))
 
+
 def unregister():
     from bpy.utils import unregister_class
     for cls in reversed(classes):
@@ -6817,8 +6890,6 @@ def unregister():
     del bpy.types.Scene.sxtools
     del bpy.types.Scene.sxpalettes
     del bpy.types.Scene.sxmaterials
-    # del tools
-    # del sxglobals
 
     bpy.app.handlers.load_post.remove(load_post_handler)
 
@@ -6841,17 +6912,8 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Undo does not clear exportObjectsArray
-# - Bevels remain in LOD2 in high-detail export?
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
-# - Clean up high detail LOD
-# - Fix LOD enable switch, prevent accidental LOD creations
-# - High detail magic button gives an error if object not in group
-# - LOD export for high-detail export
-#   - Generate LOD meshes
-#   - Hi-bake all _lod* objects
-# - Vertex weld to high-detail export, weld before AO
 # - Properly refresh smoothing angle per selection
 # - Modifier stack occasionally staying hidden?
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
