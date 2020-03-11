@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 4, 1),
+    'version': (3, 5, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5436,6 +5436,20 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default=False,
         update=compositing_mode)
 
+    shift: bpy.props.BoolProperty(
+        name='Shift',
+        description='Keyboard input',
+        default=False)
+
+    alt: bpy.props.BoolProperty(
+        name='Alt',
+        description='Keyboard input',
+        default=False)
+
+    ctrl: bpy.props.BoolProperty(
+        name='Ctrl',
+        description='Keyboard input',
+        default=False)
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
@@ -5759,11 +5773,25 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_misc1 = self.layout.row(align=True)
                 row_misc1.operator('sxtools.mergeup')
                 row_misc1.operator('sxtools.copylayer', text='Copy')
-                row_misc1.operator('sxtools.clear', text='Clear')
+                if not scene.shift:
+                    clr_text = 'Clear'
+                else:
+                    clr_text = 'Clear All'
+                row_misc1.operator('sxtools.clear', text=clr_text)
                 row_misc2 = self.layout.row(align=True)
                 row_misc2.operator('sxtools.mergedown')
-                row_misc2.operator('sxtools.pastelayer', text='Paste')
-                row_misc2.operator('sxtools.selmask', text='Select Mask')
+                if scene.alt:
+                    paste_text = 'Merge'
+                elif scene.shift:
+                    paste_text = 'Swap'
+                else:
+                    paste_text = 'Paste'
+                row_misc2.operator('sxtools.pastelayer', text=paste_text)
+                if not scene.shift:
+                    sel_text = 'Select Mask'
+                else:
+                    sel_text = 'Select Inverse'
+                row_misc2.operator('sxtools.selmask', text=sel_text)
 
                 # Color Fill ---------------------------------------------------
                 box_fill = layout.box()
@@ -5971,7 +5999,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandexport:
                         col_utils = box_export.column(align=False)
                         col_utils.operator('sxtools.revertobjects', text='Revert to Control Cages')
-                        col_utils.operator('sxtools.setpivots', text='Set Pivots')
+                        if not scene.shift:
+                            pivot_text = 'Set Pivots to Center of Mass'
+                        else:
+                            pivot_text = 'Set Pivots to Bbox Center'
+                        col_utils.operator('sxtools.setpivots', text=pivot_text)
                         col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
                         row_debug = box_export.row()
                         row_debug.prop(scene, 'expanddebug',
@@ -6002,7 +6034,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col3_export.enabled = False
                         split_export = box_export.split(factor=0.1)
                         split_export.operator('sxtools.checklist', text='', icon='INFO')
-                        split_export.operator('sxtools.exportfiles', text='Export Selected')
+
+                        if not scene.shift:
+                            exp_text = 'Export Selected'
+                        else:
+                            exp_text = 'Export All'
+                        exp_button = split_export.operator('sxtools.exportfiles', text=exp_text)
+
                         if mode == 'EDIT':
                             split_export.enabled = False
 
@@ -6111,6 +6149,9 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
     bl_label = 'Selection Monitor'
 
     prevSelection: None
+    prevShift: bpy.props.BoolProperty()
+    prevAlt: bpy.props.BoolProperty()
+    prevCtrl: bpy.props.BoolProperty()
 
     @classmethod
     def poll(cls, context):
@@ -6118,6 +6159,22 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
 
     def modal(self, context, event):
         selection = context.object
+        scene = context.scene.sxtools
+
+        if (self.prevShift != event.shift):
+            self.prevShift = event.shift
+            scene.shift = event.shift
+            context.area.tag_redraw()
+
+        if (self.prevAlt != event.alt):
+            self.prevAlt = event.alt
+            scene.alt = event.alt
+            context.area.tag_redraw()
+
+        if (self.prevCtrl != event.ctrl):
+            self.prevCtrl = event.ctrl
+            scene.ctrl = event.ctrl
+            context.area.tag_redraw()
 
         if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
             sxglobals.librariesLoaded = False
