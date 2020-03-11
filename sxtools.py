@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 3, 5),
+    'version': (3, 4, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -237,53 +237,56 @@ class SXTOOLS_files(object):
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             selArray = bpy.context.view_layer.objects.selected
-            category = selArray[0].sxtools.category.lower()
 
-            # Create palette masks
-            layers.generate_masks(selArray)
+            # Only groups with meshes as children are exported
+            if len(selArray) > 0:
+                category = selArray[0].sxtools.category.lower()
 
-            for sel in selArray:
-                if 'staticVertexColors' not in sel.keys():
-                    sel['staticVertexColors'] = True
+                # Create palette masks
+                layers.generate_masks(selArray)
 
-                if 'sxToolsVersion' not in sel.keys():
-                    sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
+                for sel in selArray:
+                    if 'staticVertexColors' not in sel.keys():
+                        sel['staticVertexColors'] = True
 
-                compLayers = utils.find_comp_layers(sel, sel['staticVertexColors'])
-                layer0 = utils.find_layer_from_index(sel, 0)
-                layer1 = utils.find_layer_from_index(sel, 1)
-                layers.blend_layers([sel, ], compLayers, layer1, layer0)
+                    if 'sxToolsVersion' not in sel.keys():
+                        sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
-            # If linear colorspace exporting is selected
-            if colorspace == 'LIN':
-                export.convert_to_linear(selArray)
+                    compLayers = utils.find_comp_layers(sel, sel['staticVertexColors'])
+                    layer0 = utils.find_layer_from_index(sel, 0)
+                    layer1 = utils.find_layer_from_index(sel, 1)
+                    layers.blend_layers([sel, ], compLayers, layer1, layer0)
 
-            path = bpy.context.scene.sxtools.exportfolder + category
-            pathlib.Path(path).mkdir(exist_ok=True)
+                # If linear colorspace exporting is selected
+                if colorspace == 'LIN':
+                    export.convert_to_linear(selArray)
 
-            if '/' in bpy.context.scene.sxtools.exportfolder:
-                slash = '/'
-            elif '\\' in bpy.context.scene.sxtools.exportfolder:
-                slash = '\\'
+                path = scene.exportfolder + category
+                pathlib.Path(path).mkdir(exist_ok=True)
 
-            exportPath = path + slash + group.name + '.' + 'fbx'
+                if '/' in scene.exportfolder:
+                    slash = '/'
+                elif '\\' in scene.exportfolder:
+                    slash = '\\'
 
-            bpy.ops.export_scene.fbx(
-                filepath=exportPath,
-                apply_scale_options='FBX_SCALE_NONE',
-                use_selection=True,
-                apply_unit_scale=True,
-                bake_space_transform=True,
-                use_mesh_modifiers=True,
-                axis_up='Y',
-                axis_forward='-Z',
-                use_active_collection=False,
-                add_leaf_bones=False,
-                object_types={'ARMATURE', 'EMPTY', 'MESH'},
-                use_custom_props=True)
+                exportPath = path + slash + group.name + '.' + 'fbx'
 
-            groupNames.append(group.name)
-            group.location = org_loc
+                bpy.ops.export_scene.fbx(
+                    filepath=exportPath,
+                    apply_scale_options='FBX_SCALE_NONE',
+                    use_selection=True,
+                    apply_unit_scale=True,
+                    bake_space_transform=True,
+                    use_mesh_modifiers=True,
+                    axis_up='Y',
+                    axis_forward='-Z',
+                    use_active_collection=False,
+                    add_leaf_bones=False,
+                    object_types={'ARMATURE', 'EMPTY', 'MESH'},
+                    use_custom_props=True)
+
+                groupNames.append(group.name)
+                group.location = org_loc
 
         message_box('Exported ' + str(', ').join(groupNames))
 
@@ -1045,6 +1048,19 @@ class SXTOOLS_setup(object):
         scene.eraseuvs = True
 
         sxglobals.refreshInProgress = False
+
+
+    def create_sxcollection(self):
+        if 'SXObjects' not in bpy.data.collections.keys():
+            sxObjects = bpy.data.collections.new('SXObjects')
+        else:
+            sxObjects = bpy.data.collections['SXObjects']
+        for obj in bpy.data.objects:
+            if (len(obj.sxtools.keys()) > 0) and (obj.name not in sxObjects.objects):
+                sxObjects.objects.link(obj)
+
+        if sxObjects.name not in bpy.context.scene.collection.objects:
+            bpy.context.scene.collection.children.link(sxObjects)
 
 
     def __del__(self):
@@ -4066,22 +4082,24 @@ class SXTOOLS_export(object):
 
 
     def remove_exports(self):
-        sourceObjects = bpy.data.collections['SourceObjects'].objects
-        exportObjects = bpy.data.collections['ExportObjects'].objects
-        for obj in exportObjects:
-            bpy.data.objects.remove(obj, do_unlink=True)
+        if 'ExportObjects' in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections['ExportObjects'].objects
+            for obj in exportObjects:
+                bpy.data.objects.remove(obj, do_unlink=True)
 
-        for obj in sourceObjects:
-            if obj.name.endswith('_org'):
-                obj.name = obj.name[:-4]
-            elif obj.name.endswith('_LOD0'):
-                obj.name = obj.name[:-5]
-            if obj.data and obj.data.name.endswith('_org'):
-                obj.data.name = obj.data.name[:-4]
-            elif obj.data and obj.data.name.endswith('_LOD0'):
-                obj.data.name = obj.data.name[:-5]
-            obj.hide_viewport = False
-            sourceObjects.unlink(obj)
+        if 'SourceObjects' in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections['SourceObjects'].objects
+            for obj in sourceObjects:
+                if obj.name.endswith('_org'):
+                    obj.name = obj.name[:-4]
+                elif obj.name.endswith('_LOD0'):
+                    obj.name = obj.name[:-5]
+                if obj.data and obj.data.name.endswith('_org'):
+                    obj.data.name = obj.data.name[:-4]
+                elif obj.data and obj.data.name.endswith('_LOD0'):
+                    obj.data.name = obj.data.name[:-5]
+                obj.hide_viewport = False
+                sourceObjects.unlink(obj)
 
 
     def __del__(self):
@@ -5963,6 +5981,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
                             # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
+                            col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
@@ -6607,12 +6626,16 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
 class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_idname = 'sxtools.exportfiles'
     bl_label = 'Export Selected'
-    bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY groups at root based on selection are exported'
+    bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY-type groups at root based on selection are exported\nShift-click to export all SX Tools objects in the scene'
 
 
     def invoke(self, context, event):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
-        selected = context.view_layer.objects.selected
+        prefs = context.preferences.addons['sxtools'].preferences
+        if event.shift:
+            setup.create_sxcollection()
+            selected = bpy.data.collections['SXObjects'].all_objects
+        else:
+            selected = context.view_layer.objects.selected
         groups = utils.find_groups(selected)
         files.export_files(groups)
         if prefs.removelods:
@@ -6648,13 +6671,13 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
         if len(objs) > 0:
             active = context.active_object
             for obj in objs:
-                bpy.context.view_layer.objects.active = obj
+                context.view_layer.objects.active = obj
                 if event.shift:
                     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
                 else:
                     bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
 
-            bpy.context.view_layer.objects.active = active
+            context.view_layer.objects.active = active
         return {'FINISHED'}
 
 
@@ -6854,6 +6877,19 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
+    bl_idname = 'sxtools.create_sxcollection'
+    bl_label = 'Update SXCollection'
+    bl_description = 'Links all SXTools meshes into their own collection'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        setup.create_sxcollection()
+
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
@@ -6966,6 +7002,7 @@ classes = (
     SXTOOLS_OT_checklist,
     SXTOOLS_OT_selectup,
     SXTOOLS_OT_selectdown,
+    SXTOOLS_OT_create_sxcollection,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -7028,13 +7065,11 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Magic button fails if no UV channels have been enabled
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Properly refresh smoothing angle per selection
 # - Modifier stack occasionally staying hidden?
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
-# - Parent under the same collection
 # - Auto-splitting and naming of mirrored geometry
 # - Save new palette from layers
 # - Master palette library save/manage
