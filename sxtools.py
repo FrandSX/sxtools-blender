@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 2, 10),
+    'version': (3, 3, 3),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -92,8 +92,8 @@ class SXTOOLS_files(object):
 
     # Loads palettes.json and materials.json
     def load_file(self, mode):
-        prefs = bpy.context.preferences
-        directory = prefs.addons['sxtools'].preferences.libraryfolder
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        directory = prefs.libraryfolder
         filePath = directory + mode + '.json'
 
         if len(directory) > 0:
@@ -122,7 +122,7 @@ class SXTOOLS_files(object):
                 print('SX Tools: ' + mode + ' loaded from ' + filePath)
             except ValueError:
                 print('SX Tools Error: Invalid ' + mode + ' file.')
-                prefs.addons['sxtools'].preferences.libraryfolder = ''
+                prefs.libraryfolder = ''
                 return False
             except IOError:
                 print('SX Tools Error: ' + mode + ' file not found!')
@@ -142,8 +142,8 @@ class SXTOOLS_files(object):
 
 
     def save_file(self, mode):
-        prefs = bpy.context.preferences
-        directory = prefs.addons['sxtools'].preferences.libraryfolder
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        directory = prefs.libraryfolder
         filePath = directory + mode + '.json'
         # Palettes.json Materials.json
 
@@ -225,8 +225,8 @@ class SXTOOLS_files(object):
     # done by the shader on the game engine side 
     def export_files(self, groups):
         scene = bpy.context.scene.sxtools
-        prefs = bpy.context.preferences
-        colorspace = prefs.addons['sxtools'].preferences.colorspace
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        colorspace = prefs.colorspace
         groupNames = []
         for group in groups:
             bpy.context.view_layer.objects.active = group
@@ -581,6 +581,58 @@ class SXTOOLS_setup(object):
 
 
     def create_sxmaterial(self):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences        
+        if prefs.materialtype == 'SMP':
+            self.create_simple_sxmaterial()
+        else:
+            self.create_pbr_sxmaterial()
+
+
+    def create_simple_sxmaterial(self):
+        scene = bpy.context.scene.sxtools
+        numlayers = scene.numlayers
+        numgradients = scene.numalphas
+        numoverlays = scene.numoverlays
+
+        for values in sxglobals.layerInitArray:
+            if values[0] == 'composite':
+                compositeUVSet = values[9]
+                composite = values[1]
+
+        sxmaterial = bpy.data.materials.new(name='SXMaterial')
+        sxmaterial.use_nodes = True
+
+        sxmaterial.node_tree.nodes.remove(sxmaterial.node_tree.nodes['Principled BSDF'])
+
+        sxmaterial.node_tree.nodes.new(type='ShaderNodeEmission')
+        sxmaterial.node_tree.nodes['Emission'].location = (800, 200)
+
+        sxmaterial.node_tree.nodes['Material Output'].location = (1100, 200)
+
+        # Gradient tool color ramp
+        sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
+        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1400, 200)
+
+        # Palette colors
+        for i in range(5):
+            pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
+            pCol.name = 'PaletteColor' + str(i)
+            pCol.location = (-1400, -200*i)
+
+        sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
+        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 200)
+
+        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+        input = sxmaterial.node_tree.nodes['Emission'].inputs['Color']
+        sxmaterial.node_tree.links.new(input, output)
+
+        output = sxmaterial.node_tree.nodes['Emission'].outputs['Emission']
+        input = sxmaterial.node_tree.nodes['Material Output'].inputs['Surface']
+        sxmaterial.node_tree.links.new(input, output)
+
+
+    def create_pbr_sxmaterial(self):
         scene = bpy.context.scene.sxtools
         numlayers = scene.numlayers
         numgradients = scene.numalphas
@@ -616,9 +668,9 @@ class SXTOOLS_setup(object):
                 overlayUVSet2 = values[14]
                 overlay = values[1]
 
-        prefs = bpy.context.preferences
-        materialsubsurface = prefs.addons['sxtools'].preferences.materialsubsurface
-        materialtransmission = prefs.addons['sxtools'].preferences.materialtransmission
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        materialsubsurface = prefs.materialsubsurface
+        materialtransmission = prefs.materialtransmission
 
         # print('layers: ', numlayers)
         # print('gradients: ', numgradients)
@@ -1211,6 +1263,7 @@ class SXTOOLS_layers(object):
     def composite_layers(self, objs):
         if sxglobals.composite:
             # then = time.time()
+            prefs = bpy.context.preferences.addons['sxtools'].preferences
             compLayers = utils.find_comp_layers(objs[0])
             shadingmode = bpy.context.scene.sxtools.shadingmode
             idx = objs[0].sxtools.selectedlayer
@@ -1220,7 +1273,7 @@ class SXTOOLS_layers(object):
                 layer0 = utils.find_layer_from_index(objs[0], 0)
                 layer1 = utils.find_layer_from_index(objs[0], 1)
                 self.blend_layers(objs, compLayers, layer1, layer0)
-            else:
+            elif prefs.materialtype != 'SMP':
                 self.blend_debug(objs, layer, shadingmode)
 
             sxglobals.composite = False
@@ -3437,7 +3490,8 @@ class SXTOOLS_export(object):
                 obj.hide_viewport = False
 
         # Bake Overlay for export
-        layers.flatten_alphas(objs)
+        if scene.numoverlays > 0:
+            layers.flatten_alphas(objs)
 
         # LOD mesh generation for low-detail
         if scene.exportquality == 'LO':
@@ -3479,41 +3533,44 @@ class SXTOOLS_export(object):
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
 
         # Apply occlusion
-        layer = obj.sxlayers['occlusion']
-        rampmode = 'OCC'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.0
-        mono = True
-        scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
-        scene.occlusionbias = 0.01
+        if scene.enableocclusion:
+            layer = obj.sxlayers['occlusion']
+            rampmode = 'OCC'
+            scene.ramplist = 'BLACKANDWHITE'
+            noise = 0.0
+            mono = True
+            scene.occlusionblend = 0.5
+            scene.occlusionrays = 200
+            scene.occlusionbias = 0.01
 
-        mergebbx = scene.rampbbox
-        overwrite = True
+            mergebbx = scene.rampbbox
+            overwrite = True
 
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+            tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
         # Apply custom overlay
-        layer = obj.sxlayers['overlay']
-        rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.01
-        mono = False
+        if scene.numoverlays != 0:
+            layer = obj.sxlayers['overlay']
+            rampmode = 'CN'
+            scene.ramplist = 'BLACKANDWHITE'
+            noise = 0.01
+            mono = False
 
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-        for obj in objs:
-            obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+            tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
+            for obj in objs:
+                obj.sxlayers['overlay'].blendMode = 'OVR'
+                obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
         # Emissives are smooth
-        color = (1.0, 1.0, 1.0, 1.0)
-        maskLayer = obj.sxlayers['emission']
-        tools.select_mask(objs, [maskLayer, ], inverse=False)
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-        noise = 0.0
-        mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        if scene.enableemission:
+            color = (1.0, 1.0, 1.0, 1.0)
+            maskLayer = obj.sxlayers['emission']
+            tools.select_mask(objs, [maskLayer, ], inverse=False)
+            layer = obj.sxlayers['smoothness']
+            overwrite = True
+            noise = 0.0
+            mono = True
+            tools.apply_color(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -4073,6 +4130,7 @@ def refresh_actives(self, context):
         sxglobals.refreshInProgress = True
 
         mode = context.scene.sxtools.shadingmode
+        sxmaterial = bpy.data.materials['SXMaterial']
         objs = selection_validator(self, context)
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
@@ -4083,6 +4141,8 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 if vcols != '':
                     obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
+                    if mode != 'FULL':
+                        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = vcols
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
                 visVal = getattr(obj.sxlayers[idx], 'visibility')
@@ -4118,6 +4178,7 @@ def refresh_actives(self, context):
 
 
 def shading_mode(self, context):
+    prefs = bpy.context.preferences.addons['sxtools'].preferences
     mode = context.scene.sxtools.shadingmode
     objs = selection_validator(self, context)
     context.scene.display_settings.display_device = 'sRGB'
@@ -4126,118 +4187,132 @@ def shading_mode(self, context):
     if len(objs) > 0:
         sxmaterial = bpy.data.materials['SXMaterial']
 
-        occlusion = objs[0].sxlayers['occlusion'].enabled
-        metallic = objs[0].sxlayers['metallic'].enabled
-        smoothness = objs[0].sxlayers['smoothness'].enabled
-        transmission = objs[0].sxlayers['transmission'].enabled
-        emission = objs[0].sxlayers['emission'].enabled
-
-        prefs = bpy.context.preferences
-        materialsubsurface = prefs.addons['sxtools'].preferences.materialsubsurface
-        materialtransmission = prefs.addons['sxtools'].preferences.materialtransmission
-
-        if mode == 'FULL':
-            if emission:
-                context.scene.eevee.use_bloom = True
-            areas = bpy.context.workspace.screens[0].areas
-            shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
-            for area in areas:
-                for space in area.spaces:
-                    if space.type == 'VIEW_3D':
-                        if ((space.shading.type == 'WIREFRAME') or
-                           (space.shading.type == 'SOLID')):
-                            space.shading.type = shading
-
-            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
-
-            # Disconnect vertex color output from emission
-            attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
-            sxmaterial.node_tree.links.remove(attrLink)
-
-            # Reconnect vertex color to mixer
-            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
-            sxmaterial.node_tree.links.new(input, output)
-
-            # Reconnect mixer to base color
-            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
-            sxmaterial.node_tree.links.new(input, output)
-
-            if metallic:
-                # Reconnect metallic and roughness
-                output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
-                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
-                sxmaterial.node_tree.links.new(input, output)
-
-            if smoothness:
-                output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
-                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
-                sxmaterial.node_tree.links.new(input, output)
-
-            if transmission:
-                if materialtransmission:
-                    # Reconnect transmission
-                    output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
-                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
-                    sxmaterial.node_tree.links.new(input, output)
-
-                if materialsubsurface:
-                    output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
-                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
-                    sxmaterial.node_tree.links.new(input, output)
-
-            if emission:
-                # Reconnect emission
-                output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
-                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-                sxmaterial.node_tree.links.new(input, output)
-
-                # Reconnect base mix
-                output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-                input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
-                sxmaterial.node_tree.links.new(input, output)
-
-        else:
-            if emission:
-                context.scene.eevee.use_bloom = False
+        if prefs.materialtype == 'SMP':
+            context.scene.eevee.use_bloom = False
             areas = bpy.context.workspace.screens[0].areas
             shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
             for area in areas:
                 for space in area.spaces:
                     if space.type == 'VIEW_3D':
                         space.shading.type = shading
+            if mode == 'FULL':
+                sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
+            else:
+                # source to activelayer
+                pass
 
-            sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
+        else:
+            occlusion = objs[0].sxlayers['occlusion'].enabled
+            metallic = objs[0].sxlayers['metallic'].enabled
+            smoothness = objs[0].sxlayers['smoothness'].enabled
+            transmission = objs[0].sxlayers['transmission'].enabled
+            emission = objs[0].sxlayers['emission'].enabled
 
-            # Disconnect base color, metallic and roughness
-            attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
-            sxmaterial.node_tree.links.remove(attrLink)
+            materialsubsurface = prefs.materialsubsurface
+            materialtransmission = prefs.materialtransmission
 
-            # Check if already debug
-            if sxglobals.prevMode == 'FULL':
-                attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
+            if mode == 'FULL':
+                if emission:
+                    context.scene.eevee.use_bloom = True
+                areas = bpy.context.workspace.screens[0].areas
+                shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+                for area in areas:
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            if ((space.shading.type == 'WIREFRAME') or
+                               (space.shading.type == 'SOLID')):
+                                space.shading.type = shading
+
+                sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
+
+                # Disconnect vertex color output from emission
+                attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
+
+                # Reconnect vertex color to mixer
+                output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+                sxmaterial.node_tree.links.new(input, output)
+
+                # Reconnect mixer to base color
+                output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
+                sxmaterial.node_tree.links.new(input, output)
+
                 if metallic:
-                    attrLink = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs[0].links[0]
-                    sxmaterial.node_tree.links.remove(attrLink)
+                    # Reconnect metallic and roughness
+                    output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
+                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
+                    sxmaterial.node_tree.links.new(input, output)
+
                 if smoothness:
-                    attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
-                    sxmaterial.node_tree.links.remove(attrLink)
+                    output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
+                    sxmaterial.node_tree.links.new(input, output)
+
                 if transmission:
-                    if materialtransmission and materialsubsurface:
-                        attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
-                        sxmaterial.node_tree.links.remove(attrLink)
-                    if materialtransmission or materialsubsurface:
-                        attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
-                        sxmaterial.node_tree.links.remove(attrLink)
+                    if materialtransmission:
+                        # Reconnect transmission
+                        output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
+                        sxmaterial.node_tree.links.new(input, output)
 
-            # Connect vertex color source to emission
-            output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
-            sxmaterial.node_tree.links.new(input, output)
+                    if materialsubsurface:
+                        output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                        input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
+                        sxmaterial.node_tree.links.new(input, output)
 
-        sxglobals.prevMode = mode
+                if emission:
+                    # Reconnect emission
+                    output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+                    input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
+                    sxmaterial.node_tree.links.new(input, output)
+
+                    # Reconnect base mix
+                    output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+                    input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+                    sxmaterial.node_tree.links.new(input, output)
+
+            else:
+                if emission:
+                    context.scene.eevee.use_bloom = False
+                areas = bpy.context.workspace.screens[0].areas
+                shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
+                for area in areas:
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            space.shading.type = shading
+
+                sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
+
+                # Disconnect base color, metallic and roughness
+                attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
+                sxmaterial.node_tree.links.remove(attrLink)
+
+                # Check if already debug
+                if sxglobals.prevMode == 'FULL':
+                    attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
+                    sxmaterial.node_tree.links.remove(attrLink)
+                    if metallic:
+                        attrLink = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs[0].links[0]
+                        sxmaterial.node_tree.links.remove(attrLink)
+                    if smoothness:
+                        attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
+                        sxmaterial.node_tree.links.remove(attrLink)
+                    if transmission:
+                        if materialtransmission and materialsubsurface:
+                            attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                            sxmaterial.node_tree.links.remove(attrLink)
+                        if materialtransmission or materialsubsurface:
+                            attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
+                            sxmaterial.node_tree.links.remove(attrLink)
+
+                # Connect vertex color source to emission
+                output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+                input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
+                sxmaterial.node_tree.links.new(input, output)
+
+            sxglobals.prevMode = mode
 
 
 def selection_validator(self, context):
@@ -4641,6 +4716,29 @@ def compositing_mode(self, context):
         sxmaterial.links.new(input, swoutput)
 
 
+def update_scene_configuration(self, context):
+    prefs = context.preferences.addons['sxtools'].preferences
+    scene = context.scene.sxtools
+    
+    if prefs.materialtype == 'SMP':
+        scene.numlayers = 7
+        scene.numalphas = 0
+        scene.numoverlays = 0
+        scene.enableocclusion = False
+        scene.enablemetallic = False
+        scene.enablesmoothness = False
+        scene.enabletransmission = False
+        scene.enableemission = False
+    else:
+        scene.numlayers = 7
+        scene.numalphas = 2
+        scene.numoverlays = 1
+        scene.enableocclusion = True
+        scene.enablemetallic = True
+        scene.enablesmoothness = True
+        scene.enabletransmission = True
+        scene.enableemission = True
+
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
@@ -4662,6 +4760,15 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         maxlen=1024,
         subtype='DIR_PATH',
         update=load_libraries)
+
+    materialtype: bpy.props.EnumProperty(
+        name='SXMaterial Type',
+        description='Select between simple emission and full PBR materials',
+        items=[
+            ('SMP', 'Simple', ''),
+            ('PBR', 'Physically Based', '')],
+        default='PBR',
+        update=update_scene_configuration)
 
     materialsubsurface: bpy.props.BoolProperty(
         name='Subsurface Scattering',
@@ -4695,11 +4802,15 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        layout_split = layout.split()
-        layout_split.label(text='Connect Transmission Layer to:')
-        layout_split2 = layout_split.split()
-        layout_split2.prop(self, 'materialsubsurface')
-        layout_split2.prop(self, 'materialtransmission')
+        layout_split0 = layout.split()
+        layout_split0.label(text='SXMaterial Type')
+        layout_split0.prop(self, 'materialtype', text='')
+        if self.materialtype == 'PBR':
+            layout_split1 = layout.split()
+            layout_split1.label(text='Connect Transmission Layer to:')
+            layout_split2 = layout_split1.split()
+            layout_split2.prop(self, 'materialsubsurface')
+            layout_split2.prop(self, 'materialtransmission')
         layout_split3 = layout.split()
         layout_split3.label(text='Color Space for Exports:')
         layout_split3.prop(self, 'colorspace', text='')
@@ -5539,20 +5650,23 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             sxtools = obj.sxtools
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
+            prefs = context.preferences.addons['sxtools'].preferences
             
             if len(obj.sxlayers) == 0:
                 col = self.layout.column(align=True)
                 col.label(text='Set Scene Configuration:')
-                col.prop(scene, 'numlayers', text='Vertex Color Layers')
-                col.prop(scene, 'numalphas', text='Alpha Overlays (UV)')
-                col.prop(scene, 'numoverlays', text='RGBA Overlays (UV)')
-                col.prop(scene, 'enableocclusion', text='Ambient Occlusion (UV)')
-                col.prop(scene, 'enablemetallic', text='Metallic (UV)')
-                col.prop(scene, 'enablesmoothness', text='Smoothness (UV)')
-                col.prop(scene, 'enabletransmission', text='Transmission (UV)')
-                col.prop(scene, 'enableemission', text='Emission (UV)')
-                col.separator()
-                col.prop(scene, 'eraseuvs', text='Erase Existing UV Sets')
+                col.prop(prefs, 'materialtype', text='Preset')
+                if prefs.materialtype != 'SMP':
+                    col.prop(scene, 'numlayers', text='Vertex Color Layers')
+                    col.prop(scene, 'numalphas', text='Alpha Overlays (UV)')
+                    col.prop(scene, 'numoverlays', text='RGBA Overlays (UV)')
+                    col.prop(scene, 'enableocclusion', text='Ambient Occlusion (UV)')
+                    col.prop(scene, 'enablemetallic', text='Metallic (UV)')
+                    col.prop(scene, 'enablesmoothness', text='Smoothness (UV)')
+                    col.prop(scene, 'enabletransmission', text='Transmission (UV)')
+                    col.prop(scene, 'enableemission', text='Emission (UV)')
+                    col.separator()
+                    col.prop(scene, 'eraseuvs', text='Erase Existing UV Sets')
                 if 'SXMaterial' in bpy.data.materials.keys():
                     col.enabled = False
                 col2 = self.layout.column(align=True)
@@ -6912,6 +7026,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Magic button fails if no UV channels have been enabled
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Properly refresh smoothing angle per selection
