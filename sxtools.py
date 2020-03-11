@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 3, 3),
+    'version': (3, 3, 4),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5683,8 +5683,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     message_box('Invalid layer selected!', 'SX Tools Error', 'ERROR')
                     # print('SX Tools: Error, invalid layer selected!')
 
-                row = layout.row(align=True)
-                row.prop(sxtools, 'category', text='Category')
+                if prefs.materialtype != 'SMP':
+                    row = layout.row(align=True)
+                    row.prop(sxtools, 'category', text='Category')
 
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
