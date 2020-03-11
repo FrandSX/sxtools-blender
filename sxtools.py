@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 3, 4),
+    'version': (3, 3, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5940,9 +5940,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_export.prop(sxtools, 'lodmeshes', text='Create LOD Meshes')
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
                         # col_export.separator()
-                        row2_export = box_export.row(align=True)
-                        row2_export.prop(sxtools, 'staticvertexcolors', text='')
-                        row2_export.prop(scene, 'exportquality', text='')
+                        if prefs.materialtype != 'SMP':
+                            row2_export = box_export.row(align=True)
+                            row2_export.prop(sxtools, 'staticvertexcolors', text='')
+                            row2_export.prop(scene, 'exportquality', text='')
                         col2_export = box_export.column(align=True)
                         col2_export.operator('sxtools.macro', text='Magic Button')
                         if ('ExportObjects' in bpy.data.collections.keys()) and (len(bpy.data.collections['ExportObjects'].objects) > 0):
