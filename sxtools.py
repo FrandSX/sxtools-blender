@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 5, 0),
+    'version': (3, 5, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4820,9 +4820,6 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        layout_split0 = layout.split()
-        layout_split0.label(text='SXMaterial Type')
-        layout_split0.prop(self, 'materialtype', text='')
         if self.materialtype == 'PBR':
             layout_split1 = layout.split()
             layout_split1.label(text='Connect Transmission Layer to:')
@@ -7081,12 +7078,12 @@ def register():
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
         km = wm.keyconfigs.addon.keymaps.new(name='3D View', space_type='VIEW_3D')
-        kmi = km.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift=True)
-        kmi.properties.name = SXTOOLS_MT_piemenu.bl_idname
-        addon_keymaps.append((km, kmi))
         kmi = km.keymap_items.new('SXTOOLS_OT_selectup', 'UP_ARROW', 'PRESS', shift=True, ctrl=True)
         addon_keymaps.append((km, kmi))
         kmi = km.keymap_items.new('SXTOOLS_OT_selectdown', 'DOWN_ARROW', 'PRESS', shift=True, ctrl=True)
+        addon_keymaps.append((km, kmi))
+        kmi = km.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift=True)
+        kmi.properties.name = SXTOOLS_MT_piemenu.bl_idname
         addon_keymaps.append((km, kmi))
 
 
