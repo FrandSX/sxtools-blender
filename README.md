@@ -64,6 +64,10 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 NOTE: Relative paths may cause issues with export paths in SX Tool. Setting "Save&Load -> Relative Paths" to disabled is recommended.
 
 ## The Interface
+### Keyboard Shortcuts
+* Shift+ctrl+up/down arrow - Change active layer
+* Shift+comma - SX Tools pie menu
+
 ### Shading Modes
 
 Shading Mode | Function
