@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 5, 2),
+    'version': (3, 5, 3),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4684,8 +4684,12 @@ def update_custom_props(self, context):
 def update_smooth_angle(self, context):
     objs = selection_validator(self, context)
     if len(objs) > 0:
+        smoothAngleDeg = objs[0].sxtools.smoothangle
         smoothAngle = objs[0].sxtools.smoothangle * (2*math.pi)/360.0
         for obj in objs:
+            if obj.sxtools.smoothangle != smoothAngleDeg:
+                obj.sxtools.smoothangle = smoothAngleDeg
+
             obj.data.use_auto_smooth = True
             if obj.data.auto_smooth_angle != smoothAngle:
                 obj.data.auto_smooth_angle = smoothAngle
@@ -7121,7 +7125,6 @@ if __name__ == '__main__':
 # TODO:
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
-# - Properly refresh smoothing angle per selection
 # - Modifier stack occasionally staying hidden?
 # - Modifier UI values not properly refreshed upon selection (segments, decimation)
 # - Auto-splitting and naming of mirrored geometry
