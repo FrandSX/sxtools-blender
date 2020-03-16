@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 8, 4),
+    'version': (3, 9, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4880,6 +4880,23 @@ def update_material_layer1(self, context):
     mono = scene.palettemono
     modecolor = utils.find_mode_color(objs, layer)
 
+    if scene.enablelimit:
+        hsl = convert.rgb_to_hsl(color)
+        if scene.limitmode == 'MET':
+            minl = float(170.0/255.0)
+            if hsl[2] < minl:
+                rgb = convert.hsl_to_rgb((hsl[0], hsl[1], minl))
+                color = (rgb[0], rgb[1], rgb[2], 1.0)
+        else:
+            minl = float(10.0/255.0)
+            maxl = float(240.0/255.0)
+            if hsl[2] > maxl:
+                rgb = convert.hsl_to_rgb((hsl[0], hsl[1], maxl))
+                color = (rgb[0], rgb[1], rgb[2], 1.0)
+            elif hsl[2] < minl:
+                rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
+                color = (rgb[0], rgb[1], rgb[2], 1.0)
+
     if color != modecolor:
         tools.apply_color(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
@@ -5773,6 +5790,20 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         description='Keyboard input',
         default=False)
 
+    enablelimit: bpy.props.BoolProperty(
+        name='PBR Limit',
+        description='Limit diffuse color values to PBR range',
+        default=False)
+
+    limitmode: bpy.props.EnumProperty(
+        name='PBR Limit Mode',
+        description='Limit diffuse values to Metallic or Non-Metallic range',
+        items=[
+            ('MET', 'Metallic', ''),
+            ('NONMET', 'Non-Metallic', '')],
+        default='MET')
+
+
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
         name='Category',
@@ -6227,6 +6258,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     for i in range(3):
                         row_newmaterial.prop(scene, 'newmaterial'+str(i), text='')
                     row_newmaterial.operator('sxtools.addmaterial', text='', icon='ADD')
+
+                    row_limit = box_fill.row(align=True)
+                    row_limit.prop(scene, 'enablelimit', text='Limit to PBR range')
+                    row_limit.prop(scene, 'limitmode', text='')
 
                     if scene.expandfill:
                         row_lib = box_fill.row()
@@ -7808,8 +7843,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - Lister methods should check for duplicates?
-# - PBR-verify material values? metallic vs. non-metallic
-# - Message: libraries not loaded after scene load, even if loaded
 # - Hide Materials tab in Simple mode
 # - Modifier stack occasionally staying hidden?
 # - Auto-splitting and naming of mirrored geometry
