@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 8, 3),
+    'version': (3, 8, 4),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4985,7 +4985,7 @@ def update_scene_configuration(self, context):
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
-    sxglobals.librariesLoaded = False
+    # sxglobals.librariesLoaded = False
 
     setup.start_modal()
 
