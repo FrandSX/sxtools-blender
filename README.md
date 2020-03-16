@@ -7,6 +7,8 @@
 ## For Game Developers
 SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game. This tool ships with baseline shader networks for Unreal and Unity.
 
+![Asset Pipeline](/images/sxtools-magic.png)
+
 ## For 3D Artists
 SX Tools is a multi-layer vertex coloring toolbox, referencing a workflow from common 2D image editing programs.
 
