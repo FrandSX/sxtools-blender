@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 0),
+    'version': (3, 9, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5002,7 +5002,7 @@ def update_scene_configuration(self, context):
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
-    # sxglobals.librariesLoaded = False
+    sxglobals.librariesLoaded = False
 
     setup.start_modal()
 
@@ -6027,6 +6027,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
     def draw(self, context):
         objs = selection_validator(self, context)
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+
         if (len(objs) > 0) and (len(objs[0].sxtools.category) > 0) and sxglobals.librariesLoaded:
             obj = objs[0]
 
@@ -6035,7 +6037,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             sxtools = obj.sxtools
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
-            prefs = context.preferences.addons['sxtools'].preferences
             
             if len(obj.sxlayers) == 0:
                 col = self.layout.column(align=True)
@@ -6252,55 +6253,59 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 # PBR Materials -------------------------------------------------
                 elif scene.toolmode == 'MAT':
-                    materials = context.scene.sxmaterials
+                    if prefs.materialtype == 'SMP':
+                        if scene.expandfill:
+                            box_fill.label(text='Disabled in Simple mode')
+                    else:
+                        materials = context.scene.sxmaterials
 
-                    row_newmaterial = box_fill.row(align=True)
-                    for i in range(3):
-                        row_newmaterial.prop(scene, 'newmaterial'+str(i), text='')
-                    row_newmaterial.operator('sxtools.addmaterial', text='', icon='ADD')
+                        row_newmaterial = box_fill.row(align=True)
+                        for i in range(3):
+                            row_newmaterial.prop(scene, 'newmaterial'+str(i), text='')
+                        row_newmaterial.operator('sxtools.addmaterial', text='', icon='ADD')
 
-                    row_limit = box_fill.row(align=True)
-                    row_limit.prop(scene, 'enablelimit', text='Limit to PBR range')
-                    row_limit.prop(scene, 'limitmode', text='')
+                        row_limit = box_fill.row(align=True)
+                        row_limit.prop(scene, 'enablelimit', text='Limit to PBR range')
+                        row_limit.prop(scene, 'limitmode', text='')
 
-                    if scene.expandfill:
-                        row_lib = box_fill.row()
-                        row_lib.prop(scene, 'expandmat',
-                            icon='TRIA_DOWN' if scene.expandmat else 'TRIA_RIGHT',
-                            icon_only=True, emboss=False)
-                        row_lib.label(text='Library')
-                        if scene.expandmat:
-                            category = scene.materialcategories
-                            split_category = box_fill.split(factor=0.33)
-                            split_category.label(text='Category:')
-                            row_category = split_category.row(align=True)
-                            row_category.prop(scene, 'materialcategories', text='')
-                            row_category.operator('sxtools.addmaterialcategory', text='', icon='ADD')
-                            row_category.operator('sxtools.delmaterialcategory', text='', icon='REMOVE')
-                            row_category.separator()
-                            for material in materials:
-                                name = material.name
-                                if material.category.replace(" ", "_").upper() == category:
-                                    row_mat = box_fill.row(align=True)
-                                    split_mat = row_mat.split(factor=0.33)
-                                    split_mat.label(text=name)
-                                    split2_mat = split_mat.split()
-                                    row2_mat = split2_mat.row(align=True)
-                                    for i in range(3):
-                                        row2_mat.prop(material, 'color'+str(i), text='')
-                                    if not scene.shift:
-                                        mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
-                                        mat_button.label = name
-                                    else:
-                                        mat_button = split2_mat.operator('sxtools.delmaterial', text='Delete')
-                                        mat_button.label = name
+                        if scene.expandfill:
+                            row_lib = box_fill.row()
+                            row_lib.prop(scene, 'expandmat',
+                                icon='TRIA_DOWN' if scene.expandmat else 'TRIA_RIGHT',
+                                icon_only=True, emboss=False)
+                            row_lib.label(text='Library')
+                            if scene.expandmat:
+                                category = scene.materialcategories
+                                split_category = box_fill.split(factor=0.33)
+                                split_category.label(text='Category:')
+                                row_category = split_category.row(align=True)
+                                row_category.prop(scene, 'materialcategories', text='')
+                                row_category.operator('sxtools.addmaterialcategory', text='', icon='ADD')
+                                row_category.operator('sxtools.delmaterialcategory', text='', icon='REMOVE')
+                                row_category.separator()
+                                for material in materials:
+                                    name = material.name
+                                    if material.category.replace(" ", "_").upper() == category:
+                                        row_mat = box_fill.row(align=True)
+                                        split_mat = row_mat.split(factor=0.33)
+                                        split_mat.label(text=name)
+                                        split2_mat = split_mat.split()
+                                        row2_mat = split2_mat.row(align=True)
+                                        for i in range(3):
+                                            row2_mat.prop(material, 'color'+str(i), text='')
+                                        if not scene.shift:
+                                            mat_button = split2_mat.operator('sxtools.applymaterial', text='Apply')
+                                            mat_button.label = name
+                                        else:
+                                            mat_button = split2_mat.operator('sxtools.delmaterial', text='Delete')
+                                            mat_button.label = name
 
-                            row_pbrnoise = box_fill.row(align=True)
-                            row_pbrnoise.prop(scene, 'materialnoise', slider=True)
-                            col_matcolor = box_fill.column(align=True)
-                            col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
-                            if mode == 'OBJECT':
-                                col_matcolor.prop(scene, 'materialalpha')
+                                row_pbrnoise = box_fill.row(align=True)
+                                row_pbrnoise.prop(scene, 'materialnoise', slider=True)
+                                col_matcolor = box_fill.column(align=True)
+                                col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
+                                if mode == 'OBJECT':
+                                    col_matcolor.prop(scene, 'materialalpha')
 
                 # Crease Sets ---------------------------------------------------
                 box_crease = layout.box()
@@ -6447,6 +6452,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
             else:
                 col.label(text='Libraries not loaded')
                 col.label(text='Check Add-on Preferences')
+                if len(prefs.libraryfolder) > 0:
+                    col.operator('sxtools.loadlibraries', text='Reload Libraries')
 
 
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
@@ -7842,8 +7849,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Lister methods should check for duplicates?
-# - Hide Materials tab in Simple mode
 # - Modifier stack occasionally staying hidden?
 # - Auto-splitting and naming of mirrored geometry
 # - Improve indication of when magic button is necessary
