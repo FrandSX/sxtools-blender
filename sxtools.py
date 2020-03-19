@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 2),
+    'version': (3, 9, 3),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1112,7 +1112,7 @@ class SXTOOLS_setup(object):
             if (len(obj.sxtools.keys()) > 0) and (obj.name not in sxObjects.objects):
                 sxObjects.objects.link(obj)
 
-        if sxObjects.name not in bpy.context.scene.collection.objects:
+        if sxObjects.name not in bpy.context.scene.collection.children.keys():
             bpy.context.scene.collection.children.link(sxObjects)
 
 
