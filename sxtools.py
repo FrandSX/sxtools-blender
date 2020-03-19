@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 1),
+    'version': (3, 9, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4249,8 +4249,10 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 if vcols != '':
                     obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
-                    if mode != 'FULL':
+                    if (mode != 'FULL') and (prefs.materialtype == 'SMP'):
                         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = vcols
+                    else:
+                        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
                 visVal = getattr(obj.sxlayers[idx], 'visibility')
