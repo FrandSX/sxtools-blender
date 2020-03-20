@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 4),
+    'version': (3, 9, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -273,8 +273,11 @@ class SXTOOLS_files(object):
                 if colorspace == 'LIN':
                     export.convert_to_linear(selArray)
 
-                path = scene.exportfolder + category
-                pathlib.Path(path).mkdir(exist_ok=True)
+                if prefs.materialtype == 'SMP':
+                    path = scene.exportfolder
+                else:
+                    path = scene.exportfolder + category
+                    pathlib.Path(path).mkdir(exist_ok=True)
 
                 if '/' in scene.exportfolder:
                     slash = '/'
