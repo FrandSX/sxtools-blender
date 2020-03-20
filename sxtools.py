@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 3),
+    'version': (3, 9, 4),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4890,7 +4890,7 @@ def update_material_layer1(self, context):
                 rgb = convert.hsl_to_rgb((hsl[0], hsl[1], minl))
                 color = (rgb[0], rgb[1], rgb[2], 1.0)
         else:
-            minl = float(10.0/255.0)
+            minl = float(50.0/255.0)
             maxl = float(240.0/255.0)
             if hsl[2] > maxl:
                 rgb = convert.hsl_to_rgb((hsl[0], hsl[1], maxl))
@@ -6073,7 +6073,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 if prefs.materialtype != 'SMP':
                     row = layout.row(align=True)
-                    row.prop(sxtools, 'category', text='Category')
+                    row.label(text='Category:')
+                    row.prop(sxtools, 'category', text='')
 
                 row_shading = self.layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
@@ -6084,38 +6085,38 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_layer.prop(scene, 'expandlayer',
                     icon='TRIA_DOWN' if scene.expandlayer else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
-                split_layer = row_layer.split()
-                split_layer.label(text='Layer Blend Mode')
-                split_layer.prop(sxtools, 'activeLayerBlendMode', text='')
+                row_alpha = row_layer.row(align=True)
+                row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
 
                 if ((layer.name == 'occlusion') or
                    (layer.name == 'smoothness') or
                    (layer.name == 'metallic') or
                    (layer.name == 'transmission') or
-                   (layer.name == 'emission')):
-                    split_layer.enabled = False
+                   (layer.name == 'emission') or
+                   (scene.shadingmode != 'FULL')):
+                    row_alpha.enabled = False
 
                 if scene.expandlayer:
+                    row_vis = box_layer.row(align=True)
+                    row_vis.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
                     row_blend = box_layer.row(align=True)
-                    row_blend.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
-                    row_alpha = box_layer.row(align=True)
-                    row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
-                    col_misc = box_layer.row(align=True)
+                    row_blend.label(text='Layer Blend Mode:')
+                    row_blend.prop(sxtools, 'activeLayerBlendMode', text='')
+                    row_misc = box_layer.row(align=True)
                     if obj.mode == 'OBJECT':
-                        col_misc.prop(scene, 'lightnessvalue', slider=True, text='Layer Lightness')
+                        lightness_text = 'Layer Lightness'
                     else:
-                        col_misc.prop(scene, 'lightnessvalue', slider=True, text='Selection Lightness')
+                        lightness_text = 'Selection Lightness'
+                    row_misc.prop(scene, 'lightnessvalue', slider=True, text=lightness_text)
 
                     if ((layer.name == 'occlusion') or
                        (layer.name == 'smoothness') or
                        (layer.name == 'metallic') or
                        (layer.name == 'transmission') or
-                       (layer.name == 'emission')):
+                       (layer.name == 'emission') or
+                       (scene.shadingmode != 'FULL')):
+                        row_vis.enabled = False
                         row_blend.enabled = False
-                        row_alpha.enabled = False
-
-                    if (scene.shadingmode == 'DEBUG') or (scene.shadingmode == 'ALPHA'):
-                        row_alpha.enabled = False
 
                 row_palette = self.layout.row(align=True)
                 for i in range(8):
@@ -7851,6 +7852,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - "Selected layer. Double click to rename" ???
+# - H and S sliders
 # - Modifier stack occasionally staying hidden?
 # - Auto-splitting and naming of mirrored geometry
 # - Improve indication of when magic button is necessary
