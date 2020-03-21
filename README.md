@@ -1,4 +1,5 @@
 # sxtools-blender
+[New Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
 
 ![Example Situation](/images/sxtools-blender.png)
 
@@ -189,7 +190,7 @@ UV7 | Currently not in use
 Vertex colors are exported from the Composite/VertexColor0 layer. Material properties are assigned according to the list above.
 Note that emission is only an 8-bit mask for base vertex color, not a full RGBA-channel.
 
-(c) 2017-2019 Jani Kahrama / Secret Exit Ltd.
+(c) 2017-2020 Jani Kahrama / Secret Exit Ltd.
 
 
 # Acknowledgments
@@ -199,7 +200,7 @@ Thanks to:
 Rory Driscoll for tips on better sampling
 
 Serge Scherbakov for tips on working with iterators
-
+ 
 Jason Summers for sRGB conversion formulas
 
 
