@@ -1,8 +1,6 @@
 # sxtools-blender
 NOTE: This readme is partially out of date. Please visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
 
-### Overview
-
 ## For Game Developers
 SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game. This tool ships with baseline shader networks for Unreal and Unity.
 
