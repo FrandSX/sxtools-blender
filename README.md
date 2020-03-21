@@ -1,5 +1,5 @@
 # sxtools-blender
-[New Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
+NOTE: This readme is partially out of date. Please visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
 
 ![Example Situation](/images/sxtools-blender.png)
 
