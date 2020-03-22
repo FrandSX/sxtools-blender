@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 9, 5),
+    'version': (3, 10, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -29,7 +29,7 @@ class SXTOOLS_sxglobals(object):
     def __init__(self):
         self.librariesLoaded = False
         self.refreshInProgress = False
-        self.lightnessUpdate = False
+        self.hslUpdate = False
         self.modalStatus = False
         self.composite = False
         self.copyLayer = None
@@ -444,7 +444,7 @@ class SXTOOLS_utils(object):
                 return sxLayer
 
 
-    def find_mode_color(self, objs, layer):
+    def find_colors_by_frequency(self, objs, layer):
         mode = objs[0].mode
         scene = bpy.context.scene.sxtools
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -455,6 +455,11 @@ class SXTOOLS_utils(object):
             mesh = obj.data
             if layer.layerType == 'COLOR':
                 vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+            elif layer.layerType == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
             elif layer.layerType == 'UV':
                 uvValues = obj.data.uv_layers[layer.uvLayer0].data
 
@@ -462,26 +467,31 @@ class SXTOOLS_utils(object):
                 for loop_idx in poly.loop_indices:
                     if layer.layerType == 'COLOR':
                         vertcolor = vertexColors[loop_idx].color[:]
+                    elif layer.layerType == 'UV4':
+                        uvValue0 = uvValues0[loop_idx].uv[channels[layer.uvChannel0]]
+                        uvValue1 = uvValues1[loop_idx].uv[channels[layer.uvChannel1]]
+                        uvValue2 = uvValues2[loop_idx].uv[channels[layer.uvChannel2]]
+                        # uvValue3 = uvValues3[loop_idx].uv[channels[layer.uvChannel3]]
+                        vertcolor = [uvValue0, uvValue1, uvValue2, 1.0]
                     elif layer.layerType == 'UV':
                         uvValue = uvValues[loop_idx].uv[channels[layer.uvChannel0]]
-                        vertcolor = [uvValue, uvValue, uvValue, uvValue]
+                        vertcolor = [uvValue, uvValue, uvValue, 1.0]
 
                     if vertcolor[3] > 0.0:
                         colorArray.append(vertcolor)
 
         if len(colorArray) == 0:
-            modecolor = (0.0, 0.0, 0.0, 1.0)
-        else:
-            colorSet = set(tuple(color) for color in colorArray)
-            colorFreq = []
-            for color in colorSet:
-                colorFreq.append((colorArray.count(color), color))
+            colorArray.append([0.0, 0.0, 0.0, 1.0])
 
-            sortColors = sorted(colorFreq, key=lambda tup: tup[0])
-            modecolor = sortColors[0][1]
+        colorSet = set(tuple(color) for color in colorArray)
+        colorFreq = []
+        for color in colorSet:
+            colorFreq.append((colorArray.count(color), color))
+
+        sortColors = sorted(colorFreq, key=lambda tup: tup[0])
 
         bpy.ops.object.mode_set(mode=mode)
-        return modecolor
+        return sortColors
 
 
     def __del__(self):
@@ -629,10 +639,6 @@ class SXTOOLS_setup(object):
                                    (sxLayer.uvLayer3 == uvSet)):
                                     layers.clear_uvs([obj, ], sxLayer)
 
-            # for i in range(5):
-            #    if not 'CreaseSet'+str(i) in obj.vertex_groups.keys():
-            #        obj.vertex_groups.new(name='CreaseSet'+str(i))
-
             obj.active_material = bpy.data.materials['SXMaterial']
 
         if changed:
@@ -730,22 +736,6 @@ class SXTOOLS_setup(object):
         prefs = bpy.context.preferences.addons['sxtools'].preferences
         materialsubsurface = prefs.materialsubsurface
         materialtransmission = prefs.materialtransmission
-
-        # print('layers: ', numlayers)
-        # print('gradients: ', numgradients)
-        # print('overlay: ', numoverlays)
-        # print('composite: ', composite)
-        # print('occlusion: ', occlusion)
-        # print('metallic: ', metallic)
-        # print('smoothness: ', smoothness)
-        # print('transmission: ', transmission)
-        # print('emission: ', emission)
-        # print('gradient1: ', gradient1)
-        # print('gradient2: ', gradient2)
-        # print('overlay: ', overlay)
-        # print('mat_sss: ', materialsubsurface)
-        # print('mat_trans: ', materialtransmission)
-        # print(sxglobals.layerInitArray)
 
         sxmaterial = bpy.data.materials.new(name='SXMaterial')
         sxmaterial.use_nodes = True
@@ -1199,7 +1189,7 @@ class SXTOOLS_convert(object):
             elif B == Cmax:
                 H = ((R-G)/(Cmax-Cmin)+4.0)*60.0
 
-        return [H, S, L]
+        return [H/360.0, S, L]
 
 
     def hsl_to_rgb(self, inValue):
@@ -1220,7 +1210,7 @@ class SXTOOLS_convert(object):
 
             v2 = 2.0*L-v1
 
-            H = H/360.0
+            # H = H/360.0
 
             tR = H + 0.333333
             tG = H
@@ -1533,15 +1523,11 @@ class SXTOOLS_layers(object):
 
                         if blend == 'ALPHA':
                             base = top * a + base * (1 - a)
-                            base[3] += a
-                            if base[3] > 1.0:
-                                base[3] = 1.0
+                            base[3] = min(base[3]+a, 1.0)
 
                         elif blend == 'ADD':
                             base += top * a
-                            base[3] += a
-                            if base[3] > 1.0:
-                                base[3] = 1.0
+                            base[3] = min(base[3]+a, 1.0)
 
                         elif blend == 'MUL':
                             for j in range(3):
@@ -1558,9 +1544,7 @@ class SXTOOLS_layers(object):
                                 else:
                                     over[j] = 1.0 - 2.0 * (1.0 - base[j]) * (1.0 - top[j])
                             base = over * b + base * (1.0 - b)
-                            base[3] += a
-                            if base[3] > 1.0:
-                                base[3] = 1.0
+                            base[3] = min(base[3]+a, 1.0)
 
                         baseColors[(0+i*4):(4+i*4)] = base
                     resultColors.foreach_set('color', baseColors)
@@ -1764,62 +1748,18 @@ class SXTOOLS_layers(object):
 
 
     def update_layer_palette(self, objs, layer):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V': 1}
-        colorArray = []
+        scene = bpy.context.scene.sxtools
+        colors = utils.find_colors_by_frequency(objs, layer)
+        colLen = len(colors)
 
-        for obj in objs:
-            mesh = obj.data
-            if layer.layerType == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif layer.layerType == 'UV4':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
-            elif layer.layerType == 'UV':
-                uvValues = obj.data.uv_layers[layer.uvLayer0].data
-
-            for poly in mesh.polygons:
-                for loop_idx in poly.loop_indices:
-                    if layer.layerType == 'COLOR':
-                        color = vertexColors[loop_idx].color[:]
-                    elif layer.layerType == 'UV4':
-                        uvValue0 = uvValues0[loop_idx].uv[channels[layer.uvChannel0]]
-                        uvValue1 = uvValues1[loop_idx].uv[channels[layer.uvChannel1]]
-                        uvValue2 = uvValues2[loop_idx].uv[channels[layer.uvChannel2]]
-                        uvValue3 = uvValues3[loop_idx].uv[channels[layer.uvChannel3]]
-                        color = [uvValue0, uvValue1, uvValue2, uvValue3]
-                    elif layer.layerType == 'UV':
-                        uvValue = uvValues[loop_idx].uv[channels[layer.uvChannel0]]
-                        color = [uvValue, uvValue, uvValue, uvValue]
-
-                    if color[3] > 0.0:
-                        colorArray.append(color)
-
-        if len(colorArray) == 0:
-            color = (0.0, 0.0, 0.0, 1.0)
-            colorArray.append(color)
-
-        # colorSet = set(colorArray)
-        colorSet = set(tuple(color) for color in colorArray)
-        colorFreq = []
-        for color in colorSet:
-            colorFreq.append((colorArray.count(color), color))
-
-        sortColors = sorted(colorFreq, key=lambda tup: tup[0])
-        colLen = len(sortColors)
         while colLen < 8:
-            sortColors.append((0, [0.0, 0.0, 0.0, 1.0]))
+            colors.append((0, [0.0, 0.0, 0.0, 1.0]))
             colLen += 1
 
-        sortColors = sortColors[0::int(colLen/8)]
-        scn = bpy.context.scene.sxtools
+        # uncomment to display a sampling of all color frequencies instead of 8 most frequent
+        # colors = colors[0::int(colLen/8)]
         for i in range(8):
-            setattr(scn, 'layerpalette' + str(i + 1), sortColors[i][1])
-
-        bpy.ops.object.mode_set(mode=mode)
+            setattr(scene, 'layerpalette' + str(i + 1), colors[i][1])
 
 
     def color_layers_to_values(self, objs):
@@ -1830,7 +1770,7 @@ class SXTOOLS_layers(object):
 
         for i in range(5):
             layer = objs[0].sxlayers[i+1]
-            palettecolor = utils.find_mode_color(objs, layer)
+            palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
             setattr(scene, 'newpalette' + str(i), palettecolor)
 
         bpy.ops.object.mode_set(mode=mode)
@@ -1845,25 +1785,32 @@ class SXTOOLS_layers(object):
 
         for i, idx in enumerate(layers):
             layer = objs[0].sxlayers[idx]
-            palettecolor = utils.find_mode_color(objs, layer)
+            palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
             setattr(scene, 'newmaterial' + str(i), palettecolor)
 
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def update_layer_lightness(self, objs, layer):
-        lightnessDict = mesh.calculate_luminance(objs, layer, 1)
-        lightnessList = []
-        for vertDict in lightnessDict.values():
-            for valueList in vertDict.values():
-                lightnessList.extend(valueList[1])
-        if len(lightnessList) == 0:
-            lightnessList.extend([0.0, ])
+    def update_layer_hsl(self, objs, layer):
+        colors = utils.find_colors_by_frequency(objs, layer)
 
-        lightness = max(lightnessList)
-        sxglobals.lightnessUpdate = True
+        hArray = []
+        sArray = []
+        lArray = []
+        for color in colors:
+            hsl = convert.rgb_to_hsl(color[1])
+            hArray.append(hsl[0])
+            sArray.append(hsl[1])
+            lArray.append(hsl[2])
+        hue = max(hArray)
+        sat = max(sArray)
+        lightness = max(lArray)
+
+        sxglobals.hslUpdate = True
+        bpy.context.scene.sxtools.huevalue = hue
+        bpy.context.scene.sxtools.saturationvalue = sat
         bpy.context.scene.sxtools.lightnessvalue = lightness
-        sxglobals.lightnessUpdate = False
+        sxglobals.hslUpdate = False
 
 
     def __del__(self):
@@ -2163,15 +2110,15 @@ class SXTOOLS_mesh(object):
         bpy.ops.object.mode_set(mode=mode)
         return objThicknesses
 
-    # mode 0: luminance, mode 1: HSL lightness
-    def calculate_luminance(self, objs, layer, mode):
+    # mode 0: luminance, mode 1: HSL hue, mode 2: HSL saturation, mode 3: HSL lightness
+    def calculate_luminance_hsl(self, objs, layer, hslmode):
         objDicts = tools.selection_handler(objs)
         layerType = layer.layerType
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'U': 0, 'V':1}
 
-        objLuminances = {}
+        objValues = {}
 
         for obj in objs:
             if layerType == 'COLOR':
@@ -2190,35 +2137,35 @@ class SXTOOLS_mesh(object):
 
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
-            vtxLuminances = {}
+            vtxValueDict = {}
 
             for vert_idx, loop_indices in vertLoopDict.items():
-                loopLuminances = []
+                loopValues = []
                 for loop_idx in loop_indices:
                     if layerType == 'COLOR':
                         fvColor = vertexColors[loop_idx].color
-                        if mode == 0:
-                            luminance = convert.color_to_luminance(fvColor)
+                        if hslmode == 0:
+                            value = convert.color_to_luminance(fvColor)
                         else:
-                            luminance = convert.rgb_to_hsl(fvColor)[2]
+                            value = convert.rgb_to_hsl(fvColor)
                     elif layerType == 'UV4':
                         fvColor = [
                             uvValues0[loop_idx].uv[channels[layer.uvChannel0]],
                             uvValues1[loop_idx].uv[channels[layer.uvChannel1]],
                             uvValues2[loop_idx].uv[channels[layer.uvChannel2]],
                             uvValues3[loop_idx].uv[channels[layer.uvChannel3]]][:]
-                        if mode == 0:
-                            luminance = convert.color_to_luminance(fvColor)
+                        if hslmode == 0:
+                            value = convert.color_to_luminance(fvColor)
                         else:
-                            luminance = convert.rgb_to_hsl(fvColor)[2]
+                            value = convert.rgb_to_hsl(fvColor)
                     elif layerType == 'UV':
-                        luminance = uvValues[loop_idx].uv[selChannel]
-                    loopLuminances.append(luminance)
-                vtxLuminances[vert_idx] = (loop_indices, loopLuminances)
-            objLuminances[obj] = vtxLuminances
+                        value = uvValues[loop_idx].uv[selChannel]
+                    loopValues.append(value)
+                vtxValueDict[vert_idx] = (loop_indices, loopValues)
+            objValues[obj] = vtxValueDict
 
         bpy.ops.object.mode_set(mode=mode)
-        return objLuminances
+        return objValues
 
 
     def calculate_curvature(self, objs, normalize=False):
@@ -2244,9 +2191,7 @@ class SXTOOLS_mesh(object):
                         curvature = angles[i] / math.pi - 0.5
                         vtxCurvature += curvature
 
-                    vtxCurvature = vtxCurvature / float(numConnected)
-                    if vtxCurvature > 1.0:
-                        vtxCurvature = 1.0
+                    vtxCurvature = min(vtxCurvature / float(numConnected), 1.0)
 
                     vtxCurvatures[vert.index] = vtxCurvature
                 else:
@@ -2534,8 +2479,8 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode=mode)
 
-
-    def apply_lightness(self, objs, layer, newLightness):
+        # mode 0: hue, mode 1: saturation, mode 2: lightness
+    def apply_hsl(self, objs, layer, hslmode, newValue):
         objDicts = self.selection_handler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
@@ -2547,63 +2492,51 @@ class SXTOOLS_tools(object):
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        lightnessDict = mesh.calculate_luminance(objs, layer, 1)
-        lightnessList = []
-        for vertDict in lightnessDict.values():
-            for valueList in vertDict.values():
-                lightnessList.extend(valueList[1])
+        colors = utils.find_colors_by_frequency(objs, layer)
+        valueArray = []
+        for color in colors:
+            hsl = convert.rgb_to_hsl(color[1])
+            valueArray.append(hsl[hslmode])
+        layervalue = max(valueArray)
 
-        lightness = max(lightnessList)
-        offset = newLightness-lightness
+        offset = newValue-layervalue
 
-        for obj in objs:
-            if fillMode == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif fillMode == 'UV':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-            elif fillMode == 'UV4':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+        if (layervalue != 1.0) or (layervalue == 1.0 and offset < 0.0):
+            for obj in objs:
+                if fillMode == 'COLOR':
+                    vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+                elif fillMode == 'UV':
+                    uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                elif fillMode == 'UV4':
+                    uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                    uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                    uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                    # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
 
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
+                vertLoopDict = defaultdict(list)
+                vertLoopDict = objDicts[obj][0]
 
-            for vert_idx, loop_indices in vertLoopDict.items():
-                for loop_idx in loop_indices:
-                    if fillMode == 'COLOR':
-                        color = vertexColors[loop_idx].color
-                        hsl = convert.rgb_to_hsl(color)
-                        hsl[2] += offset
-                        if hsl[2] > 1.0:
-                            hsl[2] = 1.0
-                        elif hsl[2] < 0.0:
-                            hsl[2] = 0.0
-                        rgb = convert.hsl_to_rgb(hsl)
-                        vertexColors[loop_idx].color[0] = rgb[0]
-                        vertexColors[loop_idx].color[1] = rgb[1]
-                        vertexColors[loop_idx].color[2] = rgb[2]
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    for loop_idx in loop_indices:
+                        if fillMode == 'COLOR':
+                            color = vertexColors[loop_idx].color
+                            hsl = convert.rgb_to_hsl(color)
+                            hsl[hslmode] += offset
+                            rgb = convert.hsl_to_rgb(hsl)
+                            vertexColors[loop_idx].color = (rgb[0], rgb[1], rgb[2], color[3])
 
-                    elif fillMode == 'UV4':
-                        rgb = (uvValues0[loop_idx].uv[fillChannel0], uvValues0[loop_idx].uv[fillChannel1], uvValues0[loop_idx].uv[fillChannel2])
-                        hsl = convert.rgb_to_hsl(rgb)
-                        hsl[2] += offset
-                        if hsl[2] > 1.0:
-                            hsl[2] = 1.0
-                        elif hsl[2] < 0.0:
-                            hsl[2] = 0.0
-                        rgb = convert.hsl_to_rgb(hsl)
-                        uvValues0[loop_idx].uv[fillChannel0] = rgb[0]
-                        uvValues1[loop_idx].uv[fillChannel1] = rgb[1]
-                        uvValues2[loop_idx].uv[fillChannel2] = rgb[2]
+                        elif fillMode == 'UV4':
+                            rgb = (uvValues0[loop_idx].uv[fillChannel0], uvValues0[loop_idx].uv[fillChannel1], uvValues0[loop_idx].uv[fillChannel2])
+                            hsl = convert.rgb_to_hsl(rgb)
+                            hsl[hslmode] += offset
+                            rgb = convert.hsl_to_rgb(hsl)
+                            uvValues0[loop_idx].uv[fillChannel0] = rgb[0]
+                            uvValues1[loop_idx].uv[fillChannel1] = rgb[1]
+                            uvValues2[loop_idx].uv[fillChannel2] = rgb[2]
 
-                    elif fillMode == 'UV':
-                        uvValues0[loop_idx].uv[fillChannel0] += offset
-                        if uvValues0[loop_idx].uv[fillChannel0] > 1.0:
-                            uvValues0[loop_idx].uv[fillChannel0] = 1.0
-                        if uvValues0[loop_idx].uv[fillChannel0] < 0.0:
-                            uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                        elif (fillMode == 'UV') and (hslmode == 2):
+                            uvValue = uvValues0[loop_idx].uv[fillChannel0]
+                            uvValues0[loop_idx].uv[fillChannel0] = max(min(uvValue+offset, 1.0), 0.0)
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2649,7 +2582,7 @@ class SXTOOLS_tools(object):
         elif rampmode == 'OCC':
             objValues = mesh.calculate_occlusion(objs, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
         elif rampmode == 'LUM':
-            objValues = mesh.calculate_luminance(objs, layer, 0)
+            objValues = mesh.calculate_luminance_hsl(objs, layer, 0)
         elif rampmode == 'THK':
             objValues = mesh.calculate_thickness(objs, scene.occlusionrays, scene.occlusionbias)
         elif rampmode == 'DIR':
@@ -3175,6 +3108,18 @@ class SXTOOLS_tools(object):
         layers.clear_uvs(objs, objs[0].sxlayers['transmission'])
 
 
+    def update_palette_layer(self, objs, layerindex, color, palettenodename):
+        scene = bpy.context.scene.sxtools
+        layer = utils.find_layer_from_index(objs[0], layerindex)
+        noise = scene.palettenoise
+        mono = scene.palettemono
+        modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
+
+        if color != modecolor:
+            bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
+            tools.apply_color(objs, layer, color, False, noise, mono)
+
+
     def __del__(self):
         print('SX Tools: Exiting tools')
 
@@ -3343,42 +3288,18 @@ class SXTOOLS_export(object):
                         if i == 1:
                             if obj.sxtools.subdivisionlevel > 0:
                                 newObj.sxtools.subdivisionlevel = 1
-                                # newObj.sxtools.weldthreshold = 0
-                                # newObj.modifiers['sxSubdivision'].levels = 1
-                                # newObj.modifiers['sxSubdivision'].show_viewport = True
-                                # newObj.modifiers['sxWeld'].show_viewport = False
-                                # newObj.modifiers['sxDecimate'].show_viewport = False
-                                # newObj.modifiers['sxDecimate2'].show_viewport = False
                                 if obj.sxtools.bevelsegments > 0:
                                     newObj.sxtools.bevelsegments = obj.sxtools.bevelsegments
-                                    # newObj.modifiers['sxBevel'].show_viewport = True
                                 else:
                                     newObj.sxtools.bevelsegments = 0
-                                    # newObj.modifiers['sxBevel'].show_viewport = False
-                                # if ('sxBevel' in sel.modifiers.keys()) and (sel.modifiers['sxBevel'].segments > 0):
-                                #     newObj.modifiers['sxBevel'].show_viewport = True
-                                # else:
-                                #     newObj.sxtools.bevelsegments = 0
-                                #     newObj.modifiers['sxBevel'].show_viewport = False
                             elif obj.sxtools.subdivisionlevel == 0:
                                 newObj.sxtools.subdivisionlevel = 0
                                 newObj.sxtools.bevelsegments = 0
                                 newObj.sxtools.weldthreshold = 0
-                                # newObj.modifiers['sxSubdivision'].levels = 0
-                                # newObj.modifiers['sxSubdivision'].show_viewport = False
-                                # newObj.modifiers['sxWeld'].show_viewport = False
-                                # newObj.modifiers['sxDecimate'].show_viewport = False
-                                # newObj.modifiers['sxDecimate2'].show_viewport = False
-                                # newObj.modifiers['sxBevel'].show_viewport = False
                         else:
                             newObj.sxtools.subdivisionlevel = 0
                             newObj.sxtools.bevelsegments = 0
                             newObj.sxtools.weldthreshold = 0
-                            # newObj.modifiers['sxSubdivision'].levels = 0
-                            # newObj.modifiers['sxBevel'].show_viewport = False
-                            # newObj.modifiers['sxWeld'].show_viewport = False
-                            # newObj.modifiers['sxDecimate'].show_viewport = False
-                            # newObj.modifiers['sxDecimate2'].show_viewport = False
 
                         newObjArray.append(newObj)
 
@@ -4273,7 +4194,7 @@ def refresh_actives(self, context):
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_palette(objs, layer)
-            layers.update_layer_lightness(objs, layer)
+            layers.update_layer_hsl(objs, layer)
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4543,14 +4464,40 @@ def load_libraries(self, context):
         sxglobals.librariesLoaded = True
 
 
-def adjust_lightness(self, context):
-    if not sxglobals.lightnessUpdate:
+def adjust_hue(self, context):
+    if not sxglobals.hslUpdate:
         objs = selection_validator(self, context)
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
 
-            tools.apply_lightness(objs, layer, context.scene.sxtools.lightnessvalue)
+            tools.apply_hsl(objs, layer, 0, context.scene.sxtools.huevalue)
+
+            sxglobals.composite = True
+            refresh_actives(self, context)
+
+
+def adjust_saturation(self, context):
+    if not sxglobals.hslUpdate:
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.find_layer_from_index(objs[0], idx)
+
+            tools.apply_hsl(objs, layer, 1, context.scene.sxtools.saturationvalue)
+
+            sxglobals.composite = True
+            refresh_actives(self, context)
+
+
+def adjust_lightness(self, context):
+    if not sxglobals.hslUpdate:
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.find_layer_from_index(objs[0], idx)
+
+            tools.apply_hsl(objs, layer, 2, context.scene.sxtools.lightnessvalue)
 
             sxglobals.composite = True
             refresh_actives(self, context)
@@ -4799,81 +4746,46 @@ def update_smooth_angle(self, context):
 def update_palette_layer1(self, context):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 1)
     color = (scene.newpalette0[0], scene.newpalette0[1], scene.newpalette0[2], scene.newpalette0[3])
-    noise = scene.palettenoise
-    mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
-
-    if color != modecolor:
-        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor0'].outputs[0].default_value = color
-        tools.apply_color(objs, layer, color, False, noise, mono)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+    tools.update_palette_layer(objs, 1, color, 'PaletteColor0')
+    sxglobals.composite = True
+    refresh_actives(self, context)
 
 
 def update_palette_layer2(self, context):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 2)
     color = (scene.newpalette1[0], scene.newpalette1[1], scene.newpalette1[2], scene.newpalette1[3])
-    noise = scene.palettenoise
-    mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
-
-    if color != modecolor:
-        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor1'].outputs[0].default_value = color
-        tools.apply_color(objs, layer, color, False, noise, mono)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+    tools.update_palette_layer(objs, 2, color, 'PaletteColor1')
+    sxglobals.composite = True
+    refresh_actives(self, context)
 
 
 def update_palette_layer3(self, context):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 3)
     color = (scene.newpalette2[0], scene.newpalette2[1], scene.newpalette2[2], scene.newpalette2[3])
-    noise = scene.palettenoise
-    mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
-
-    if color != modecolor:
-        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor2'].outputs[0].default_value = color
-        tools.apply_color(objs, layer, color, False, noise, mono)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+    tools.update_palette_layer(objs, 3, color, 'PaletteColor2')
+    sxglobals.composite = True
+    refresh_actives(self, context)
 
 
 def update_palette_layer4(self, context):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 4)
     color = (scene.newpalette3[0], scene.newpalette3[1], scene.newpalette3[2], scene.newpalette3[3])
-    noise = scene.palettenoise
-    mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
-
-    if color != modecolor:
-        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor3'].outputs[0].default_value = color
-        tools.apply_color(objs, layer, color, False, noise, mono)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+    tools.update_palette_layer(objs, 4, color, 'PaletteColor3')
+    sxglobals.composite = True
+    refresh_actives(self, context)
 
 
 def update_palette_layer5(self, context):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 5)
     color = (scene.newpalette4[0], scene.newpalette4[1], scene.newpalette4[2], scene.newpalette4[3])
-    noise = scene.palettenoise
-    mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
-
-    if color != modecolor:
-        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor4'].outputs[0].default_value = color
-        tools.apply_color(objs, layer, color, False, noise, mono)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+    tools.update_palette_layer(objs, 5, color, 'PaletteColor4')
+    sxglobals.composite = True
+    refresh_actives(self, context)
 
 
 def update_material_layer1(self, context):
@@ -4883,7 +4795,7 @@ def update_material_layer1(self, context):
     color = (scene.newmaterial0[0], scene.newmaterial0[1], scene.newmaterial0[2], scene.newmaterial0[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
+    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
     if scene.enablelimit:
         hsl = convert.rgb_to_hsl(color)
@@ -4915,7 +4827,7 @@ def update_material_layer2(self, context):
     color = (scene.newmaterial1[0], scene.newmaterial1[1], scene.newmaterial1[2], scene.newmaterial1[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
+    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
     if color != modecolor:
         tools.apply_color(objs, layer, color, False, noise, mono)
@@ -4930,7 +4842,7 @@ def update_material_layer3(self, context):
     color = (scene.newmaterial2[0], scene.newmaterial2[1], scene.newmaterial2[2], scene.newmaterial2[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_mode_color(objs, layer)
+    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
     if color != modecolor:
         tools.apply_color(objs, layer, color, False, noise, mono)
@@ -5364,6 +5276,22 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0))
+
+    huevalue: bpy.props.FloatProperty(
+        name='Hue',
+        description='The mode hue in the selection',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+        update=adjust_hue)
+
+    saturationvalue: bpy.props.FloatProperty(
+        name='Saturation',
+        description='The max saturation in the selection',
+        min=0.0,
+        max=1.0,
+        default=0.0,
+        update=adjust_saturation)
 
     lightnessvalue: bpy.props.FloatProperty(
         name='Lightness',
@@ -6072,7 +6000,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     sel_idx = 1
                     layer = utils.find_layer_from_index(obj, sel_idx)
                     message_box('Invalid layer selected!', 'SX Tools Error', 'ERROR')
-                    # print('SX Tools: Error, invalid layer selected!')
 
                 if prefs.materialtype != 'SMP':
                     row = layout.row(align=True)
@@ -6105,12 +6032,39 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_blend = box_layer.row(align=True)
                     row_blend.label(text='Layer Blend Mode:')
                     row_blend.prop(sxtools, 'activeLayerBlendMode', text='')
-                    row_misc = box_layer.row(align=True)
+                    row_hue = box_layer.row(align=True)
+                    if obj.mode == 'OBJECT':
+                        hue_text = 'Layer Hue'
+                    else:
+                        hue_text = 'Selection Hue'
+                    row_hue.prop(scene, 'huevalue', slider=True, text=hue_text)
+                    row_sat = box_layer.row(align=True)
+                    if obj.mode == 'OBJECT':
+                        saturation_text = 'Layer Saturation'
+                    else:
+                        saturation_text = 'Selection Saturation'
+                    row_sat.prop(scene, 'saturationvalue', slider=True, text=saturation_text)
+                    row_lightness = box_layer.row(align=True)
                     if obj.mode == 'OBJECT':
                         lightness_text = 'Layer Lightness'
                     else:
                         lightness_text = 'Selection Lightness'
-                    row_misc.prop(scene, 'lightnessvalue', slider=True, text=lightness_text)
+                    row_lightness.prop(scene, 'lightnessvalue', slider=True, text=lightness_text)
+
+                    if ((layer.name == 'occlusion') or
+                       (layer.name == 'smoothness') or
+                       (layer.name == 'metallic') or
+                       (layer.name == 'transmission') or
+                       (layer.name == 'emission')):
+                        row_hue.enabled = False
+                        row_sat.enabled = False
+                        row_vis.enabled = False
+                        row_blend.enabled = False
+
+                    if ((layer.index == 8) or
+                        (layer.index == 9)):
+                        row_sat.enabled = False
+                        row_hue.enabled = False
 
                     if ((layer.name == 'occlusion') or
                        (layer.name == 'smoothness') or
@@ -7856,7 +7810,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - "Selected layer. Double click to rename" ???
-# - H and S sliders
 # - Modifier stack occasionally staying hidden?
 # - Auto-splitting and naming of mirrored geometry
 # - Improve indication of when magic button is necessary
