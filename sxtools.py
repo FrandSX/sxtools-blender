@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 10, 5),
+    'version': (3, 11, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3353,6 +3353,20 @@ class SXTOOLS_export(object):
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
 
+        # Place pivots
+        if scene.pivotmode == 'MASS':
+            active = bpy.context.active_object
+            for obj in objs:
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+            bpy.context.view_layer.objects.active = active
+        elif scene.pivotmode == 'BBOX':
+            active = bpy.context.active_object
+            for obj in objs:
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+            bpy.context.view_layer.objects.active = active
+
         # Make sure all objects have UVSet0
         tools.create_uvset0(objs)
 
@@ -5736,6 +5750,15 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('NONMET', 'Non-Metallic', '')],
         default='MET')
 
+    pivotmode: bpy.props.EnumProperty(
+        name='Pivot Mode',
+        description='Auto pivot placement mode',
+        items=[
+            ('OFF', 'None', ''),
+            ('MASS', 'Center of Mass', ''),
+            ('BBOX', 'Center of Bbox', '')],
+        default='MASS')
+
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
@@ -6343,6 +6366,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
                         if obj.sxtools.staticvertexcolors == '0':
                             col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
+                        col_export.separator()
+                        split_export = col_export.split()
+                        split_export.label(text='Auto-pivots:')
+                        split_export.prop(scene, 'pivotmode', text='')
                         col_export.prop(sxtools, 'lodmeshes', text='Create LOD Meshes')
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
                         # col_export.separator()
@@ -7810,10 +7837,8 @@ if __name__ == '__main__':
 
 # TODO:
 # - "Selected layer. Double click to rename" ???
-# - Modifier stack occasionally staying hidden?
 # - Auto-splitting and naming of mirrored geometry
 # - Improve indication of when magic button is necessary
-# - Auto-place pivots during processing?
 # - Absolute path check
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
