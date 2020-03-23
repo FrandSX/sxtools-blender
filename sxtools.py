@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 11, 0),
+    'version': (3, 11, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3048,6 +3048,7 @@ class SXTOOLS_tools(object):
 
     def group_objects(self, objs):
         mode = objs[0].mode
+        bpy.context.view_layer.objects.active = objs[0]
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         pivot = mesh.find_root_pivot(objs)
@@ -3354,17 +3355,20 @@ class SXTOOLS_export(object):
                 obj.data.name = obj.name + '_mesh'
 
         # Place pivots
-        if scene.pivotmode == 'MASS':
+        if scene.pivotmode != 'OFF':
             active = bpy.context.active_object
             for obj in objs:
                 bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-            bpy.context.view_layer.objects.active = active
-        elif scene.pivotmode == 'BBOX':
-            active = bpy.context.active_object
-            for obj in objs:
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                if scene.pivotmode == 'MASS':
+                    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+                elif scene.pivotmode == 'BBOX':
+                    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                elif scene.pivotmode == 'ROOT':
+                    bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+                elif scene.pivotmode == 'ORG':
+                    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             bpy.context.view_layer.objects.active = active
 
         # Make sure all objects have UVSet0
@@ -5756,7 +5760,9 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('OFF', 'None', ''),
             ('MASS', 'Center of Mass', ''),
-            ('BBOX', 'Center of Bbox', '')],
+            ('BBOX', 'Bbox Center', ''),
+            ('ROOT', 'Bbox Base', ''),
+            ('ORG', 'Origin', '')],
         default='MASS')
 
 
@@ -6386,10 +6392,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandexport:
                         col_utils = box_export.column(align=False)
                         col_utils.operator('sxtools.revertobjects', text='Revert to Control Cages')
-                        if not scene.shift:
-                            pivot_text = 'Set Pivots to Center of Mass'
-                        else:
+                        if scene.shift:
                             pivot_text = 'Set Pivots to Bbox Center'
+                        elif scene.ctrl:
+                            pivot_text = 'Set Pivots to Bbox Base'
+                        elif scene.alt:
+                            pivot_text = 'Set Pivots to Origin'
+                        else:
+                            pivot_text = 'Set Pivots to Center of Mass'
                         col_utils.operator('sxtools.setpivots', text=pivot_text)
                         col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
                         row_debug = box_export.row()
@@ -6416,7 +6426,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
                         col3_export = box_export.column(align=True)
-                        # col3_export.prop(sxtools, 'lodmeshes', text='Export LOD Meshes')
                         if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxBevel' not in obj.modifiers.keys()):
                             col3_export.enabled = False
                         split_export = box_export.split(factor=0.1)
@@ -7425,7 +7434,7 @@ class SXTOOLS_OT_removeexports(bpy.types.Operator):
 class SXTOOLS_OT_setpivots(bpy.types.Operator):
     bl_idname = 'sxtools.setpivots'
     bl_label = 'Set Pivots'
-    bl_description = 'Set pivot to center of mass on selected objects\nShift-click to set pivot to center of bounding box'
+    bl_description = 'Set pivot to center of mass on selected objects\nShift-click to set pivot to center of bounding box\nCtrl-click to set pivot to base of bounding box\nAlt-click to set pivot to origin'
     bl_options = {'UNDO'}
 
 
@@ -7437,6 +7446,12 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
                 context.view_layer.objects.active = obj
                 if event.shift:
                     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                elif event.ctrl:
+                    bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+                elif event.alt:
+                    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
                 else:
                     bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
 
