@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 11, 1),
+    'version': (3, 12, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -72,6 +72,9 @@ class SXTOOLS_sxglobals(object):
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
+
+        # Use absolute paths
+        bpy.context.preferences.filepaths.use_relative_paths = False
 
 
     def __del__(self):
@@ -4994,6 +4997,16 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         max=10.0,
         default=1.0)
 
+    flipsmartx: bpy.props.BoolProperty(
+        name='Flip Smart X',
+        description='Reverse smart naming on X-axis',
+        default=False)
+
+    flipsmarty: bpy.props.BoolProperty(
+        name='Flip Smart Y',
+        description='Reverse smart naming on Y-axis',
+        default=False)
+
 
     def draw(self, context):
         layout = self.layout
@@ -5013,8 +5026,13 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         layout_split5.label(text='Clear LOD Meshes After Export')
         layout_split5.prop(self, 'removelods', text='')
         layout_split6 = layout.split()
-        layout_split6.label(text='Library Folder:')
-        layout_split6.prop(self, 'libraryfolder', text='')
+        layout_split6.label(text='Reverse Smart Mirror Naming:')        
+        layout_split7 = layout_split6.split()
+        layout_split7.prop(self, 'flipsmartx', text='X-Axis')
+        layout_split7.prop(self, 'flipsmarty', text='Y-Axis')
+        layout_split8 = layout.split()
+        layout_split8.label(text='Library Folder:')
+        layout_split8.prop(self, 'libraryfolder', text='')
 
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
@@ -6410,6 +6428,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
                             # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
+                            col_debug.operator('sxtools.split_mirror', text='Debug: Smart Split sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
@@ -7668,6 +7687,101 @@ class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_split_mirror(bpy.types.Operator):
+    bl_idname = 'sxtools.split_mirror'
+    bl_label = 'Split Mirror Mesh'
+    bl_description = 'Splits and logically renames mirrored mesh parts'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        prefs = context.preferences.addons['sxtools'].preferences
+        objs = selection_validator(self, context)
+        mode = objs[0].mode
+        if len(objs) > 0:
+            active = context.active_object
+            for obj in objs:
+                context.view_layer.objects.active = obj
+                refObjs = context.view_layer.objects.keys()
+                orgname = obj.name
+                xmirror = obj.sxtools.xmirror
+                ymirror = obj.sxtools.ymirror
+                zmirror = obj.sxtools.zmirror
+                if obj.modifiers['sxMirror'].mirror_object is not None:
+                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
+                else:
+                    refLoc = obj.location
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
+
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.separate(type='LOOSE')
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                newObjArray = [context.view_layer.objects[orgname], ]
+                for obj in context.view_layer.objects:
+                    if obj.name not in refObjs:
+                        newObjArray.append(obj)
+
+                if len(newObjArray) > 1:
+                    suffixDict = {}
+                    for obj in newObjArray:
+                        context.view_layer.objects.active = obj
+                        zstring = ''
+                        ystring = ''
+                        xstring = ''
+                        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                        objLoc = obj.location
+                        if zmirror:
+                            if objLoc[2] > refLoc[2]:
+                                zstring = '_top'
+                            elif objLoc[2] < refLoc[2]:
+                                zstring = '_bottom'
+                        if ymirror:
+                            if objLoc[1] > refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_rear'
+                                else:
+                                    ystring = '_front'
+                            elif objLoc[1] < refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_front'
+                                else:
+                                    ystring = '_rear'
+                        if xmirror:
+                            if objLoc[0] > refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_left'
+                                else:
+                                    xstring = '_right'
+                            elif objLoc[0] < refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_right'
+                                else:
+                                    xstring = '_left'
+
+                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
+                            if not zstring+ystring+xstring in suffixDict:
+                                suffixDict[zstring+ystring+xstring] = 0
+                            else:
+                                suffixDict[zstring+ystring+xstring] += 1
+                            obj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
+                        else:
+                            obj.name = orgname + zstring + ystring + xstring
+
+                        obj.data.name = obj.name + '_mesh'
+
+                # only name if negative coord found in bbox list?
+                # - Recognize possible center element?
+                # MAKE THIS AN EXPORT-TIME OPERATION!
+
+            context.view_layer.objects.active = active
+        bpy.ops.object.mode_set(mode=mode)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_macro(bpy.types.Operator):
     bl_idname = 'sxtools.macro'
     bl_label = 'Process Exports'
@@ -7789,6 +7903,7 @@ classes = (
     SXTOOLS_OT_selectup,
     SXTOOLS_OT_selectdown,
     SXTOOLS_OT_create_sxcollection,
+    SXTOOLS_OT_split_mirror,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
@@ -7852,9 +7967,6 @@ if __name__ == '__main__':
 
 # TODO:
 # - "Selected layer. Double click to rename" ???
-# - Auto-splitting and naming of mirrored geometry
-# - Improve indication of when magic button is necessary
-# - Absolute path check
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Run from direct github zip download
