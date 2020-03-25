@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 12, 1),
+    'version': (3, 13, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -242,6 +242,12 @@ class SXTOOLS_files(object):
         scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences.addons['sxtools'].preferences
         colorspace = prefs.colorspace
+
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
         groupNames = []
         for group in groups:
             bpy.context.view_layer.objects.active = group
@@ -2931,11 +2937,18 @@ class SXTOOLS_tools(object):
         for obj in objs:
             if 'sxMirror' not in obj.modifiers.keys():
                 obj.modifiers.new(type='MIRROR', name='sxMirror')
-                obj.modifiers['sxMirror'].show_viewport = False
+                if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                    obj.modifiers['sxMirror'].show_viewport = True
+                else:
+                    obj.modifiers['sxMirror'].show_viewport = False
                 obj.modifiers['sxMirror'].show_expanded = False
-                obj.modifiers['sxMirror'].use_axis[0] = False
-                obj.modifiers['sxMirror'].use_axis[1] = False
-                obj.modifiers['sxMirror'].use_axis[2] = False
+                obj.modifiers['sxMirror'].use_axis[0] = obj.sxtools.xmirror
+                obj.modifiers['sxMirror'].use_axis[1] = obj.sxtools.ymirror
+                obj.modifiers['sxMirror'].use_axis[2] = obj.sxtools.zmirror
+                if obj.sxtools.mirrorobject != '':
+                    obj.modifiers['sxMirror'].mirror_object = bpy.context.view_layer.objects[obj.sxtools.mirrorobject]
+                else:
+                    obj.modifiers['sxMirror'].mirror_object = None
                 obj.modifiers['sxMirror'].use_clip = True
                 obj.modifiers['sxMirror'].use_mirror_merge = True
             if 'sxSubdivision' not in obj.modifiers.keys():
@@ -3208,6 +3221,113 @@ class SXTOOLS_export(object):
         return None
 
 
+    def smart_separate(self, objs):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        scene = bpy.context.scene.sxtools
+        view_layer = bpy.context.view_layer
+        mode = objs[0].mode
+        objs = objs[:]
+
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SourceObjects' not in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections.new('SourceObjects')
+        else:
+            sourceObjects = bpy.data.collections['SourceObjects']
+
+        if len(objs) > 0:
+            for obj in objs:
+                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()):
+                    sourceObjects.objects.link(obj)       
+
+        if len(objs) > 0:
+            separatedObjs = []
+            active = view_layer.objects.active
+            for obj in objs:
+                view_layer.objects.active = obj
+                refObjs = view_layer.objects[:]
+                orgname = obj.name[:]
+                xmirror = obj.sxtools.xmirror
+                ymirror = obj.sxtools.ymirror
+                zmirror = obj.sxtools.zmirror
+
+                if obj.modifiers['sxMirror'].mirror_object is not None:
+                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
+                else:
+                    refLoc = obj.location
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
+
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.separate(type='LOOSE')
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                newObjArray = [view_layer.objects[orgname], ]
+
+                for vlObj in view_layer.objects:
+                    if vlObj not in refObjs:
+                        newObjArray.append(vlObj)
+                        exportObjects.objects.link(vlObj)
+
+                if len(newObjArray) > 1:
+                    suffixDict = {}
+                    for newObj in newObjArray:
+                        view_layer.objects.active = newObj
+                        zstring = ''
+                        ystring = ''
+                        xstring = ''
+                        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                        objLoc = newObj.location
+                        if zmirror:
+                            if objLoc[2] > refLoc[2]:
+                                zstring = '_top'
+                            elif objLoc[2] < refLoc[2]:
+                                zstring = '_bottom'
+                        if ymirror:
+                            if objLoc[1] > refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_rear'
+                                else:
+                                    ystring = '_front'
+                            elif objLoc[1] < refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_front'
+                                else:
+                                    ystring = '_rear'
+                        if xmirror:
+                            if objLoc[0] > refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_left'
+                                else:
+                                    xstring = '_right'
+                            elif objLoc[0] < refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_right'
+                                else:
+                                    xstring = '_left'
+
+                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
+                            if not zstring+ystring+xstring in suffixDict:
+                                suffixDict[zstring+ystring+xstring] = 0
+                            else:
+                                suffixDict[zstring+ystring+xstring] += 1
+                            newObj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
+                        else:
+                            newObj.name = orgname + zstring + ystring + xstring
+
+                        newObj.data.name = newObj.name + '_mesh'
+
+                separatedObjs.extend(newObjArray)
+            view_layer.objects.active = active
+        bpy.ops.object.mode_set(mode=mode)
+        return separatedObjs
+
+
     # LOD levels:
     # If subdivision enabled:
     #   LOD0 - Maximum subdivision and bevels
@@ -3310,7 +3430,7 @@ class SXTOOLS_export(object):
         # activeObj.select_set(True)
         bpy.context.view_layer.objects.active = activeObj
 
-        return orgObjArray, nameArray, newObjArray
+        return newObjArray
 
 
     def convert_to_linear(self, objs):
@@ -3357,23 +3477,6 @@ class SXTOOLS_export(object):
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
 
-        # Place pivots
-        if scene.pivotmode != 'OFF':
-            active = bpy.context.active_object
-            for obj in objs:
-                bpy.context.view_layer.objects.active = obj
-                if scene.pivotmode == 'MASS':
-                    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-                elif scene.pivotmode == 'BBOX':
-                    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-                elif scene.pivotmode == 'ROOT':
-                    bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
-                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-                elif scene.pivotmode == 'ORG':
-                    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
-                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-            bpy.context.view_layer.objects.active = active
-
         # Make sure all objects have UVSet0
         tools.create_uvset0(objs)
 
@@ -3389,6 +3492,16 @@ class SXTOOLS_export(object):
         if scene.exportquality == 'HI':
             newObjs = []
             lodObjs = []
+            sepObjs = []
+            partObjs = []
+
+            for obj in objs:
+                if obj.sxtools.smartseparate:
+                    sepObjs.append(obj)
+            partObjs = export.smart_separate(sepObjs)
+            for obj in partObjs:
+                if obj not in objs:
+                    objs.append(obj)
 
             groups = utils.find_groups(objs)
             for group in groups:
@@ -3403,7 +3516,8 @@ class SXTOOLS_export(object):
                 exportObjects.objects.link(group)
 
             for obj in objs:
-                sourceObjects.objects.link(obj)
+                if obj.name not in sourceObjects.objects.keys():
+                    sourceObjects.objects.link(obj)
                 orgObjNames[obj] = [obj.name, obj.data.name][:]
                 obj.data.name = obj.data.name + '_org'
                 obj.name = obj.name + '_org'
@@ -3423,11 +3537,28 @@ class SXTOOLS_export(object):
                 obj.parent = viewlayer.objects[obj.parent.name + '_org']
 
             if len(lodObjs) > 0:
-                orgObjArray, nameArray, newObjArray = export.generate_lods(lodObjs)
+                newObjArray = export.generate_lods(lodObjs)
                 for newObj in newObjArray:
                     newObjs.append(newObj)
 
             objs = newObjs
+
+        # Place pivots
+        active = viewlayer.objects.active
+        for obj in objs:
+            viewlayer.objects.active = obj
+            if obj.sxtools.pivotmode == 'MASS':
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+            elif obj.sxtools.pivotmode == 'BBOX':
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+            elif obj.sxtools.pivotmode == 'ROOT':
+                bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+            elif obj.sxtools.pivotmode == 'ORG':
+                bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+        viewlayer.objects.active = active
+
 
         for obj in objs:
             obj.select_set(False)
@@ -3547,11 +3678,11 @@ class SXTOOLS_export(object):
                     obj.select_set(True)
 
             if len(nonLodObjs) > 0:
-                orgSelArray, nameArray, newObjArray = export.generate_lods(nonLodObjs)
+                lodObjs = export.generate_lods(nonLodObjs)
                 bpy.ops.object.select_all(action='DESELECT')
-                for obj in orgSelArray:
+                for obj in nonLodObjs:
                     obj.select_set(True)
-                for obj in newObjArray:
+                for obj in lodObjs:
                     obj.select_set(True)
 
         if scene.exportquality == 'HI':
@@ -4109,6 +4240,7 @@ class SXTOOLS_export(object):
 
 
     def remove_exports(self):
+        scene = bpy.context.scene.sxtools
         if 'ExportObjects' in bpy.data.collections.keys():
             exportObjects = bpy.data.collections['ExportObjects'].objects
             for obj in exportObjects:
@@ -4116,15 +4248,24 @@ class SXTOOLS_export(object):
 
         if 'SourceObjects' in bpy.data.collections.keys():
             sourceObjects = bpy.data.collections['SourceObjects'].objects
+            tags = ['_org', '_LOD0', '_top', '_bottom', '_front', '_rear', '_left', '_right']
             for obj in sourceObjects:
-                if obj.name.endswith('_org'):
-                    obj.name = obj.name[:-4]
-                elif obj.name.endswith('_LOD0'):
-                    obj.name = obj.name[:-5]
-                if obj.data and obj.data.name.endswith('_org'):
-                    obj.data.name = obj.data.name[:-4]
-                elif obj.data and obj.data.name.endswith('_LOD0'):
-                    obj.data.name = obj.data.name[:-5]
+                if obj.type == 'MESH':
+                    name = obj.name[:]
+                    dataname = obj.data.name[:]
+                    for tag in tags:
+                        name = name.replace(tag, '')
+                        dataname = dataname.replace(tag, '')
+                    obj.name = name
+                    obj.data.name = dataname
+                    tools.remove_modifiers([obj, ])
+                    tools.add_modifiers([obj, ])
+                else:
+                    name = obj.name[:]
+                    for tag in tags:
+                        name = name.replace(tag, '')
+                    obj.name = name
+
                 obj.hide_viewport = False
                 sourceObjects.unlink(obj)
 
@@ -4575,6 +4716,7 @@ def update_mirror_modifier(self, context):
         xmirror = objs[0].sxtools.xmirror
         ymirror = objs[0].sxtools.ymirror
         zmirror = objs[0].sxtools.zmirror
+        mirrorobj = objs[0].sxtools.mirrorobject
 
         for obj in objs:
             if obj.sxtools.xmirror != xmirror:
@@ -4583,6 +4725,8 @@ def update_mirror_modifier(self, context):
                 obj.sxtools.ymirror = ymirror
             if obj.sxtools.zmirror != zmirror:
                 obj.sxtools.zmirror = zmirror
+            if obj.sxtools.mirrorobject != mirrorobj:
+                obj.sxtools.mirrorobject = mirrorobj
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -4591,6 +4735,11 @@ def update_mirror_modifier(self, context):
                 obj.modifiers['sxMirror'].use_axis[0] = xmirror
                 obj.modifiers['sxMirror'].use_axis[1] = ymirror
                 obj.modifiers['sxMirror'].use_axis[2] = zmirror
+
+                if mirrorobj != '':
+                    obj.modifiers['sxMirror'].mirror_object = context.view_layer.objects[mirrorobj]
+                else:
+                    obj.modifiers['sxMirror'].mirror_object = None
 
                 if xmirror or ymirror or zmirror:
                     obj.modifiers['sxMirror'].show_viewport = True
@@ -5098,6 +5247,15 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=False,
         update=update_mirror_modifier)
 
+    smartseparate: bpy.props.BoolProperty(
+        name='Smart Separate',
+        default=False)
+
+    mirrorobject: bpy.props.StringProperty(
+        name='Mirror Object',
+        default='',
+        update=update_mirror_modifier)
+
     hardmode: bpy.props.EnumProperty(
         name='Max Crease Mode',
         description='Mode for processing edges with maximum crease',
@@ -5177,6 +5335,17 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Generate LOD Meshes',
         default=False,
         update=update_custom_props)
+
+    pivotmode: bpy.props.EnumProperty(
+        name='Pivot Mode',
+        description='Auto pivot placement mode',
+        items=[
+            ('OFF', 'No Change', ''),
+            ('MASS', 'Center of Mass', ''),
+            ('BBOX', 'Bbox Center', ''),
+            ('ROOT', 'Bbox Base', ''),
+            ('ORG', 'Origin', '')],
+        default='MASS')
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -5706,6 +5875,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Crease',
         default=False)
 
+    expandmirror: bpy.props.BoolProperty(
+        name='Expand Mirror',
+        default=False)
+
+    expandbevel: bpy.props.BoolProperty(
+        name='Expand Bevel',
+        default=False)
+
     expandexport: bpy.props.BoolProperty(
         name='Expand Export',
         default=False)
@@ -5771,17 +5948,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('MET', 'Metallic', ''),
             ('NONMET', 'Non-Metallic', '')],
         default='MET')
-
-    pivotmode: bpy.props.EnumProperty(
-        name='Pivot Mode',
-        description='Auto pivot placement mode',
-        items=[
-            ('OFF', 'None', ''),
-            ('MASS', 'Center of Mass', ''),
-            ('BBOX', 'Bbox Center', ''),
-            ('ROOT', 'Bbox Base', ''),
-            ('ORG', 'Origin', '')],
-        default='MASS')
 
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
@@ -6342,18 +6508,31 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         setbutton.setvalue = -1.0
                 elif scene.creasemode == 'SDS':
                     if scene.expandcrease:
-                        col_sds = box_crease.column(align=False)
-                        col_sds.prop(sxtools, 'modifiervisibility', text='Show Modifiers')
-                        col_sds.label(text='Mesh Mirroring:')
-                        row_mirror = box_crease.row()
-                        row_mirror.prop(sxtools, 'xmirror')
-                        row_mirror.prop(sxtools, 'ymirror')
-                        row_mirror.prop(sxtools, 'zmirror')
-                        col2_sds = box_crease.column(align=False)
-                        col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevels')
-                        split_sds = col2_sds.split()
-                        split_sds.label(text='Max Crease Mode:')
-                        split_sds.prop(sxtools, 'hardmode', text='')
+                        row_mod1 = box_crease.row()
+                        row_mod1.prop(scene, 'expandmirror',
+                            icon='TRIA_DOWN' if scene.expandmirror else 'TRIA_RIGHT',
+                            icon_only=True, emboss=False)
+                        row_mod1.label(text='Mirror Modifier Settings')
+                        if scene.expandmirror:
+                            row_mirror = box_crease.row()
+                            row_mirror.prop(sxtools, 'xmirror')
+                            row_mirror.prop(sxtools, 'ymirror')
+                            row_mirror.prop(sxtools, 'zmirror')
+                            row_mirrorobj = box_crease.row()
+                            row_mirrorobj.prop_search(sxtools, 'mirrorobject', context.scene, 'objects')
+
+                        row_mod2 = box_crease.row()
+                        row_mod2.prop(scene, 'expandbevel',
+                            icon='TRIA_DOWN' if scene.expandbevel else 'TRIA_RIGHT',
+                            icon_only=True, emboss=False)
+                        row_mod2.label(text='Bevel Modifier Settings')
+                        if scene.expandbevel:
+                            col2_sds = box_crease.column(align=False)
+                            col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevels')
+                            split_sds = col2_sds.split()
+                            split_sds.label(text='Max Crease Mode:')
+                            split_sds.prop(sxtools, 'hardmode', text='')
+
                         col3_sds = box_crease.column(align=True)
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                         col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
@@ -6363,15 +6542,24 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if obj.sxtools.subdivisionlevel > 0:
                             col3_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                             col3_sds.label(text='Selection Tri Count: '+mesh.calculate_triangles(objs))
-                        col3_sds.separator()
+                        # col3_sds.separator()
                         col4_sds = box_crease.column(align=True)
                         modifiers = '\t'.join(obj.modifiers.keys())
                         if 'sx' in modifiers:
-                            col4_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                            if scene.shift:
+                                col4_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                            else:
+                                if obj.sxtools.modifiervisibility:
+                                    hide_text = 'Hide Modifiers'
+                                else:
+                                    hide_text = 'Show Modifiers'
+                                col4_sds.operator('sxtools.hidemodifiers', text=hide_text)
                         else:
-                            col_sds.enabled = False
-                            row_mirror.enabled = False
-                            col2_sds.enabled = False
+                            if scene.expandmirror:
+                                row_mirror.enabled = False
+                            if scene.expandbevel:
+                                col2_sds.enabled = False
+                                split_sds.enabled = False
                             col3_sds.enabled = False
                             col4_sds.operator('sxtools.modifiers', text='Add Modifiers')
 
@@ -6392,9 +6580,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_export.prop(sxtools, 'overlaystrength', text='Overlay Strength', slider=True)
                         col_export.separator()
                         split_export = col_export.split()
-                        split_export.label(text='Auto-pivots:')
-                        split_export.prop(scene, 'pivotmode', text='')
-                        col_export.prop(sxtools, 'lodmeshes', text='Create LOD Meshes')
+                        split_export.label(text='Auto-pivot:')
+                        split_export.prop(sxtools, 'pivotmode', text='')
+                        col_export.prop(sxtools, 'lodmeshes', text='Generate LOD Meshes')
                         col_export.label(text='Note: Check Subdivision and Bevel settings')
                         # col_export.separator()
                         if prefs.materialtype != 'SMP':
@@ -6404,7 +6592,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export = box_export.column(align=True)
                         col2_export.operator('sxtools.macro', text='Magic Button')
                         if ('ExportObjects' in bpy.data.collections.keys()) and (len(bpy.data.collections['ExportObjects'].objects) > 0):
-                            col2_export.operator('sxtools.removeexports', text='Remove LOD Meshes')
+                            col2_export.operator('sxtools.removeexports', text='Remove LODs and Parts')
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
@@ -6428,7 +6616,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
                             # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
-                            col_debug.operator('sxtools.split_mirror', text='Debug: Smart Split sxMirror')
+                            col_debug.operator('sxtools.smart_separate', text='Debug: Smart Separate sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
@@ -6442,6 +6630,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 elif scene.exportmode == 'EXPORT':
                     if scene.expandexport:
                         col2_export = box_export.column(align=True)
+                        if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                            col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
                         col2_export.label(text='Set Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
                         col3_export = box_export.column(align=True)
@@ -7303,6 +7493,25 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_hidemodifiers(bpy.types.Operator):
+    bl_idname = 'sxtools.hidemodifiers'
+    bl_label = 'Hide Modifiers'
+    bl_description = 'Hide and show modifiers on selected objects\nShift-click to remove modifiers'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        scene = context.scene.sxtools
+
+        if objs[0].sxtools.modifiervisibility is True:
+            objs[0].sxtools.modifiervisibility = False
+        else:
+            objs[0].sxtools.modifiervisibility = True
+
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_modifiers(bpy.types.Operator):
     bl_idname = 'sxtools.modifiers'
     bl_label = 'Add Modifiers'
@@ -7422,13 +7631,26 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
+        selected = None
+
         if event.shift:
             setup.create_sxcollection()
             selected = bpy.data.collections['SXObjects'].all_objects
+            if context.scene.sxtools.exportquality == 'LO':
+                export.smart_separate(selected)
+                setup.create_sxcollection()
+                selected = bpy.data.collections['SXObjects'].all_objects
         else:
             selected = context.view_layer.objects.selected
+            if context.scene.sxtools.exportquality=='LO':
+                newObjs = export.smart_separate(selected)
+                for obj in newObjs:
+                    obj.select_set(True)
+                selected = context.view_layer.objects.selected
+
         groups = utils.find_groups(selected)
         files.export_files(groups)
+
         if prefs.removelods:
             export.remove_exports()
         sxglobals.composite = True
@@ -7438,8 +7660,8 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
 class SXTOOLS_OT_removeexports(bpy.types.Operator):
     bl_idname = 'sxtools.removeexports'
-    bl_label = 'Remove LOD Meshes'
-    bl_description = 'Deletes generated LOD meshes'
+    bl_label = 'Remove LODs and Separated Parts'
+    bl_description = 'Deletes generated LOD meshes\nand smart separations'
     bl_options = {'UNDO'}
 
 
@@ -7687,98 +7909,17 @@ class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class SXTOOLS_OT_split_mirror(bpy.types.Operator):
-    bl_idname = 'sxtools.split_mirror'
-    bl_label = 'Split Mirror Mesh'
-    bl_description = 'Splits and logically renames mirrored mesh parts'
+class SXTOOLS_OT_smart_separate(bpy.types.Operator):
+    bl_idname = 'sxtools.smart_separate'
+    bl_label = 'Smart Separate'
+    bl_description = 'Separates and logically renames mirrored mesh parts'
     bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
-        prefs = context.preferences.addons['sxtools'].preferences
         objs = selection_validator(self, context)
-        mode = objs[0].mode
-        if len(objs) > 0:
-            active = context.active_object
-            for obj in objs:
-                context.view_layer.objects.active = obj
-                refObjs = context.view_layer.objects.keys()
-                orgname = obj.name
-                xmirror = obj.sxtools.xmirror
-                ymirror = obj.sxtools.ymirror
-                zmirror = obj.sxtools.zmirror
-                if obj.modifiers['sxMirror'].mirror_object is not None:
-                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
-                else:
-                    refLoc = obj.location
+        export.smart_separate(objs)
 
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
-
-                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.separate(type='LOOSE')
-
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                newObjArray = [context.view_layer.objects[orgname], ]
-                for obj in context.view_layer.objects:
-                    if obj.name not in refObjs:
-                        newObjArray.append(obj)
-
-                if len(newObjArray) > 1:
-                    suffixDict = {}
-                    for obj in newObjArray:
-                        context.view_layer.objects.active = obj
-                        zstring = ''
-                        ystring = ''
-                        xstring = ''
-                        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-                        objLoc = obj.location
-                        if zmirror:
-                            if objLoc[2] > refLoc[2]:
-                                zstring = '_top'
-                            elif objLoc[2] < refLoc[2]:
-                                zstring = '_bottom'
-                        if ymirror:
-                            if objLoc[1] > refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_rear'
-                                else:
-                                    ystring = '_front'
-                            elif objLoc[1] < refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_front'
-                                else:
-                                    ystring = '_rear'
-                        if xmirror:
-                            if objLoc[0] > refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_left'
-                                else:
-                                    xstring = '_right'
-                            elif objLoc[0] < refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_right'
-                                else:
-                                    xstring = '_left'
-
-                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
-                            if not zstring+ystring+xstring in suffixDict:
-                                suffixDict[zstring+ystring+xstring] = 0
-                            else:
-                                suffixDict[zstring+ystring+xstring] += 1
-                            obj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
-                        else:
-                            obj.name = orgname + zstring + ystring + xstring
-
-                        obj.data.name = obj.name + '_mesh'
-
-                # only name if negative coord found in bbox list?
-                # - Recognize possible center element?
-                # MAKE THIS AN EXPORT-TIME OPERATION!
-
-            context.view_layer.objects.active = active
-        bpy.ops.object.mode_set(mode=mode)
         return {'FINISHED'}
 
 
@@ -7877,6 +8018,7 @@ classes = (
     SXTOOLS_OT_setgroup,
     SXTOOLS_OT_applypalette,
     SXTOOLS_OT_applymaterial,
+    SXTOOLS_OT_hidemodifiers,
     SXTOOLS_OT_copylayer,
     SXTOOLS_OT_selmask,
     SXTOOLS_OT_clearlayers,
@@ -7903,7 +8045,7 @@ classes = (
     SXTOOLS_OT_selectup,
     SXTOOLS_OT_selectdown,
     SXTOOLS_OT_create_sxcollection,
-    SXTOOLS_OT_split_mirror,
+    SXTOOLS_OT_smart_separate,
     SXTOOLS_OT_macro)
 
 addon_keymaps = []
