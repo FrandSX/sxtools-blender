@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 5),
+    'version': (3, 13, 8),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3240,7 +3240,7 @@ class SXTOOLS_export(object):
 
         if len(objs) > 0:
             for obj in objs:
-                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()):
+                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
                     sourceObjects.objects.link(obj)       
 
         if len(objs) > 0:
@@ -5345,7 +5345,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('BBOX', 'Bbox Center', ''),
             ('ROOT', 'Bbox Base', ''),
             ('ORG', 'Origin', '')],
-        default='MASS')
+        default='OFF')
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
