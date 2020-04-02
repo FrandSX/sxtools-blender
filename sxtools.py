@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 8),
+    'version': (3, 13, 9),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3227,6 +3227,10 @@ class SXTOOLS_export(object):
         view_layer = bpy.context.view_layer
         mode = objs[0].mode
         objs = objs[:]
+        sepObjs = []
+        for obj in objs:
+            if obj.sxtools.smartseparate:
+                sepObjs.append(obj)
 
         if 'ExportObjects' not in bpy.data.collections.keys():
             exportObjects = bpy.data.collections.new('ExportObjects')
@@ -3238,15 +3242,15 @@ class SXTOOLS_export(object):
         else:
             sourceObjects = bpy.data.collections['SourceObjects']
 
-        if len(objs) > 0:
-            for obj in objs:
+        if len(sepObjs) > 0:
+            for obj in sepObjs:
                 if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
                     sourceObjects.objects.link(obj)       
 
-        if len(objs) > 0:
-            separatedObjs = []
+        separatedObjs = []
+        if len(sepObjs) > 0:
             active = view_layer.objects.active
-            for obj in objs:
+            for obj in sepObjs:
                 view_layer.objects.active = obj
                 refObjs = view_layer.objects[:]
                 orgname = obj.name[:]
