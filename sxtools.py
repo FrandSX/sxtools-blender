@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 9),
+    'version': (3, 13, 13),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -263,24 +263,25 @@ class SXTOOLS_files(object):
             if len(selArray) > 0:
                 category = selArray[0].sxtools.category.lower()
 
-                # Create palette masks
-                layers.generate_masks(selArray)
-
+                objArray = []
                 for sel in selArray:
-                    if 'staticVertexColors' not in sel.keys():
-                        sel['staticVertexColors'] = True
-
-                    if 'sxToolsVersion' not in sel.keys():
+                    if sel.type == 'MESH':
+                        objArray.append(sel)
+                        sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
                         sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
-                    compLayers = utils.find_comp_layers(sel, sel['staticVertexColors'])
-                    layer0 = utils.find_layer_from_index(sel, 0)
-                    layer1 = utils.find_layer_from_index(sel, 1)
-                    layers.blend_layers([sel, ], compLayers, layer1, layer0)
+                # Create palette masks
+                layers.generate_masks(objArray)
+
+                for obj in objArray:
+                    compLayers = utils.find_comp_layers(obj, obj['staticVertexColors'])
+                    layer0 = utils.find_layer_from_index(obj, 0)
+                    layer1 = utils.find_layer_from_index(obj, 1)
+                    layers.blend_layers([obj, ], compLayers, layer1, layer0)
 
                 # If linear colorspace exporting is selected
                 if colorspace == 'LIN':
-                    export.convert_to_linear(selArray)
+                    export.convert_to_linear(objArray)
 
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
