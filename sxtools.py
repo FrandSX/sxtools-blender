@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 13),
+    'version': (3, 13, 14),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -242,6 +242,7 @@ class SXTOOLS_files(object):
         scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences.addons['sxtools'].preferences
         colorspace = prefs.colorspace
+        empty = True
 
         if 'ExportObjects' not in bpy.data.collections.keys():
             exportObjects = bpy.data.collections.new('ExportObjects')
@@ -261,6 +262,7 @@ class SXTOOLS_files(object):
 
             # Only groups with meshes as children are exported
             if len(selArray) > 0:
+                empty = False
                 category = selArray[0].sxtools.category.lower()
 
                 objArray = []
@@ -313,7 +315,10 @@ class SXTOOLS_files(object):
                 groupNames.append(group.name)
                 group.location = org_loc
 
-        message_box('Exported ' + str(', ').join(groupNames))
+        if empty:
+            message_box('No objects exported!')
+        else:
+            message_box('Exported:\n' + str('\n').join(groupNames))
 
 
 # ------------------------------------------------------------------------
@@ -3472,7 +3477,7 @@ class SXTOOLS_export(object):
         for obj in objs:
             if obj.parent is None:
                 obj.hide_viewport = False
-                viewlayer.objects.active = obj
+                # viewlayer.objects.active = obj
                 tools.group_objects([obj, ])
 
         # Make sure auto-smooth is on
@@ -6637,11 +6642,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col2_export = box_export.column(align=True)
                         if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                             col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
-                        col2_export.label(text='Set Export Folder:')
+                        col2_export.label(text='Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
-                        col3_export = box_export.column(align=True)
-                        if ('sxSubdivision' not in obj.modifiers.keys()) or ('sxBevel' not in obj.modifiers.keys()):
-                            col3_export.enabled = False
                         split_export = box_export.split(factor=0.1)
                         split_export.operator('sxtools.checklist', text='', icon='INFO')
 
@@ -6651,7 +6653,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             exp_text = 'Export All'
                         exp_button = split_export.operator('sxtools.exportfiles', text=exp_text)
 
-                        if mode == 'EDIT':
+                        if (mode == 'EDIT') or (len(scene.exportfolder) == 0):
                             split_export.enabled = False
 
         else:
@@ -7636,6 +7638,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
+        viewlayer = bpy.context.view_layer
         selected = None
 
         if event.shift:
@@ -7652,6 +7655,13 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
                 for obj in newObjs:
                     obj.select_set(True)
                 selected = context.view_layer.objects.selected
+
+        # Make sure objects are in groups
+        for obj in selected:
+            if obj.parent is None:
+                obj.hide_viewport = False
+                # viewlayer.objects.active = obj
+                tools.group_objects([obj, ])
 
         groups = utils.find_groups(selected)
         files.export_files(groups)
