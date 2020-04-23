@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 14),
+    'version': (3, 13, 16),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5101,6 +5101,13 @@ def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
     sxglobals.librariesLoaded = False
 
+    for obj in bpy.data.objects:
+        if (len(obj.sxtools.keys()) > 0):
+            if obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version')):
+                bpy.ops.sxtools.resetmaterial('INVOKE_DEFAULT')
+                print('SX Tools: Updated SXMaterial')
+                break
+
     setup.start_modal()
 
 
@@ -8123,6 +8130,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Investigate breaking refresh
+# - Return selection in active component mode
+# - Fix expanding selection borders
 # - "Selected layer. Double click to rename" ???
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
