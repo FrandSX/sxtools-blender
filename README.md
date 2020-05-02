@@ -32,10 +32,13 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 
 ## Installation:
 - Download the zip file, uncompress it, then install and enable sxtools.py through the Blender add-on interface
+- Point the library folder in SX Tools prefs to the unzipped folder
 - SX Tools will appear in the top right corner of the 3D view
 - Open the Misc-tab in the top right corner of the 3D View, pull the tab in from side of the screen
 
 ## Getting Started:
+
+Now would be a good time to visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
 
 ![Step One](/images/sxtools-01.png)
 1) Point SX Tools to the folder where the zip was uncompressed. This also contains example palettes, PBR materials and gradient presets.
@@ -61,94 +64,6 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 8) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
 
 NOTE: Relative paths may cause issues with export paths in SX Tool. Setting "Save&Load -> Relative Paths" to disabled is recommended.
-
-## The Interface
-### Keyboard Shortcuts
-* Shift+ctrl+up/down arrow - Change active layer
-* Shift+comma - SX Tools pie menu
-
-### Shading Modes
-
-Shading Mode | Function
------------- | -------------
-**Full** | Displays a composite of layers 1-7 in Rendered shading mode
-**Debug** | Displays only the selected layer with alpha as black
-**Alpha** | Displays the selected layer alpha in grayscale
-
-
-### Visibility toggle
-Toggles the visibility of the selected layer in Full shading mode
-
-### Blend mode selection
-This is similar to popular 2D paint programs:
-
-Blend Mode | Function
------------- | -------------
-**Alpha** | The regular transparency blend
-**Add**  | Creates an additive (brighter) result
-**Multiply** | Darkens the layer below
-**Overlay** | Lightens and darkens the layer below
-
-### The layer opacity slider
-Dragging the slider changes a layer alpha value that influences the composited result. All alpha values in the layer itself are preserved.
-
-### Layer color swatches
-Displays prominent colors from the selected objects
-
-### The layer list:
-* The eye-icon indicates if the layer is hidden or visible
-* Click to select layers
-* For game developers: object categories can be defined that rename the layers as needed
-
-### Brightness slider
-Allows you to fine-tune the brightness of the selected objects or components
-
-### Merge Up / Merge Down buttons
-Merge the currently selected layer with the one above or below, respecting the blend modes of both layers. After the merge, the source layer is cleared to default values, and the resulting merged layer is set to Alpha blend mode. Merging is not permitted with material channels.
-
-### Copy / Paste buttons
-Allows any layer to be copied and pasted. Grayscale layers (material channels) are expanded to RGB values upon pasting, and if a color layer is pasted on a material channel, the luminance of the color is used for grayscale. 
-* Shift-clicking on paste swaps the source and the target layers.
-* Alt-clicking merges the copied layer with the target according to the alpha and blendmode
-
-### Select Layer Mask
-Click to select all vertices with alpha > 0. Shift-click to invert selection. With material channels, picks any vertex that is not black.
-
-### Clear Layer
-Sets a layer to its default value (0, 0, 0, 0 for most layers). If components are selected, only clears the selected components.
-Shift-clicking will clear ALL layers.
-
-### Apply Color
-Fills selected objects or components (faces, edges, verts supported).
-* Overwrite Alpha option can be unchecked to respect current alpha mask and only replace existing color values
-* Optional color or monochrome noise can be added
-
-### Gradient Tool
-Fills selected objects or components with the selected gradient. The global bbox option stretches the gradient over multiple objects. 
-
-Gradient Mode | Function
------------- | -------------
-**X/Y/Z-Axis** | Maps the gradient across the bounding volume in the selected world axis
-**Directional** | Works like a directional light that maps the surface brightness to the gradient
-**Luminance** | Remaps the brightness values of the existing layer to the tones of the gradient
-**Curvature** | Drives the gradient tones using the convex/concave characteristics of the surface
-**Normalized Curvature** | Provides a better use of the full range of the gradient. The normalization is done over the _entire_ selection.
-**Ambient Occlusion** | Maps the gradient acccording to how much light they receive. When this mode is selected, additional settings are displayed: Ray Count, for adjusting the quality of the result, and Global/Local blend, for allowing other objects to shadow each other.
-**Thickness** | Maps the gradient according to mesh thickness. The quality of the calculation can be improved by increasing the ray count.
-
-### Master Palettes
-Clicking Apply will replace colors in layers 1-5 with the colors of the palette while retaining alpha channels.
-
-### PBR Materials
-Clicking Apply on a material will fill the current layer with the material color, and fill the Metallic and Smoothness/Roughness UV channels with the respective values.
-
-### Creasing
-Allows for quick editing of edge creases, particularly useful with a subdivision and an edge split modifier. Shift-click on any of the crease buttons to select the edges of respective crease level.
-
-### Modifiers
-Contains settings for SX Tools default modifier stack. Max creases can be selected to be Smooth/Sharp/Beveled, with the default being Beveled. Currently beveling is applied after subdivision, but this is likely to change.
-
-Other functions include quick optoins to hide/show modifiers, or add/remove the entire stack.
 
 
 ## Exporting to Game Engines
