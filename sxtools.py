@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 18),
+    'version': (3, 14, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -72,6 +72,9 @@ class SXTOOLS_sxglobals(object):
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
         self.alphaTolerance = 1.0
+
+        # Keywords used by Smart Separate. Avoid using these in regular object names
+        self.keywords = ['_org', '_LOD0', '_top', '_bottom', '_front', '_rear', '_left', '_right']
 
         # Use absolute paths
         bpy.context.preferences.filepaths.use_relative_paths = False
@@ -3204,9 +3207,10 @@ class SXTOOLS_validate(object):
 
 
     def validate_objects(self, objs):
-        ok = self.test_palette_layers(objs)
+        ok1 = self.test_palette_layers(objs)
+        ok2 = self.test_names(objs)
 
-        if ok:
+        if ok1 and ok2:
             print('SX Tools: Selected objects passed validation tests')
             return True
         else:
@@ -3261,6 +3265,15 @@ class SXTOOLS_validate(object):
     # if paletted, check that emissive faces have color in static channel
     def test_emissives(self, objs):
         pass
+
+
+    def test_names(self, objs):
+        for obj in objs:
+            for keyword in sxglobals.keywords:
+                if keyword in obj.name:
+                    message_box(obj.name + '\ncontains the substring ' + keyword + '\nreserved for Smart Separate')
+                    return False
+        return True
 
 
     def __del__(self):
@@ -4304,7 +4317,7 @@ class SXTOOLS_export(object):
 
         if 'SourceObjects' in bpy.data.collections.keys():
             sourceObjects = bpy.data.collections['SourceObjects'].objects
-            tags = ['_org', '_LOD0', '_top', '_bottom', '_front', '_rear', '_left', '_right']
+            tags = sxglobals.keywords
             for obj in sourceObjects:
                 if obj.type == 'MESH':
                     name = obj.name[:]
@@ -8173,11 +8186,8 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Smart separate -> calculation of pivot does not take mirror geometry into account
-# - Improve handling of keywords in smart separate
+# - Prevent _root_root export naming
 # - Investigate breaking refresh
-# - Return selection in active component mode
-# - Fix expanding selection borders
 # - "Selected layer. Double click to rename" ???
 # - Different defaultColor if overlay layer blend mode changed?
 # - Wrong palette after sxtools restart -> remember last palette?
