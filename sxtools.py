@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 13, 16),
+    'version': (3, 13, 18),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2495,6 +2495,8 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
         # mode 0: hue, mode 1: saturation, mode 2: lightness
+
+
     def apply_hsl(self, objs, layer, hslmode, newValue):
         objDicts = self.selection_handler(objs)
         fillMode = layer.layerType
@@ -3091,6 +3093,52 @@ class SXTOOLS_tools(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
+    # pivotmodes: 0 == no change, 1 == center of mass, 2 == center of bbox,
+    # 3 == base of bbox, 4 == world origin
+    def set_pivots(self, objs, pivotmode=None):
+        viewlayer = bpy.context.view_layer
+        active = viewlayer.objects.active
+        selected = viewlayer.objects.selected[:]
+        modedict = {'OFF': 0, 'MASS': 1, 'BBOX':2, 'ROOT': 3, 'ORG': 4}
+
+        for sel in viewlayer.objects.selected:
+            sel.select_set(False)
+
+        for obj in objs:
+            if pivotmode is None:
+                print(obj.name, ', pivotmode is None, setting ', modedict[obj.sxtools.pivotmode])
+                mode = modedict[obj.sxtools.pivotmode]
+            else:
+                mode = pivotmode
+
+            viewlayer.objects.active = obj
+            obj.select_set(True)
+
+            if mode == 1:
+                print(obj.name, ' pivot to center of mass')
+                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+            elif mode == 2:
+                print(obj.name, ' pivot to center of bbox')
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+            elif mode == 3:
+                print(obj.name, ' pivot to base')
+                bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+            elif mode == 4:
+                print(obj.name, ' pivot to origin')
+                bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+            else:
+                print(obj.name, ' not touching pivot')
+                pass
+
+            obj.select_set(False)
+
+        for sel in selected:
+            sel.select_set(True)
+        viewlayer.objects.active = active
+
+
     def create_uvset0(self, objs):
         active = bpy.context.view_layer.objects.active
         for obj in objs:
@@ -3220,236 +3268,11 @@ class SXTOOLS_validate(object):
 
 
 # ------------------------------------------------------------------------
-#    Exporting Functions
+#    Baking and Processing Functions
 # ------------------------------------------------------------------------
-class SXTOOLS_export(object):
+class SXTOOLS_magic(object):
     def __init__(self):
         return None
-
-
-    def smart_separate(self, objs):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
-        scene = bpy.context.scene.sxtools
-        view_layer = bpy.context.view_layer
-        mode = objs[0].mode
-        objs = objs[:]
-        sepObjs = []
-        for obj in objs:
-            if obj.sxtools.smartseparate:
-                sepObjs.append(obj)
-
-        if 'ExportObjects' not in bpy.data.collections.keys():
-            exportObjects = bpy.data.collections.new('ExportObjects')
-        else:
-            exportObjects = bpy.data.collections['ExportObjects']
-
-        if 'SourceObjects' not in bpy.data.collections.keys():
-            sourceObjects = bpy.data.collections.new('SourceObjects')
-        else:
-            sourceObjects = bpy.data.collections['SourceObjects']
-
-        if len(sepObjs) > 0:
-            for obj in sepObjs:
-                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
-                    sourceObjects.objects.link(obj)       
-
-        separatedObjs = []
-        if len(sepObjs) > 0:
-            active = view_layer.objects.active
-            for obj in sepObjs:
-                view_layer.objects.active = obj
-                refObjs = view_layer.objects[:]
-                orgname = obj.name[:]
-                xmirror = obj.sxtools.xmirror
-                ymirror = obj.sxtools.ymirror
-                zmirror = obj.sxtools.zmirror
-
-                if obj.modifiers['sxMirror'].mirror_object is not None:
-                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
-                else:
-                    refLoc = obj.location
-
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
-
-                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.separate(type='LOOSE')
-
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                newObjArray = [view_layer.objects[orgname], ]
-
-                for vlObj in view_layer.objects:
-                    if vlObj not in refObjs:
-                        newObjArray.append(vlObj)
-                        exportObjects.objects.link(vlObj)
-
-                if len(newObjArray) > 1:
-                    suffixDict = {}
-                    for newObj in newObjArray:
-                        view_layer.objects.active = newObj
-                        zstring = ''
-                        ystring = ''
-                        xstring = ''
-                        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-                        objLoc = newObj.location
-                        if zmirror:
-                            if objLoc[2] > refLoc[2]:
-                                zstring = '_top'
-                            elif objLoc[2] < refLoc[2]:
-                                zstring = '_bottom'
-                        if ymirror:
-                            if objLoc[1] > refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_rear'
-                                else:
-                                    ystring = '_front'
-                            elif objLoc[1] < refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_front'
-                                else:
-                                    ystring = '_rear'
-                        if xmirror:
-                            if objLoc[0] > refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_left'
-                                else:
-                                    xstring = '_right'
-                            elif objLoc[0] < refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_right'
-                                else:
-                                    xstring = '_left'
-
-                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
-                            if not zstring+ystring+xstring in suffixDict:
-                                suffixDict[zstring+ystring+xstring] = 0
-                            else:
-                                suffixDict[zstring+ystring+xstring] += 1
-                            newObj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
-                        else:
-                            newObj.name = orgname + zstring + ystring + xstring
-
-                        newObj.data.name = newObj.name + '_mesh'
-
-                separatedObjs.extend(newObjArray)
-            view_layer.objects.active = active
-        bpy.ops.object.mode_set(mode=mode)
-        return separatedObjs
-
-
-    # LOD levels:
-    # If subdivision enabled:
-    #   LOD0 - Maximum subdivision and bevels
-    #   LOD1 - Subdiv 1, bevels
-    #   LOD2 - Control cage
-    # If bevels only:
-    #   LOD0 - Maximum bevel segments
-    #   LOD1 - Control cage
-    # NOTE: In case of bevels, prefer even-numbered segment counts!
-    #       Odd-numbered bevels often generate incorrect vertex colors
-    def generate_lods(self, objs):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
-        orgObjArray = objs[:]
-        nameArray = []
-        newObjArray = []
-        activeObj = bpy.context.view_layer.objects.active
-        scene = bpy.context.scene.sxtools
-
-        bbx_x = []
-        bbx_y = []
-        bbx_z = []
-        for obj in orgObjArray:
-            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
-            for corner in corners:
-                bbx_x.append(corner[0])
-                bbx_y.append(corner[1])
-                bbx_z.append(corner[2])
-        xmin, xmax = min(bbx_x), max(bbx_x)
-        ymin, ymax = min(bbx_y), max(bbx_y)
-        zmin, zmax = min(bbx_z), max(bbx_z)
-
-        bbxheight = zmax - zmin
-
-        # Make sure source and export Collections exist
-        if 'ExportObjects' not in bpy.data.collections.keys():
-            exportObjects = bpy.data.collections.new('ExportObjects')
-        else:
-            exportObjects = bpy.data.collections['ExportObjects']
-
-        if 'SourceObjects' not in bpy.data.collections.keys():
-            sourceObjects = bpy.data.collections.new('SourceObjects')
-        else:
-            sourceObjects = bpy.data.collections['SourceObjects']
-
-        lodCount = 1
-        for obj in orgObjArray:
-            nameArray.append((obj.name[:], obj.data.name[:]))
-            if obj.sxtools.subdivisionlevel >= 1:
-                lodCount = min(3, obj.sxtools.subdivisionlevel + 1)
-            elif (obj.sxtools.subdivisionlevel == 0) and ((obj.sxtools.bevelsegments) > 0):
-                lodCount = 2
-
-        if lodCount > 1:
-            for i in range(lodCount):
-                print('SX Tools: Generating LOD' + str(i))
-                if i == 0:
-                    for obj in orgObjArray:
-                        obj.data.name = obj.data.name + '_LOD' + str(i)
-                        obj.name = obj.name + '_LOD' + str(i)
-                        newObjArray.append(obj)
-                        if scene.exportquality == 'LO':
-                            sourceObjects.objects.link(obj)
-                else:
-                    for j, obj in enumerate(orgObjArray):
-                        newObj = obj.copy()
-                        newObj.data = obj.data.copy()
-
-                        newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
-                        newObj.name = nameArray[j][0] + '_LOD' + str(i)
-
-                        newObj.location += Vector((0.0, 0.0, (bbxheight+prefs.lodoffset)*i))
-
-                        bpy.context.scene.collection.objects.link(newObj)
-                        exportObjects.objects.link(newObj)
-
-                        newObj.parent = bpy.context.view_layer.objects[obj.parent.name]
-
-                        bpy.ops.object.select_all(action='DESELECT')
-                        newObj.select_set(True)
-                        bpy.context.view_layer.objects.active = newObj
-
-                        if i == 1:
-                            if obj.sxtools.subdivisionlevel > 0:
-                                newObj.sxtools.subdivisionlevel = 1
-                                if obj.sxtools.bevelsegments > 0:
-                                    newObj.sxtools.bevelsegments = obj.sxtools.bevelsegments
-                                else:
-                                    newObj.sxtools.bevelsegments = 0
-                            elif obj.sxtools.subdivisionlevel == 0:
-                                newObj.sxtools.subdivisionlevel = 0
-                                newObj.sxtools.bevelsegments = 0
-                                newObj.sxtools.weldthreshold = 0
-                        else:
-                            newObj.sxtools.subdivisionlevel = 0
-                            newObj.sxtools.bevelsegments = 0
-                            newObj.sxtools.weldthreshold = 0
-
-                        newObjArray.append(newObj)
-
-        # activeObj.select_set(True)
-        bpy.context.view_layer.objects.active = activeObj
-
-        return newObjArray
-
-
-    def convert_to_linear(self, objs):
-        for obj in objs:
-            vertexColors = obj.data.vertex_colors
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    vCol = vertexColors['VertexColor0'].data[idx].color
-                    vertexColors['VertexColor0'].data[idx].color = convert.srgb_to_linear(vCol)
 
 
     # This is a project-specific batch operation.
@@ -3554,21 +3377,7 @@ class SXTOOLS_export(object):
             objs = newObjs
 
         # Place pivots
-        active = viewlayer.objects.active
-        for obj in objs:
-            viewlayer.objects.active = obj
-            if obj.sxtools.pivotmode == 'MASS':
-                bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-            elif obj.sxtools.pivotmode == 'BBOX':
-                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-            elif obj.sxtools.pivotmode == 'ROOT':
-                bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
-                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-            elif obj.sxtools.pivotmode == 'ORG':
-                bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
-                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-        viewlayer.objects.active = active
-
+        tools.set_pivots(objs)
 
         for obj in objs:
             obj.select_set(False)
@@ -4249,6 +4058,243 @@ class SXTOOLS_export(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
 
+    def __del__(self):
+        print('SX Tools: Exiting magic')
+
+
+# ------------------------------------------------------------------------
+#    Exporting Functions
+# ------------------------------------------------------------------------
+class SXTOOLS_export(object):
+    def __init__(self):
+        return None
+
+
+    def smart_separate(self, objs):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        scene = bpy.context.scene.sxtools
+        view_layer = bpy.context.view_layer
+        mode = objs[0].mode
+        objs = objs[:]
+        sepObjs = []
+        for obj in objs:
+            if obj.sxtools.smartseparate:
+                sepObjs.append(obj)
+
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SourceObjects' not in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections.new('SourceObjects')
+        else:
+            sourceObjects = bpy.data.collections['SourceObjects']
+
+        if len(sepObjs) > 0:
+            for obj in sepObjs:
+                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
+                    sourceObjects.objects.link(obj)       
+
+        separatedObjs = []
+        if len(sepObjs) > 0:
+            active = view_layer.objects.active
+            for obj in sepObjs:
+                view_layer.objects.active = obj
+                refObjs = view_layer.objects[:]
+                orgname = obj.name[:]
+                xmirror = obj.sxtools.xmirror
+                ymirror = obj.sxtools.ymirror
+                zmirror = obj.sxtools.zmirror
+
+                if obj.modifiers['sxMirror'].mirror_object is not None:
+                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
+                else:
+                    refLoc = obj.location
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
+
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.separate(type='LOOSE')
+
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                newObjArray = [view_layer.objects[orgname], ]
+
+                for vlObj in view_layer.objects:
+                    if vlObj not in refObjs:
+                        newObjArray.append(vlObj)
+                        exportObjects.objects.link(vlObj)
+
+                if len(newObjArray) > 1:
+                    tools.set_pivots(newObjArray)
+                    suffixDict = {}
+                    for newObj in newObjArray:
+                        view_layer.objects.active = newObj
+                        zstring = ''
+                        ystring = ''
+                        xstring = ''
+                        objLoc = newObj.location
+                        if zmirror:
+                            if objLoc[2] > refLoc[2]:
+                                zstring = '_top'
+                            elif objLoc[2] < refLoc[2]:
+                                zstring = '_bottom'
+                        if ymirror:
+                            if objLoc[1] > refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_rear'
+                                else:
+                                    ystring = '_front'
+                            elif objLoc[1] < refLoc[1]:
+                                if prefs.flipsmarty:
+                                    ystring = '_front'
+                                else:
+                                    ystring = '_rear'
+                        if xmirror:
+                            if objLoc[0] > refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_left'
+                                else:
+                                    xstring = '_right'
+                            elif objLoc[0] < refLoc[0]:
+                                if prefs.flipsmartx:
+                                    xstring = '_right'
+                                else:
+                                    xstring = '_left'
+
+                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
+                            if not zstring+ystring+xstring in suffixDict:
+                                suffixDict[zstring+ystring+xstring] = 0
+                            else:
+                                suffixDict[zstring+ystring+xstring] += 1
+                            newObj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
+                        else:
+                            newObj.name = orgname + zstring + ystring + xstring
+
+                        newObj.data.name = newObj.name + '_mesh'
+
+                separatedObjs.extend(newObjArray)
+            view_layer.objects.active = active
+        bpy.ops.object.mode_set(mode=mode)
+        return separatedObjs
+
+
+    # LOD levels:
+    # If subdivision enabled:
+    #   LOD0 - Maximum subdivision and bevels
+    #   LOD1 - Subdiv 1, bevels
+    #   LOD2 - Control cage
+    # If bevels only:
+    #   LOD0 - Maximum bevel segments
+    #   LOD1 - Control cage
+    # NOTE: In case of bevels, prefer even-numbered segment counts!
+    #       Odd-numbered bevels often generate incorrect vertex colors
+    def generate_lods(self, objs):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        orgObjArray = objs[:]
+        nameArray = []
+        newObjArray = []
+        activeObj = bpy.context.view_layer.objects.active
+        scene = bpy.context.scene.sxtools
+
+        bbx_x = []
+        bbx_y = []
+        bbx_z = []
+        for obj in orgObjArray:
+            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            for corner in corners:
+                bbx_x.append(corner[0])
+                bbx_y.append(corner[1])
+                bbx_z.append(corner[2])
+        xmin, xmax = min(bbx_x), max(bbx_x)
+        ymin, ymax = min(bbx_y), max(bbx_y)
+        zmin, zmax = min(bbx_z), max(bbx_z)
+
+        bbxheight = zmax - zmin
+
+        # Make sure source and export Collections exist
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SourceObjects' not in bpy.data.collections.keys():
+            sourceObjects = bpy.data.collections.new('SourceObjects')
+        else:
+            sourceObjects = bpy.data.collections['SourceObjects']
+
+        lodCount = 1
+        for obj in orgObjArray:
+            nameArray.append((obj.name[:], obj.data.name[:]))
+            if obj.sxtools.subdivisionlevel >= 1:
+                lodCount = min(3, obj.sxtools.subdivisionlevel + 1)
+            elif (obj.sxtools.subdivisionlevel == 0) and ((obj.sxtools.bevelsegments) > 0):
+                lodCount = 2
+
+        if lodCount > 1:
+            for i in range(lodCount):
+                print('SX Tools: Generating LOD' + str(i))
+                if i == 0:
+                    for obj in orgObjArray:
+                        obj.data.name = obj.data.name + '_LOD' + str(i)
+                        obj.name = obj.name + '_LOD' + str(i)
+                        newObjArray.append(obj)
+                        if scene.exportquality == 'LO':
+                            sourceObjects.objects.link(obj)
+                else:
+                    for j, obj in enumerate(orgObjArray):
+                        newObj = obj.copy()
+                        newObj.data = obj.data.copy()
+
+                        newObj.data.name = nameArray[j][1] + '_LOD' + str(i)
+                        newObj.name = nameArray[j][0] + '_LOD' + str(i)
+
+                        newObj.location += Vector((0.0, 0.0, (bbxheight+prefs.lodoffset)*i))
+
+                        bpy.context.scene.collection.objects.link(newObj)
+                        exportObjects.objects.link(newObj)
+
+                        newObj.parent = bpy.context.view_layer.objects[obj.parent.name]
+
+                        bpy.ops.object.select_all(action='DESELECT')
+                        newObj.select_set(True)
+                        bpy.context.view_layer.objects.active = newObj
+
+                        if i == 1:
+                            if obj.sxtools.subdivisionlevel > 0:
+                                newObj.sxtools.subdivisionlevel = 1
+                                if obj.sxtools.bevelsegments > 0:
+                                    newObj.sxtools.bevelsegments = obj.sxtools.bevelsegments
+                                else:
+                                    newObj.sxtools.bevelsegments = 0
+                            elif obj.sxtools.subdivisionlevel == 0:
+                                newObj.sxtools.subdivisionlevel = 0
+                                newObj.sxtools.bevelsegments = 0
+                                newObj.sxtools.weldthreshold = 0
+                        else:
+                            newObj.sxtools.subdivisionlevel = 0
+                            newObj.sxtools.bevelsegments = 0
+                            newObj.sxtools.weldthreshold = 0
+
+                        newObjArray.append(newObj)
+
+        # activeObj.select_set(True)
+        bpy.context.view_layer.objects.active = activeObj
+
+        return newObjArray
+
+
+    def convert_to_linear(self, objs):
+        for obj in objs:
+            vertexColors = obj.data.vertex_colors
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    vCol = vertexColors['VertexColor0'].data[idx].color
+                    vertexColors['VertexColor0'].data[idx].color = convert.srgb_to_linear(vCol)
+
+
     def remove_exports(self):
         scene = bpy.context.scene.sxtools
         if 'ExportObjects' in bpy.data.collections.keys():
@@ -4281,7 +4327,7 @@ class SXTOOLS_export(object):
 
 
     def __del__(self):
-        print('SX Tools: Exiting exports')
+        print('SX Tools: Exiting export')
 
 
 # ------------------------------------------------------------------------
@@ -7702,23 +7748,19 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        if event.shift:
+            pivotmode = 2
+        elif event.ctrl:
+            pivotmode = 3
+        elif event.alt:
+            pivotmode = 4
+        else:
+            pivotmode = 1
+
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            active = context.active_object
-            for obj in objs:
-                context.view_layer.objects.active = obj
-                if event.shift:
-                    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
-                elif event.ctrl:
-                    bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
-                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-                elif event.alt:
-                    bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
-                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
-                else:
-                    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+            tools.set_pivots(objs, pivotmode)
 
-            context.view_layer.objects.active = active
         return {'FINISHED'}
 
 
@@ -7986,7 +8028,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             bpy.context.view_layer.objects.active = objs[0]
             check = validate.validate_objects(objs)
             if check:
-                export.process_objects(objs)
+                magic.process_objects(objs)
 
                 sxglobals.composite = True
                 refresh_actives(self, context)
@@ -8009,6 +8051,7 @@ setup = SXTOOLS_setup()
 mesh = SXTOOLS_mesh()
 tools = SXTOOLS_tools()
 validate = SXTOOLS_validate()
+magic = SXTOOLS_magic()
 export = SXTOOLS_export()
 
 classes = (
@@ -8130,6 +8173,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Smart separate -> calculation of pivot does not take mirror geometry into account
+# - Improve handling of keywords in smart separate
 # - Investigate breaking refresh
 # - Return selection in active component mode
 # - Fix expanding selection borders
