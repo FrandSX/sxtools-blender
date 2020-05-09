@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 14, 0),
+    'version': (3, 14, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3269,10 +3269,11 @@ class SXTOOLS_validate(object):
 
     def test_names(self, objs):
         for obj in objs:
-            for keyword in sxglobals.keywords:
-                if keyword in obj.name:
-                    message_box(obj.name + '\ncontains the substring ' + keyword + '\nreserved for Smart Separate')
-                    return False
+            if ('sxMirror' in obj.modifiers.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
+                for keyword in sxglobals.keywords:
+                    if keyword in obj.name:
+                        message_box(obj.name + '\ncontains the substring ' + keyword + '\nreserved for Smart Separate\nfunction of Mirror Modifier')
+                        return False
         return True
 
 
@@ -5162,7 +5163,7 @@ def load_post_handler(dummy):
 
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
-            if obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version')):
+            if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
                 bpy.ops.sxtools.resetmaterial('INVOKE_DEFAULT')
                 print('SX Tools: Updated SXMaterial')
                 break
@@ -8186,6 +8187,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Check name validation only for objects with mirror modifier enabled
 # - Prevent _root_root export naming
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
