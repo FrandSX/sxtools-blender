@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 14, 2),
+    'version': (3, 14, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3097,8 +3097,8 @@ class SXTOOLS_tools(object):
 
 
     # pivotmodes: 0 == no change, 1 == center of mass, 2 == center of bbox,
-    # 3 == base of bbox, 4 == world origin
-    def set_pivots(self, objs, pivotmode=None):
+    # 3 == base of bbox, 4 == world origin, force == set mirror axis to zero
+    def set_pivots(self, objs, pivotmode=None, force=False):
         viewlayer = bpy.context.view_layer
         active = viewlayer.objects.active
         selected = viewlayer.objects.selected[:]
@@ -3120,9 +3120,29 @@ class SXTOOLS_tools(object):
             if mode == 1:
                 print(obj.name, ' pivot to center of mass')
                 bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+                if force:
+                    pivot_loc = obj.location.copy()
+                    if obj.sxtools.xmirror:
+                        pivot_loc[0] = 0.0
+                    if obj.sxtools.ymirror:
+                        pivot_loc[1] = 0.0
+                    if obj.sxtools.zmirror:
+                        pivot_loc[2] = 0.0
+                    bpy.context.scene.cursor.location = pivot_loc
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 2:
                 print(obj.name, ' pivot to center of bbox')
                 bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
+                if force:
+                    pivot_loc = obj.location.copy()
+                    if obj.sxtools.xmirror:
+                        pivot_loc[0] = 0.0
+                    if obj.sxtools.ymirror:
+                        pivot_loc[1] = 0.0
+                    if obj.sxtools.zmirror:
+                        pivot_loc[2] = 0.0
+                    bpy.context.scene.cursor.location = pivot_loc
+                    bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 3:
                 print(obj.name, ' pivot to base')
                 bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
@@ -3391,7 +3411,7 @@ class SXTOOLS_magic(object):
             objs = newObjs
 
         # Place pivots
-        tools.set_pivots(objs)
+        tools.set_pivots(objs, force=True)
 
         for obj in objs:
             obj.select_set(False)
@@ -7773,7 +7793,7 @@ class SXTOOLS_OT_setpivots(bpy.types.Operator):
 
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            tools.set_pivots(objs, pivotmode)
+            tools.set_pivots(objs, pivotmode, force=True)
 
         return {'FINISHED'}
 
@@ -8187,7 +8207,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Check name validation only for objects with mirror modifier enabled
 # - Prevent _root_root export naming
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
