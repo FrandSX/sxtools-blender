@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 15, 0),
+    'version': (3, 15, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4978,6 +4978,7 @@ def update_custom_props(self, context):
         sm2 = objs[0].sxtools.smoothness2
         ovr = objs[0].sxtools.overlaystrength
         lod = objs[0].sxtools.lodmeshes
+        piv = objs[0].sxtools.pivotmode
         for obj in objs:
             obj['staticVertexColors'] = int(stc)
             obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
@@ -4991,6 +4992,8 @@ def update_custom_props(self, context):
                 obj.sxtools.overlaystrength = ovr
             if obj.sxtools.lodmeshes != lod:
                 obj.sxtools.lodmeshes = lod
+            if obj.sxtools.pivotmode != piv:
+                obj.sxtools.pivotmode = piv
 
 
 def update_smooth_angle(self, context):
@@ -5456,7 +5459,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('BBOX', 'Bbox Center', ''),
             ('ROOT', 'Bbox Base', ''),
             ('ORG', 'Origin', '')],
-        default='OFF')
+        default='OFF',
+        update=update_custom_props)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
