@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 14, 5),
+    'version': (3, 15, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2982,7 +2982,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
                 obj.modifiers['sxBevel'].harden_normals = False
-                obj.modifiers['sxBevel'].offset_type = 'OFFSET' # 'WIDTH' 'PERCENT'
+                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype # 'OFFSET' 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxWeld' not in obj.modifiers.keys():
@@ -4901,11 +4901,14 @@ def update_bevel_modifier(self, context):
     if len(objs) > 0:
         bevelWidth = objs[0].sxtools.bevelwidth
         bevelSegments = objs[0].sxtools.bevelsegments
+        bevelType = objs[0].sxtools.beveltype
         for obj in objs:
             if obj.sxtools.bevelwidth != bevelWidth:
                 obj.sxtools.bevelwidth = bevelWidth
             if obj.sxtools.bevelsegments != bevelSegments:
                 obj.sxtools.bevelsegments = bevelSegments
+            if obj.sxtools.beveltype != bevelType:
+                obj.sxtools.beveltype = bevelType
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -4918,6 +4921,7 @@ def update_bevel_modifier(self, context):
                 obj.modifiers['sxBevel'].width = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].width_pct = obj.sxtools.bevelwidth
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
+                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -5381,6 +5385,16 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         min=0,
         max=10,
         default=2,
+        update=update_bevel_modifier)
+
+    beveltype: bpy.props.EnumProperty(
+        name='Bevel Type',
+        description='Bevel offset mode',
+        items=[
+            ('OFFSET', 'Offset', ''),
+            ('WIDTH', 'Width', ''),
+            ('PERCENT', 'Percent', '')],
+        default='WIDTH',
         update=update_bevel_modifier)
 
     weldthreshold: bpy.props.FloatProperty(
@@ -6629,6 +6643,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             split_sds = col2_sds.split()
                             split_sds.label(text='Max Crease Mode:')
                             split_sds.prop(sxtools, 'hardmode', text='')
+                            split2_sds = col2_sds.split()
+                            split2_sds.label(text='Bevel Type:')
+                            split2_sds.prop(sxtools, 'beveltype', text='')
 
                         col3_sds = box_crease.column(align=True)
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
