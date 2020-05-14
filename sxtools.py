@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 15, 1),
+    'version': (3, 15, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -6595,7 +6595,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 if mode == 'OBJECT':
                                     col_matcolor.prop(scene, 'materialalpha')
 
-                # Crease Sets ---------------------------------------------------
+                # Crease and Bevel Sets, Modifier Settings --------------------------------
                 box_crease = layout.box()
                 row_crease = box_crease.row()
                 row_crease.prop(scene, 'expandcrease',
@@ -6642,7 +6642,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             icon_only=True, emboss=False)
                         row_mod2.label(text='Bevel Modifier Settings')
                         if scene.expandbevel:
-                            col2_sds = box_crease.column(align=False)
+                            col2_sds = box_crease.column(align=True)
                             col2_sds.prop(scene, 'autocrease', text='Auto Hard-Crease Bevels')
                             split_sds = col2_sds.split()
                             split_sds.label(text='Max Crease Mode:')
@@ -6650,11 +6650,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             split2_sds = col2_sds.split()
                             split2_sds.label(text='Bevel Type:')
                             split2_sds.prop(sxtools, 'beveltype', text='')
+                            col2_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
+                            col2_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
 
                         col3_sds = box_crease.column(align=True)
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
-                        col3_sds.prop(sxtools, 'bevelsegments', text='Bevel Segments')
-                        col3_sds.prop(sxtools, 'bevelwidth', text='Bevel Width')
                         col3_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
                         col3_sds.prop(sxtools, 'weldthreshold', text='Weld Threshold')
                         if obj.sxtools.subdivisionlevel > 0:
