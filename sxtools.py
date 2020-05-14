@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 15, 2),
+    'version': (3, 15, 3),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -266,7 +266,6 @@ class SXTOOLS_files(object):
             # Only groups with meshes as children are exported
             if len(selArray) > 0:
                 empty = False
-                category = selArray[0].sxtools.category.lower()
 
                 objArray = []
                 for sel in selArray:
@@ -291,6 +290,8 @@ class SXTOOLS_files(object):
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
                 else:
+                    category = objArray[0].sxtools.category.lower()
+                    print('Determining path: ', objArray[0].name, category)
                     path = scene.exportfolder + category
                     pathlib.Path(path).mkdir(exist_ok=True)
 
@@ -3118,7 +3119,6 @@ class SXTOOLS_tools(object):
             obj.select_set(True)
 
             if mode == 1:
-                print(obj.name, ' pivot to center of mass')
                 bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
                 if force:
                     pivot_loc = obj.location.copy()
@@ -3131,7 +3131,6 @@ class SXTOOLS_tools(object):
                     bpy.context.scene.cursor.location = pivot_loc
                     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 2:
-                print(obj.name, ' pivot to center of bbox')
                 bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
                 if force:
                     pivot_loc = obj.location.copy()
@@ -3144,15 +3143,12 @@ class SXTOOLS_tools(object):
                     bpy.context.scene.cursor.location = pivot_loc
                     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 3:
-                print(obj.name, ' pivot to base')
                 bpy.context.scene.cursor.location = mesh.find_root_pivot([obj, ])
                 bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 4:
-                print(obj.name, ' pivot to origin')
                 bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
                 bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             else:
-                print(obj.name, ' not touching pivot')
                 pass
 
             obj.select_set(False)
