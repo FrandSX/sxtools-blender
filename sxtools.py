@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 15, 3),
+    'version': (3, 15, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -264,15 +264,15 @@ class SXTOOLS_files(object):
             selArray = bpy.context.view_layer.objects.selected
 
             # Only groups with meshes as children are exported
-            if len(selArray) > 0:
-                empty = False
+            objArray = []
+            for sel in selArray:
+                if sel.type == 'MESH':
+                    objArray.append(sel)
+                    sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
+                    sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
-                objArray = []
-                for sel in selArray:
-                    if sel.type == 'MESH':
-                        objArray.append(sel)
-                        sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
-                        sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
+            if len(objArray) > 0:
+                empty = False
 
                 # Create palette masks
                 layers.generate_masks(objArray)
@@ -3110,7 +3110,6 @@ class SXTOOLS_tools(object):
 
         for obj in objs:
             if pivotmode is None:
-                print(obj.name, ', pivotmode is None, setting ', modedict[obj.sxtools.pivotmode])
                 mode = modedict[obj.sxtools.pivotmode]
             else:
                 mode = pivotmode
@@ -7765,7 +7764,8 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
             if obj.parent is None:
                 obj.hide_viewport = False
                 # viewlayer.objects.active = obj
-                tools.group_objects([obj, ])
+                if obj.type == 'MESH':
+                    tools.group_objects([obj, ])
 
         groups = utils.find_groups(selected)
         files.export_files(groups)
@@ -8224,7 +8224,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Prevent _root_root export naming
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 # - Different defaultColor if overlay layer blend mode changed?
