@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 15, 5),
+    'version': (3, 16, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3207,6 +3207,32 @@ class SXTOOLS_tools(object):
         if color != modecolor:
             bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
             tools.apply_color(objs, layer, color, False, noise, mono)
+
+
+    def zero_verts(self, objs):
+        mode = objs[0].mode
+
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+
+        for obj in objs:
+            xmirror = obj.sxtools.xmirror
+            ymirror = obj.sxtools.ymirror
+            zmirror = obj.sxtools.zmirror
+            bm = bmesh.from_edit_mesh(obj.data)
+            mesh = obj.data
+
+            selectedVerts = [vert for vert in bm.verts if vert.select]
+            for vert in selectedVerts:
+                if xmirror:
+                    vert.co.x = 0.0
+                if ymirror:
+                    vert.co.y = 0.0
+                if zmirror:
+                    vert.co.z = 0.0
+
+            bmesh.update_edit_mesh(obj.data)
+        bpy.ops.object.mode_set(mode=mode)
 
 
     def __del__(self):
@@ -6721,6 +6747,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             pivot_text = 'Set Pivots to Center of Mass'
                         col_utils.operator('sxtools.setpivots', text=pivot_text)
                         col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
+                        col_utils.operator('sxtools.zeroverts', text='Zero Vertices to Mirror Axis')
                         row_debug = box_export.row()
                         row_debug.prop(scene, 'expanddebug',
                             icon='TRIA_DOWN' if scene.expanddebug else 'TRIA_RIGHT',
@@ -7603,6 +7630,20 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_zeroverts(bpy.types.Operator):
+    bl_idname = 'sxtools.zeroverts'
+    bl_label = 'Set Vertices to Zero'
+    bl_description = 'Sets the mirror axis position of\nselected vertices to zero'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            tools.zero_verts(objs)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_hidemodifiers(bpy.types.Operator):
     bl_idname = 'sxtools.hidemodifiers'
     bl_label = 'Hide Modifiers'
@@ -8141,6 +8182,7 @@ classes = (
     SXTOOLS_OT_mergeup,
     SXTOOLS_OT_mergedown,
     SXTOOLS_OT_pastelayer,
+    SXTOOLS_OT_zeroverts,
     SXTOOLS_OT_applymodifiers,
     SXTOOLS_OT_modifiers,
     SXTOOLS_OT_removemodifiers,
@@ -8224,6 +8266,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 # - Different defaultColor if overlay layer blend mode changed?
