@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 16, 0),
+    'version': (3, 16, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3225,11 +3225,11 @@ class SXTOOLS_tools(object):
             selectedVerts = [vert for vert in bm.verts if vert.select]
             for vert in selectedVerts:
                 if xmirror:
-                    vert.co.x = 0.0
+                    vert.co.x = 0.0 - obj.location.x
                 if ymirror:
-                    vert.co.y = 0.0
+                    vert.co.y = 0.0 - obj.location.y
                 if zmirror:
-                    vert.co.z = 0.0
+                    vert.co.z = 0.0 - obj.location.z
 
             bmesh.update_edit_mesh(obj.data)
         bpy.ops.object.mode_set(mode=mode)
