@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 0, 1),
+    'version': (4, 0, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1396,22 +1396,15 @@ class SXTOOLS_layers(object):
         mesh = obj.data
         count = len(obj.data.uv_layers[0].data)
         mask = [None] * count
-        # mask2 = [None] * count
 
         i = 0
         if bpy.context.tool_settings.mesh_select_mode[2]:
-            # polys = obj.data.polygons.data.loops
-            # polys.foreach_get('select', mask2)
-
             for poly in mesh.polygons:
                 sel = poly.select
                 for loop_idx in poly.loop_indices:
                     mask[i] = sel
                     i+=1
         else:
-            # verts = mesh.vertices
-            # verts.foreach_get('select', mask2)
-
             for poly in mesh.polygons:
                 for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                     mask[i] = mesh.vertices[vert_idx].select
@@ -1421,7 +1414,7 @@ class SXTOOLS_layers(object):
         now = time.time()
         print('Get mask duration: ', now-then, ' seconds')
 
-        return mask # , mask2
+        return mask
 
 
     def clear_layers(self, objs, targetLayer=None):
@@ -2467,7 +2460,6 @@ class SXTOOLS_tools(object):
 
 
     def apply_color_rgba(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
-        then = time.time()
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
@@ -2500,9 +2492,6 @@ class SXTOOLS_tools(object):
 
         if noise != 0.0:
             self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
-
-        now = time.time()
-        print('Apply color RGBA duration: ', now-then, ' seconds')
 
 
     def apply_color_uv(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
@@ -2565,17 +2554,17 @@ class SXTOOLS_tools(object):
                     else:
                         if overwrite:
                             colors[(0+i*4):(4+i*4)] = [0.0, 0.0, 0.0, 0.0]
-                layers.set_uv4(obj, layer.vertexColorLayer, colors, mode)
+                layers.set_uv4(obj, layer, colors, mode)
 
             elif overwrite:
-                layers.set_uv4(obj, layer.vertexColorLayer, colors, mode)
+                layers.set_uv4(obj, layer, colors, mode)
 
             else:
                 target_colors = layers.get_colors(obj, layer.vertexColorLayer)
                 for i in range(count):
                     if target_colors[3+i*4] > 0.0:
                         target_colors[(0+i*4):(3+i*4)] = [color[0], color[1], color[2]]
-                layers.set_uv4(obj, layer.vertexColorLayer, target_colors, mode)
+                layers.set_uv4(obj, layer, target_colors, mode)
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -7034,7 +7023,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_debug.label(text='Debug Tools')
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
-                            # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
+                            col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
                             col_debug.operator('sxtools.smart_separate', text='Debug: Smart Separate sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
