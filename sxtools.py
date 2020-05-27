@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (3, 16, 1),
+    'version': (4, 0, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -465,44 +465,21 @@ class SXTOOLS_utils(object):
 
     def find_colors_by_frequency(self, objs, layer):
         mode = objs[0].mode
-        scene = bpy.context.scene.sxtools
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V': 1}
 
         colorArray = []
         for obj in objs:
-            mesh = obj.data
             if layer.layerType == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-            elif layer.layerType == 'UV4':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+                colorArray = layers.get_colors(obj, layer.vertexColorLayer, True)
             elif layer.layerType == 'UV':
-                uvValues = obj.data.uv_layers[layer.uvLayer0].data
-
-            for poly in mesh.polygons:
-                for loop_idx in poly.loop_indices:
-                    if layer.layerType == 'COLOR':
-                        vertcolor = vertexColors[loop_idx].color[:]
-                    elif layer.layerType == 'UV4':
-                        uvValue0 = uvValues0[loop_idx].uv[channels[layer.uvChannel0]]
-                        uvValue1 = uvValues1[loop_idx].uv[channels[layer.uvChannel1]]
-                        uvValue2 = uvValues2[loop_idx].uv[channels[layer.uvChannel2]]
-                        # uvValue3 = uvValues3[loop_idx].uv[channels[layer.uvChannel3]]
-                        vertcolor = [uvValue0, uvValue1, uvValue2, 1.0]
-                    elif layer.layerType == 'UV':
-                        uvValue = uvValues[loop_idx].uv[channels[layer.uvChannel0]]
-                        vertcolor = [uvValue, uvValue, uvValue, 1.0]
-
-                    if vertcolor[3] > 0.0:
-                        colorArray.append(vertcolor)
+                colorArray = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0, True)
+            elif layer.layerType == 'UV4':
+                colorArray = layers.get_uv4(obj, layer.name, True)
 
         if len(colorArray) == 0:
             colorArray.append([0.0, 0.0, 0.0, 1.0])
 
-        colorSet = set(tuple(color) for color in colorArray)
+        colorSet = set(color for color in colorArray)
         colorFreq = []
         for color in colorSet:
             colorFreq.append((colorArray.count(color), color))
@@ -511,6 +488,13 @@ class SXTOOLS_utils(object):
 
         bpy.ops.object.mode_set(mode=mode)
         return sortColors
+
+
+    def color_compare(self, color1, color2, tolerance=0.001):
+        vec1 = Vector(color1)
+        vec2 = Vector(color2)
+        difference = vec1 - vec2
+        return difference.length <= tolerance
 
 
     def __del__(self):
@@ -1267,6 +1251,145 @@ class SXTOOLS_layers(object):
         return None
 
 
+    def get_colors(self, obj, source, as_rgba=False):
+        sourceColors = obj.data.vertex_colors[source].data
+        colors = [None] * len(sourceColors) * 4
+        sourceColors.foreach_get('color', colors)
+
+        if as_rgba:
+            count = len(sourceColors)
+            rgba = [None] * len(sourceColors)
+            for i in range(count):
+                rgba[i] = tuple(colors[(0+i*4):(4+i*4)])
+            return rgba
+        else:
+            return colors
+
+
+    def set_colors(self, obj, target, colors, maskmode='OBJECT'):
+        targetColors = obj.data.vertex_colors[target].data
+        if maskmode != 'OBJECT':
+            mask = self.get_selection_mask(obj)
+            count = len(mask)
+            target_colors = self.get_colors(obj, target)
+            for i in range(count):
+                if not mask[i]:
+                    colors[(0+i*4):(4+i*4)] = target_colors[(0+i*4):(4+i*4)]
+
+        targetColors.foreach_set('color', colors)
+
+
+    def get_uvs(self, obj, sourcelayer, channel=None, as_rgba=False):
+        channels = {'U': 0, 'V': 1}
+        sourceUVs = obj.data.uv_layers[sourcelayer].data
+        count = len(sourceUVs)
+        source_uvs = [None] * count * 2
+        sourceUVs.foreach_get('uv', source_uvs)
+
+        if channel is None:
+            uvs = source_uvs
+
+        elif (channel is not None) and as_rgba:
+            uvs = [None] * count
+            sc = channels[channel]
+
+            for i in range(count):
+                value = source_uvs[sc+i*2]
+                uvs[i] = tuple((value, value, value, 1.0))
+
+        else:
+            uvs = [None] * count
+            sc = channels[channel]
+            for i in range(count):
+                uvs[i] = source_uvs[sc+i*2]
+
+        return uvs
+
+
+    # when targetchannel is None, sourceuvs is expected to contain data for both U and V
+    def set_uvs(self, obj, targetlayer, sourceuvs, targetchannel=None, maskmode='OBJECT'):
+        channels = {'U': 0, 'V': 1}
+        targetUVs = obj.data.uv_layers[targetlayer].data
+
+        if maskmode == 'OBJECT':
+            if targetchannel is None:
+                targetUVs.foreach_set('uv', sourceuvs)
+            else:
+                target_uvs = self.get_uvs(obj, targetlayer)
+                tc = channels[targetchannel]
+                count = len(sourceuvs)
+                for i in range(count):
+                    target_uvs[tc+i*2] = sourceuvs[i]
+                targetUVs.foreach_set('uv', target_uvs)
+
+        else:
+            mask = self.get_selection_mask(obj)
+            count = len(mask)
+            target_uvs = self.get_uvs(obj, targetlayer)
+            if targetchannel is None:
+                for i in range(count):
+                    if mask[i]:
+                        target_uvs[(0+i*2):(2+i*2)] = sourceuvs[(0+i*2):(2+i*2)]
+            else:
+                tc = channels[targetchannel]
+                for i in range(count):
+                    if mask[i]:
+                        target_uvs[tc+i*2] = sourceuvs[i]
+
+            targetUVs.foreach_set('uv', target_uvs)
+
+
+    def get_uv4(self, obj, sourcelayer, as_rgba=False):
+        sourceUVs0 = obj.data.uv_layers[obj.sxlayers[sourcelayer].uvLayer0].data
+        sourceUVs1 = obj.data.uv_layers[obj.sxlayers[sourcelayer].uvLayer2].data
+        count = len(sourceUVs0)
+        source_uvs0 = [None] * count * 2
+        source_uvs1 = [None] * count * 2
+        sourceUVs0.foreach_get('uv', source_uvs0)
+        sourceUVs1.foreach_get('uv', source_uvs1)
+
+        colors = [None] * count * 4
+
+        if as_rgba:
+            colors = [None] * count
+            for i in range(count):
+                colors[i] = tuple((source_uvs0[0+i*2], source_uvs0[1+i*2], source_uvs1[0+i*2], source_uvs1[1+i*2]))
+        else:
+            for i in range(count):
+                colors[(0+i*4):(2+i*4)] = source_uvs0[(0+i*2):(2+i*2)]
+                colors[(2+i*4):(4+i*4)] = source_uvs1[(0+i*2):(2+i*2)]
+
+        return colors
+
+
+    def get_selection_mask(self, obj):
+        # then = time.time()
+        mode = obj.mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        mesh = obj.data
+        count = len(obj.data.uv_layers[0].data)
+        mask = [None] * count
+
+        i = 0
+        if bpy.context.tool_settings.mesh_select_mode[2]:
+            for poly in mesh.polygons:
+                sel = poly.select
+                for loop_idx in poly.loop_indices:
+                    mask[i] = sel
+                    i+=1
+        else:
+            for poly in mesh.polygons:
+                for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                    mask[i] = mesh.vertices[vert_idx].select
+                    i+=1
+
+        bpy.ops.object.mode_set(mode=mode)
+        # now = time.time()
+        # print('Get mask duration: ', now-then, ' seconds')
+        return mask
+
+
     def clear_layers(self, objs, targetLayer=None):
         if targetLayer is None:
             print('SX Tools: Clearing all layers')
@@ -1274,7 +1397,7 @@ class SXTOOLS_layers(object):
             for obj in objs:
                 for sxLayer in sxLayers:
                     color = sxLayer.defaultColor
-                    tools.apply_color([obj, ], sxLayer, color, True, 0.0)
+                    tools.apply_color_rgba([obj, ], sxLayer, color, True, 0.0)
                     setattr(obj.sxlayers[sxLayer.index], 'alpha', 1.0)
                     setattr(obj.sxlayers[sxLayer.index], 'visibility', True)
                     setattr(obj.sxlayers[sxLayer.index], 'blendMode', 'ALPHA')
@@ -1286,20 +1409,19 @@ class SXTOOLS_layers(object):
             if fillMode == 'COLOR':
                 for obj in objs:
                     color = targetLayer.defaultColor
-                    tools.apply_color([obj, ], targetLayer, color, True, 0.0)
+                    tools.apply_color_rgba([obj, ], targetLayer, color, True, 0.0)
                     setattr(obj.sxlayers[targetLayer.index], 'alpha', 1.0)
                     setattr(obj.sxlayers[targetLayer.index], 'visibility', True)
                     setattr(obj.sxlayers[targetLayer.index], 'blendMode', 'ALPHA')
+
             elif (fillMode == 'UV') or (fillMode == 'UV4'):
                 self.clear_uvs(objs, targetLayer)
 
 
     def clear_uvs(self, objs, targetLayer=None):
-        objDicts = tools.selection_handler(objs)
         sxUVs = utils.find_default_values(objs[0], 'Dict')
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V': 1}
 
         if targetLayer is not None:
             uvNames = [
@@ -1309,34 +1431,38 @@ class SXTOOLS_layers(object):
                 targetLayer.uvLayer3]
 
             fillChannels = [
-                channels[targetLayer.uvChannel0],
-                channels[targetLayer.uvChannel1],
-                channels[targetLayer.uvChannel2],
-                channels[targetLayer.uvChannel3]]
+                targetLayer.uvChannel0,
+                targetLayer.uvChannel1,
+                targetLayer.uvChannel2,
+                targetLayer.uvChannel3]
 
             uvValue = targetLayer.defaultValue
 
         for obj in objs:
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
-
             mesh = obj.data
+            count = len(mesh.uv_layers[0].data)
             if targetLayer is None:
                 for i, key in enumerate(mesh.uv_layers.keys()):
                     uvName = mesh.uv_layers[i].name
                     if 'UVSet' in uvName:
-                        for vert_idx, loop_indices in vertLoopDict.items():
-                            for loop_idx in loop_indices:
-                                mesh.uv_layers[i].data[loop_idx].uv = sxUVs[uvName]
+                        # then = time.time()
+                        sourceuvs = [sxUVs[uvName][0], sxUVs[uvName][1]] * count
+                        self.set_uvs(obj, uvName, sourceuvs, maskmode='OBJECT')
+                        # now = time.time()
+                        # print('Foreach UV clear duration: ', now-then, ' seconds')
             else:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for loop_idx in loop_indices:
-                        for i, uvName in enumerate(uvNames):
-                            if uvName != '':
-                                if targetLayer.layerType == 'UV4':
-                                    mesh.uv_layers[uvName].data[loop_idx].uv = sxUVs[uvName]
-                                else:
-                                    mesh.uv_layers[uvName].data[loop_idx].uv[fillChannels[i]] = uvValue
+                # then = time.time()
+                for i, uvName in enumerate(uvNames):
+                    if uvName != '':
+                        if targetLayer.layerType == 'UV4':
+                            sourceuvs = [sxUVs[uvName][0], sxUVs[uvName][1]] * count
+                            self.set_uvs(obj, uvName, sourceuvs, maskmode='OBJECT')
+                        else:
+                            sourceuvs = [uvValue] * count
+                            self.set_uvs(obj, uvName, sourceuvs, fillChannels[i], maskmode='OBJECT')
+
+                # now = time.time()
+                # print('Foreach UV clear duration: ', now-then, ' seconds')
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -1371,16 +1497,11 @@ class SXTOOLS_layers(object):
         channels = {'U': 0, 'V':1}
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors
-            vertexUVs = obj.data.uv_layers
-            resultColors = vertexColors[obj.sxlayers['composite'].vertexColorLayer].data
-            count = len(resultColors)
+            count = len(obj.data.vertex_colors[0].data)
             colors = [None] * count * 4
 
             if fillmode == 'COLOR':
-                layerColors = vertexColors[layer.vertexColorLayer].data
-                layerColors.foreach_get('color', colors)
-
+                colors = self.get_colors(obj, layer.vertexColorLayer)
                 if shadingmode == 'DEBUG':
                     for i in range(count):
                         color = colors[(0+i*4):(4+i*4)]
@@ -1393,31 +1514,16 @@ class SXTOOLS_layers(object):
 
             # no difference between DEBUG and ALPHA for UV fillmode
             elif fillmode == 'UV':
-                layerUVs = vertexUVs[layer.uvLayer0].data
-                uv = channels[layer.uvChannel0]
-                uvs = [None] * count * 2
-                layerUVs.foreach_get('uv', uvs)
+                uvs = self.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
 
                 for i in range(count):
-                    value = uvs[(uv+i*2)]
+                    value = uvs[i]
                     colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
 
             elif fillmode == 'UV4':
                 if shadingmode == 'DEBUG':
-                    layerUVs0 = vertexUVs[layer.uvLayer0].data
-                    layerUVs1 = vertexUVs[layer.uvLayer1].data
-                    layerUVs2 = vertexUVs[layer.uvLayer2].data
-                    layerUVs3 = vertexUVs[layer.uvLayer3].data
-
-                    uvs0 = [None] * count * 2
-                    uvs1 = [None] * count * 2
-                    uvs2 = [None] * count * 2
-                    uvs3 = [None] * count * 2
-
-                    layerUVs0.foreach_get('uv', uvs0)
-                    layerUVs1.foreach_get('uv', uvs1)
-                    layerUVs2.foreach_get('uv', uvs2)
-                    layerUVs3.foreach_get('uv', uvs3)
+                    uvs0 = self.get_uvs(obj, layer.uvLayer0)
+                    uvs1 = self.get_uvs(obj, layer.uvLayer2)
 
                     uv0 = channels[layer.uvChannel0]
                     uv1 = channels[layer.uvChannel1]
@@ -1425,21 +1531,18 @@ class SXTOOLS_layers(object):
                     uv3 = channels[layer.uvChannel3]
 
                     for i in range(count):
-                        color = [uvs0[(uv0+i*2)], uvs1[(uv1+i*2)], uvs2[(uv2+i*2)], uvs3[(uv3+i*2)]]
+                        color = [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]]
                         a = color[3]
                         colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
 
                 elif shadingmode == 'ALPHA':
-                    layerUVs = vertexUVs[layer.uvLayer3].data
-                    uv = channels[layer.uvChannel3]
-                    uvs = [None] * count * 2
-                    layerUVs.foreach_get('uv', uvs)
+                    uvs = self.get_uvs(obj, layer.uvLayer3, layer.uvChannel3)
 
                     for i in range(count):
-                        value = uvs[(uv+i*2)]
+                        value = uvs[i]
                         colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
 
-            resultColors.foreach_set('color', colors)
+            self.set_colors(obj, obj.sxlayers['composite'].vertexColorLayer, colors)
             # bpy.context.view_layer.update()
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -1457,18 +1560,13 @@ class SXTOOLS_layers(object):
         midpoint = 0.5 # convert.srgb_to_linear([0.5, 0.5, 0.5, 1.0])[0]
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors
-            vertexUVs = obj.data.uv_layers
-            resultColors = vertexColors[resultLayer.vertexColorLayer].data
-            baseLayerColors = vertexColors[baseLayer.vertexColorLayer].data
-            baseAlpha = getattr(baseLayer, 'alpha')
-            count = len(baseLayerColors)
-            baseColors = [None] * count * 4
-            baseLayerColors.foreach_get('color', baseColors)
+            # baseAlpha = getattr(baseLayer, 'alpha')
+            count = len(obj.data.vertex_colors[0].data)
+            colors = [None] * count * 4
+            baseColors = self.get_colors(obj, baseLayer.vertexColorLayer)
             # colors = np.empty(count*4, dtype=np.float32)
 
             for layer in topLayerArray:
-                colors = [None] * count * 4
                 layerIdx = layer.index
 
                 if not getattr(obj.sxlayers[layerIdx], 'visibility'):
@@ -1479,8 +1577,7 @@ class SXTOOLS_layers(object):
                     fillmode = getattr(obj.sxlayers[layerIdx], 'layerType')
 
                     if fillmode == 'COLOR':
-                        layerColors = vertexColors[layer.vertexColorLayer].data
-                        layerColors.foreach_get('color', colors)
+                        colors = self.get_colors(obj, layer.vertexColorLayer)
 
                     elif (layer.name == 'gradient1') or (layer.name == 'gradient2'):
                         if layer.name == 'gradient1':
@@ -1488,42 +1585,22 @@ class SXTOOLS_layers(object):
                         else:
                             dv = sxmaterial.nodes['PaletteColor4'].outputs[0].default_value
 
-                        layerUVs = vertexUVs[layer.uvLayer0].data
-
-                        uvs = [None] * count * 2
-                        layerUVs.foreach_get('uv', uvs)
-                        uv = channels[layer.uvChannel0]
+                        uvs = self.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
 
                         for i in range(count):
-                            value = uvs[(uv+i*2)]
+                            value = uvs[i]
                             colors[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], value]
 
                     elif fillmode == 'UV':
-                        layerUVs = vertexUVs[layer.uvLayer0].data
-
-                        uvs = [None] * count * 2
-                        layerUVs.foreach_get('uv', uvs)
-                        uv = channels[layer.uvChannel0]
+                        uvs = self.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
 
                         for i in range(count):
-                            value = uvs[(uv+i*2)]
+                            value = uvs[i]
                             colors[(0+i*4):(4+i*4)] = [value, value, value, 1.0]
 
                     elif fillmode == 'UV4':
-                        layerUVs0 = vertexUVs[layer.uvLayer0].data
-                        layerUVs1 = vertexUVs[layer.uvLayer1].data
-                        layerUVs2 = vertexUVs[layer.uvLayer2].data
-                        layerUVs3 = vertexUVs[layer.uvLayer3].data
-
-                        uvs0 = [None] * count * 2
-                        uvs1 = [None] * count * 2
-                        uvs2 = [None] * count * 2
-                        uvs3 = [None] * count * 2
-
-                        layerUVs0.foreach_get('uv', uvs0)
-                        layerUVs1.foreach_get('uv', uvs1)
-                        layerUVs2.foreach_get('uv', uvs2)
-                        layerUVs3.foreach_get('uv', uvs3)
+                        uvs0 = self.get_uvs(obj, layer.uvLayer0)
+                        uvs1 = self.get_uvs(obj, layer.uvLayer2)
 
                         uv0 = channels[layer.uvChannel0]
                         uv1 = channels[layer.uvChannel1]
@@ -1531,7 +1608,7 @@ class SXTOOLS_layers(object):
                         uv3 = channels[layer.uvChannel3]
 
                         for i in range(count):
-                            color = [uvs0[(uv0+i*2)], uvs1[(uv1+i*2)], uvs2[(uv2+i*2)], uvs3[(uv3+i*2)]]
+                            color = [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]]
                             a = color[3]
                             colors[(0+i*4):(4+i*4)] = [color[0] * a, color[1] * a, color[2] * a, 1.0]
 
@@ -1566,7 +1643,7 @@ class SXTOOLS_layers(object):
                             base[3] = min(base[3]+a, 1.0)
 
                         baseColors[(0+i*4):(4+i*4)] = base
-                    resultColors.foreach_set('color', baseColors)
+            self.set_colors(obj, resultLayer.vertexColorLayer, baseColors)
             # bpy.context.view_layer.update()
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -1574,78 +1651,162 @@ class SXTOOLS_layers(object):
         bpy.context.view_layer.objects.active = active
 
 
-    # Takes vertex color set names, uv map names, and channel IDs as input.
-    # CopyChannel does not perform translation of layernames to object data sets.
-    # Expected input is [obj, ...], vertexcolorsetname, R/G/B/A, uvlayername, U/V, mode
+    # The contents of inputs varies per fillmode. Refer to layer_copy_manager.
     def copy_channel(self, objs, source, sourceChannel, target, targetChannel, fillMode):
-        objDicts = tools.selection_handler(objs)
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors
-            vertexUVs = obj.data.uv_layers
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
-
             # UV to UV
             if fillMode == 0:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for idx in loop_indices:
-                        value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
-                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+                source_uvs = self.get_uvs(obj, source, sourceChannel)
+                self.set_uvs(obj, target, source_uvs, targetChannel, mode)
+
             # RGB luminance to UV
             elif fillMode == 1:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for idx in loop_indices:
-                        color = vertexColors[source].data[idx].color
-                        value = convert.color_to_luminance(color)
-                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
-            # UV to RGB
+                colors = self.get_colors(obj, source)
+                target_uvs = self.get_uvs(obj, target, targetChannel)
+                count = len(obj.data.uv_layers[0].data)
+
+                for i in range(count):
+                    color = colors[(0+i*4):(4+i*4)]
+                    value = convert.color_to_luminance(color)
+                    target_uvs[i] = value
+
+                self.set_uvs(obj, target, target_uvs, targetChannel, mode)
+
+            # UV to RGBA
             elif fillMode == 2:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for idx in loop_indices:
-                        value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
-                        if value > 0.0:
-                            alpha = 1.0
-                        else:
-                            alpha = 0.0
-                        vertexColors[target].data[idx].color = [value, value, value, alpha]
+                uvs = self.get_uvs(obj, source, sourceChannel)
+                count = len(obj.data.uv_layers[0].data)
+                colors = [None] * count * 4
+
+                for i in range(count):
+                    value = uvs[i]
+                    if value > 0.0:
+                        alpha = 1.0
+                    else:
+                        alpha = 0.0
+                    colors[(0+i*4):(4+i*4)] = [value, value, value, alpha]
+
+                self.set_colors(obj, target, colors, mode)
+
             # R/G/B/A to UV
             elif fillMode == 3:
+                objDicts = tools.selection_handler(objs)
+                vertexColors = obj.data.vertex_colors
+                vertexUVs = obj.data.uv_layers
+                vertLoopDict = defaultdict(list)
+                vertLoopDict = objDicts[obj][0]
+
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for idx in loop_indices:
                         value = vertexColors[source].data[idx].color[channels[sourceChannel]]
                         vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+
             # RGBA to RGBA
             elif fillMode == 4:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for idx in loop_indices:
-                        value = vertexColors[source].data[idx].color[:]
-                        vertexColors[target].data[idx].color = value
+                colors = self.get_colors(obj, source)
+                self.set_colors(obj, target, colors, mode)
+
             # UV to R/G/B/A
             elif fillMode == 5:
+                objDicts = tools.selection_handler(objs)
+                vertexColors = obj.data.vertex_colors
+                vertexUVs = obj.data.uv_layers
+                vertLoopDict = defaultdict(list)
+                vertLoopDict = objDicts[obj][0]
+
                 for vert_idx, loop_indices in vertLoopDict.items():
                     for idx in loop_indices:
                         value = vertexUVs[source].data[idx].uv[channels[sourceChannel]]
                         vertexColors[target].data[idx].color[channels[targetChannel]] = value
+
             # UV4 luminance to UV
             elif fillMode == 6:
-                set0 = obj.sxlayers[source].uvLayer0
-                set1 = obj.sxlayers[source].uvLayer1
-                set2 = obj.sxlayers[source].uvLayer2
-                channel0 = channels[obj.sxlayers[source].uvChannel0]
-                channel1 = channels[obj.sxlayers[source].uvChannel1]
-                channel2 = channels[obj.sxlayers[source].uvChannel2]
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for idx in loop_indices:
-                        v0 = vertexUVs[set0].data[idx].uv[channel0]
-                        v1 = vertexUVs[set1].data[idx].uv[channel1]
-                        v2 = vertexUVs[set2].data[idx].uv[channel2]
-                        color = [v0, v1, v2, 1.0]
-                        value = convert.color_to_luminance(color)
-                        vertexUVs[target].data[idx].uv[channels[targetChannel]] = value
+                #then = time.time()
+                uvs0 = self.get_uvs(obj, obj.sxlayers[source].uvLayer0)
+                uvs1 = self.get_uvs(obj, obj.sxlayers[source].uvLayer2)
+
+                uv0 = channels[obj.sxlayers[source].uvChannel0]
+                uv1 = channels[obj.sxlayers[source].uvChannel1]
+                uv2 = channels[obj.sxlayers[source].uvChannel2]
+                uv3 = channels[obj.sxlayers[source].uvChannel3]
+
+                count = len(obj.data.uv_layers[0].data)
+                values = [None] * count
+
+                for i in range(count):
+                    color = [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]]
+                    values[i] = convert.color_to_luminance(color)
+
+                self.set_uvs(obj, target, values, targetChannel, mode)
+                # now = time.time()
+                # print('Lum to uv foreach duration: ', now-then, ' seconds')
+
+            # UV4 to RGBA
+            elif fillMode == 7:
+                uvs0 = self.get_uvs(obj, obj.sxlayers[source].uvLayer0)
+                uvs1 = self.get_uvs(obj, obj.sxlayers[source].uvLayer2)
+
+                uv0 = channels[obj.sxlayers[source].uvChannel0]
+                uv1 = channels[obj.sxlayers[source].uvChannel1]
+                uv2 = channels[obj.sxlayers[source].uvChannel2]
+                uv3 = channels[obj.sxlayers[source].uvChannel3]
+
+                count = len(obj.data.uv_layers[0].data)
+                colors = [None] * count * 4
+
+                for i in range(count):
+                    colors[(0+i*4):(4+i*4)] = [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]]
+
+                self.set_colors(obj, target, colors, mode)
+
+            # RGBA to UV4
+            elif fillMode == 8:
+                colors = self.get_colors(obj, source)
+
+                count = len(obj.data.uv_layers[0].data)
+                uvs0 = [None] * count * 2
+                uvs1 = [None] * count * 2
+
+                uv0 = channels[obj.sxlayers[target].uvChannel0]
+                uv1 = channels[obj.sxlayers[target].uvChannel1]
+                uv2 = channels[obj.sxlayers[target].uvChannel2]
+                uv3 = channels[obj.sxlayers[target].uvChannel3]
+
+                target1 = obj.sxlayers[target].uvLayer0
+                target2 = obj.sxlayers[target].uvLayer2
+
+                for i in range(count):
+                    [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]] = colors[(0+i*4):(4+i*4)]
+
+                self.set_uvs(obj, target1, uvs0, None, mode)
+                self.set_uvs(obj, target2, uvs1, None, mode)
+
+            # UV to UV4
+            elif fillMode == 9:
+                uvs = self.get_uvs(obj, source, sourceChannel)
+
+                count = len(obj.data.uv_layers[0].data)
+                uvs0 = [None] * count * 2
+                uvs1 = [None] * count * 2
+
+                target1 = obj.sxlayers[target].uvLayer0
+                target2 = obj.sxlayers[target].uvLayer2
+
+                uv0 = channels[obj.sxlayers[target].uvChannel0]
+                uv1 = channels[obj.sxlayers[target].uvChannel1]
+                uv2 = channels[obj.sxlayers[target].uvChannel2]
+                uv3 = channels[obj.sxlayers[target].uvChannel3]
+
+                for i in range(count):
+                    value = uvs[i]
+                    [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)], uvs1[(uv3+i*2)]] = [value, value, value, 1.0]
+
+                self.set_uvs(obj, target1, uvs0, None, mode)
+                self.set_uvs(obj, target2, uvs1, None, mode)
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -1782,30 +1943,34 @@ class SXTOOLS_layers(object):
 
 
     def color_layers_to_values(self, objs):
-        mode = objs[0].mode
+        # mode = objs[0].mode
         scene = bpy.context.scene.sxtools
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V': 1}
+        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for i in range(5):
             layer = objs[0].sxlayers[i+1]
             palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
-            setattr(scene, 'newpalette' + str(i), palettecolor)
+            tabcolor = getattr(scene, 'newpalette' + str(i))
 
-        bpy.ops.object.mode_set(mode=mode)
+            if not utils.color_compare(palettecolor, tabcolor):
+                setattr(scene, 'newpalette' + str(i), palettecolor)
+
+        # bpy.ops.object.mode_set(mode=mode)
 
 
     def material_layers_to_values(self, objs):
         mode = objs[0].mode
         scene = bpy.context.scene.sxtools
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        channels = {'U': 0, 'V': 1}
         layers = [7, 12, 13]
 
         for i, idx in enumerate(layers):
             layer = objs[0].sxlayers[idx]
             palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
-            setattr(scene, 'newmaterial' + str(i), palettecolor)
+            tabcolor = getattr(scene, 'newmaterial' + str(i))
+
+            if not utils.color_compare(palettecolor, tabcolor):
+                setattr(scene, 'newmaterial' + str(i), palettecolor)
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2129,6 +2294,7 @@ class SXTOOLS_mesh(object):
         bpy.ops.object.mode_set(mode=mode)
         return objThicknesses
 
+
     # mode 0: luminance, mode 1: HSL hue, mode 2: HSL saturation, mode 3: HSL lightness
     def calculate_luminance_hsl(self, objs, layer, hslmode):
         objDicts = tools.selection_handler(objs)
@@ -2269,6 +2435,7 @@ class SXTOOLS_tools(object):
     # Analyze if multi-object selection is in object or component mode,
     # return appropriate vertices
     def selection_handler(self, objs):
+        # then = time.time()
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         objDicts = {}
@@ -2320,13 +2487,258 @@ class SXTOOLS_tools(object):
             objDicts[obj] = (vertLoopDict, vertPosDict, vertWorldPosDict)
 
         bpy.ops.object.mode_set(mode=mode)
+        # now = time.time()
+        # print('Selection handler duration: ', now-then, ' seconds')
         return objDicts
 
 
-    # maskLayer assumes color layers only
-    def apply_color(self, objs, layer, color, overwrite, noise=0.0, mono=False, maskLayer=None):
+    def apply_color_rgba(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
+        then = time.time()
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for obj in objs:
+            count = len(obj.data.vertex_colors[0].data)
+            colors = [color[0], color[1], color[2], color[3]] * count
+
+            if masklayer:
+                mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
+                for i in range(count):
+                    maskalpha = mask_values[3+i*4]
+                    if maskalpha > 0.0:
+                        colors[(0+i*4):(4+i*4)] = [color[0], color[1], color[2], maskalpha]
+                    else:
+                        if overwrite:
+                            colors[(0+i*4):(4+i*4)] = [0.0, 0.0, 0.0, 0.0]
+                layers.set_colors(obj, layer.vertexColorLayer, colors, mode)
+
+            elif overwrite:
+                layers.set_colors(obj, layer.vertexColorLayer, colors, mode)
+
+            else:
+                target_colors = layers.get_colors(obj, layer.vertexColorLayer)
+                for i in range(count):
+                    if target_colors[3+i*4] > 0.0:
+                        target_colors[(0+i*4):(3+i*4)] = [color[0], color[1], color[2]]
+                layers.set_colors(obj, layer.vertexColorLayer, target_colors, mode)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+        if noise != 0.0:
+            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
+
+        now = time.time()
+        print('Apply color RGBA duration: ', now-then, ' seconds')
+
+
+    def apply_color_uv(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
+        then = time.time()
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        fillValue = convert.color_to_luminance(color)
+
+        for obj in objs:
+            count = len(obj.data.uv_layers[0].data)
+            values = [fillValue] * count
+
+            if masklayer:
+                mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
+                target_values = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
+                for i in range(count):
+                    maskalpha = mask_values[3+i*4]
+                    if maskalpha > 0.0:
+                        target_values[i] = fillValue * maskalpha
+                    else:
+                        if overwrite:
+                            target_values[i] = [0.0, 0.0, 0.0, 0.0]
+                layers.set_uvs(obj, layer.uvLayer0, target_values, layer.uvChannel0, mode)
+
+            elif overwrite:
+                layers.set_uvs(obj, layer.uvLayer0, values, layer.uvChannel0, mode)
+
+            else:
+                target_values = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
+                for i in range(count):
+                    target_value = target_values[i]
+                    if target_value > 0.0:
+                        target_values[i] = fillValue
+                layers.set_uvs(obj, layer.uvLayer0, target_values, layer.uvChannel0, mode)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+        if noise != 0.0:
+            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
+
+        now = time.time()
+        print('Apply Color UV duration: ', now-then, ' seconds')
+
+    # TODO
+    def apply_color_uv4(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for obj in objs:
+            count = len(obj.data.vertex_colors[0].data)
+            colors = [color[0], color[1], color[2], color[3]] * count
+
+            if masklayer:
+                mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
+                target_values = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
+                for i in range(count):
+                    maskalpha = mask_values[3+i*4]
+                    if maskalpha > 0.0:
+                        target_values[i] = fillValue * maskalpha
+                    else:
+                        if overwrite:
+                            target_values[i] = [0.0, 0.0, 0.0, 0.0]
+                layers.set_uvs(obj, layer.uvLayer0, target_values, layer.uvChannel0, mode)
+
+            elif overwrite:
+                layers.set_uvs(obj, layer.uvLayer0, values, layer.uvChannel0, mode)
+
+            else:
+                target_values = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
+                for i in range(count):
+                    target_value = target_values[i]
+                    if target_value > 0.0:
+                        target_values[i] = fillValue
+                layers.set_uvs(obj, layer.uvLayer0, target_values, layer.uvChannel0, mode)
+
+        bpy.ops.object.mode_set(mode=mode)
+
+        if noise != 0.0:
+            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
+
+
+    def apply_noise(self, objs, layer, overwrite, noise=0.0, mono=False, masklayer=None):
+        then = time.time()
         objDicts = self.selection_handler(objs)
         fillMode = layer.layerType
+        channels = {'U': 0, 'V': 1}
+        fillChannel0 = channels[layer.uvChannel0]
+        fillChannel1 = channels[layer.uvChannel1]
+        fillChannel2 = channels[layer.uvChannel2]
+        fillChannel3 = channels[layer.uvChannel3]
+
+        mode = objs[0].mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for obj in objs:
+            noisecolor = [1.0, 1.0, 1.0, 1.0]
+            noisevalue = 1.0
+            vertLoopDict = defaultdict(list)
+            vertLoopDict = objDicts[obj][0]
+
+            if masklayer:
+                maskvalues = obj.data.vertex_colors[masklayer.vertexColorLayer].data
+
+            if fillMode == 'COLOR':
+                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
+
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    if mono:
+                        monoNoise = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                        for i in range(3):
+                            noisecolor[i] = monoNoise
+                    else:
+                        for i in range(3):
+                            noisecolor[i] = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                    for loop_idx in loop_indices:
+                        if masklayer:
+                            if maskvalues[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color *= [noisecolor[0], noisecolor[1], noisecolor[2], maskvalues[loop_idx].color[3]]
+                            else:
+                                if overwrite:
+                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                        elif overwrite:
+                            vertexColors[loop_idx].color[0] *= noisecolor[0]
+                            vertexColors[loop_idx].color[1] *= noisecolor[1]
+                            vertexColors[loop_idx].color[2] *= noisecolor[2]
+                            vertexColors[loop_idx].color[3] = noisecolor[3]
+                        else:
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color[0] *= noisecolor[0]
+                                vertexColors[loop_idx].color[1] *= noisecolor[1]
+                                vertexColors[loop_idx].color[2] *= noisecolor[2]
+                            else:
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+            elif fillMode == 'UV4':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
+                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
+                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    if mono:
+                        monoNoise = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                        for i in range(3):
+                            noisecolor[i] = monoNoise
+                    else:
+                        for i in range(3):
+                            noisecolor[i] = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                    for loop_idx in loop_indices:
+                        if masklayer:
+                            if maskvalues[loop_idx].color[3] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
+                                uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
+                                uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
+                                uvValues3[loop_idx].uv[fillChannel3] *= maskvalues[loop_idx].color[3]
+                            else:
+                                if overwrite:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                        elif overwrite:
+                            uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
+                            uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
+                            uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
+                            uvValues3[loop_idx].uv[fillChannel3] *= noisecolor[3]
+                        else:
+                            if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
+                                uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
+                                uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
+                            else:
+                                uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                uvValues3[loop_idx].uv[fillChannel3] = 0.0
+            elif fillMode == 'UV':
+                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+
+                for vert_idx, loop_indices in vertLoopDict.items():
+                    value = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                    for loop_idx in loop_indices:
+                        if masklayer:
+                            if maskvalues[loop_idx].color[3] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] *= value * maskvalues[loop_idx].color[3]
+                            else:
+                                if overwrite:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                        elif overwrite:
+                            uvValues0[loop_idx].uv[fillChannel0] *= value
+                        else:
+                            if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] *= value
+
+        bpy.ops.object.mode_set(mode=mode)
+
+        now = time.time()
+        print('Apply noise duration: ', now-then, ' seconds')
+
+    # maskLayer accepts color layers only
+    def apply_color(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
+        fillMode = layer.layerType
+
+        if fillMode =='COLOR':
+            self.apply_color_rgba(objs, layer, color, overwrite, noise, mono, masklayer)
+        elif fillMode == 'UV':
+            self.apply_color_uv(objs, layer, color, overwrite, noise, mono, masklayer)
+
+        then = time.time()
+        objDicts = self.selection_handler(objs)
+        
         channels = {'U': 0, 'V': 1}
         fillChannel0 = channels[layer.uvChannel0]
         fillChannel1 = channels[layer.uvChannel1]
@@ -2351,164 +2763,81 @@ class SXTOOLS_tools(object):
             vertLoopDict = defaultdict(list)
             vertLoopDict = objDicts[obj][0]
 
-            if maskLayer:
-                maskValues = obj.data.vertex_colors[maskLayer.vertexColorLayer].data
+            if masklayer:
+                maskValues = obj.data.vertex_colors[masklayer.vertexColorLayer].data
 
-            if noise == 0.0:
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for loop_idx in loop_indices:
-                        if maskLayer:
-                            if fillMode == 'COLOR':
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    vertexColors[loop_idx].color = [color[0], color[1], color[2], maskValues[loop_idx].color[3]]
-                                else:
-                                    if overwrite:
-                                        vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-                            elif fillMode == 'UV4':
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = color[0]
-                                    uvValues1[loop_idx].uv[fillChannel1] = color[1]
-                                    uvValues2[loop_idx].uv[fillChannel2] = color[2]
-                                    uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
-                                else:
-                                    if overwrite:
-                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                        uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                        uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                        uvValues3[loop_idx].uv[fillChannel3] = 0.0
-                            elif fillMode == 'UV':
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = fillValue * maskValues[loop_idx].color[3]
-                                else:
-                                    if overwrite:
-                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                        elif overwrite:
-                            if fillMode == 'COLOR':
-                                vertexColors[loop_idx].color = color
-                            elif fillMode == 'UV4':
+            for vert_idx, loop_indices in vertLoopDict.items():
+                for loop_idx in loop_indices:
+                    if masklayer:
+                        if fillMode == 'COLOR':
+                            if maskValues[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color = [color[0], color[1], color[2], maskValues[loop_idx].color[3]]
+                            else:
+                                if overwrite:
+                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                        elif fillMode == 'UV4':
+                            if maskValues[loop_idx].color[3] > 0.0:
                                 uvValues0[loop_idx].uv[fillChannel0] = color[0]
                                 uvValues1[loop_idx].uv[fillChannel1] = color[1]
                                 uvValues2[loop_idx].uv[fillChannel2] = color[2]
-                                uvValues3[loop_idx].uv[fillChannel3] = color[3]
-                            elif fillMode == 'UV':
+                                uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
+                            else:
+                                if overwrite:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                        elif fillMode == 'UV':
+                            if maskValues[loop_idx].color[3] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] = fillValue * maskValues[loop_idx].color[3]
+                            else:
+                                if overwrite:
+                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                    elif overwrite:
+                        if fillMode == 'COLOR':
+                            vertexColors[loop_idx].color = color
+                        elif fillMode == 'UV4':
+                            uvValues0[loop_idx].uv[fillChannel0] = color[0]
+                            uvValues1[loop_idx].uv[fillChannel1] = color[1]
+                            uvValues2[loop_idx].uv[fillChannel2] = color[2]
+                            uvValues3[loop_idx].uv[fillChannel3] = color[3]
+                        elif fillMode == 'UV':
+                            uvValues0[loop_idx].uv[fillChannel0] = fillValue
+                    else:
+                        if fillMode == 'COLOR':
+                            if vertexColors[loop_idx].color[3] > 0.0:
+                                vertexColors[loop_idx].color[0] = color[0]
+                                vertexColors[loop_idx].color[1] = color[1]
+                                vertexColors[loop_idx].color[2] = color[2]
+                            else:
+                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
+                        elif fillMode == 'UV4':
+                            if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
+                                uvValues0[loop_idx].uv[fillChannel0] = color[0]
+                                uvValues1[loop_idx].uv[fillChannel1] = color[1]
+                                uvValues2[loop_idx].uv[fillChannel2] = color[2]
+                            else:
+                                uvValues0[loop_idx].uv[fillChannel0] = 0.0
+                                uvValues1[loop_idx].uv[fillChannel1] = 0.0
+                                uvValues2[loop_idx].uv[fillChannel2] = 0.0
+                                uvValues3[loop_idx].uv[fillChannel3] = 0.0
+                        elif fillMode == 'UV':
+                            if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
                                 uvValues0[loop_idx].uv[fillChannel0] = fillValue
-                        else:
-                            if fillMode == 'COLOR':
-                                if vertexColors[loop_idx].color[3] > 0.0:
-                                    vertexColors[loop_idx].color[0] = color[0]
-                                    vertexColors[loop_idx].color[1] = color[1]
-                                    vertexColors[loop_idx].color[2] = color[2]
-                                else:
-                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-                            elif fillMode == 'UV4':
-                                if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = color[0]
-                                    uvValues1[loop_idx].uv[fillChannel1] = color[1]
-                                    uvValues2[loop_idx].uv[fillChannel2] = color[2]
-                                else:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
-                            elif fillMode == 'UV':
-                                if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = fillValue
 
-            else:
-                if fillMode == 'COLOR':
-                    for vert_idx, loop_indices in vertLoopDict.items():
-                        noiseColor = [color[0], color[1], color[2], 1.0][:]
-                        if mono:
-                            monoNoise = random.uniform(-noise, noise)
-                            for i in range(3):
-                                noiseColor[i] += monoNoise
-                        else:
-                            for i in range(3):
-                                noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
-                        for loop_idx in loop_indices:
-                            if maskLayer:
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    vertexColors[loop_idx].color = [noiseColor[0], noiseColor[1], noiseColor[2], maskValues[loop_idx].color[3]]
-                                else:
-                                    if overwrite:
-                                        vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-                            elif overwrite:
-                                vertexColors[loop_idx].color = noiseColor
-                            else:
-                                if vertexColors[loop_idx].color[3] > 0.0:
-                                    vertexColors[loop_idx].color[0] = noiseColor[0]
-                                    vertexColors[loop_idx].color[1] = noiseColor[1]
-                                    vertexColors[loop_idx].color[2] = noiseColor[2]
-                                else:
-                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-                elif fillMode == 'UV4':
-                    for vert_idx, loop_indices in vertLoopDict.items():
-                        noiseColor = [color[0], color[1], color[2], 1.0][:]
-                        if mono:
-                            monoNoise = random.uniform(-noise, noise)
-                            for i in range(3):
-                                noiseColor[i] += monoNoise
-                        else:
-                            for i in range(3):
-                                noiseColor[i] += random.uniform(-noiseColor[i]*noise, noiseColor[i]*noise)
-                        for loop_idx in loop_indices:
-                            if maskLayer:
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
-                                    uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
-                                    uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
-                                    uvValues3[loop_idx].uv[fillChannel3] = maskValues[loop_idx].color[3]
-                                else:
-                                    if overwrite:
-                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                        uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                        uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                        uvValues3[loop_idx].uv[fillChannel3] = 0.0
-                            elif overwrite:
-                                uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
-                                uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
-                                uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
-                                uvValues3[loop_idx].uv[fillChannel3] = noiseColor[3]
-                            else:
-                                if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = noiseColor[0]
-                                    uvValues1[loop_idx].uv[fillChannel1] = noiseColor[1]
-                                    uvValues2[loop_idx].uv[fillChannel2] = noiseColor[2]
-                                else:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
-                elif fillMode == 'UV':
-                    for vert_idx, loop_indices in vertLoopDict.items():
-                        fillNoise = convert.color_to_luminance(color)
-                        fillNoise += random.uniform(-fillNoise*noise, fillNoise*noise)
-                        for loop_idx in loop_indices:
-                            if maskLayer:
-                                if maskValues[loop_idx].color[3] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = fillNoise * maskValues[loop_idx].color[3]
-                                else:
-                                    if overwrite:
-                                        uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                            elif overwrite:
-                                uvValues0[loop_idx].uv[fillChannel0] = fillNoise
-                            else:
-                                if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
-                                    uvValues0[loop_idx].uv[fillChannel0] = fillNoise
+        if noise != 0.0:
+            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
 
         bpy.ops.object.mode_set(mode=mode)
 
-        # mode 0: hue, mode 1: saturation, mode 2: lightness
+        now = time.time()
+        print('Apply Color (legacy) duration: ', now-then, ' seconds')
 
 
+    # mode 0: hue, mode 1: saturation, mode 2: lightness
     def apply_hsl(self, objs, layer, hslmode, newValue):
-        objDicts = self.selection_handler(objs)
         fillMode = layer.layerType
         channels = {'U': 0, 'V': 1}
-        fillChannel0 = channels[layer.uvChannel0]
-        fillChannel1 = channels[layer.uvChannel1]
-        fillChannel2 = channels[layer.uvChannel2]
-        # fillChannel3 = channels[layer.uvChannel3]
 
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -2526,38 +2855,45 @@ class SXTOOLS_tools(object):
             for obj in objs:
                 if fillMode == 'COLOR':
                     vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-                elif fillMode == 'UV':
-                    uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
+                    count = len(vertexColors)
+                    target_colors = layers.get_colors(obj, layer.vertexColorLayer)
+
+                    for i in range(count):
+                        target_color = target_colors[(0+i*4):(3+i*4)]
+                        hsl = convert.rgb_to_hsl(target_color)
+                        hsl[hslmode] += offset
+                        rgb = convert.hsl_to_rgb(hsl)
+                        target_colors[(0+i*4):(3+i*4)] = [rgb[0], rgb[1], rgb[2]]
+                    layers.set_colors(obj, layer.vertexColorLayer, target_colors, mode)
+
+                elif (fillMode == 'UV') and (hslmode == 2):
+                    layerUVs = obj.data.uv_layers[layer.uvLayer0].data
+                    count = len(layerUVs)
+                    target_uvs = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0)
+
+                    for i in range(count):
+                        target_value = target_uvs[i]
+                        target_uvs[i] = max(min(target_value+offset, 1.0), 0.0)
+                    layers.set_uvs(obj, target_uvs, layer.uvChannel0)
+
                 elif fillMode == 'UV4':
-                    uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                    uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                    uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                    # uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
+                    layerUVs = obj.data.uv_layers[layer.uvLayer0].data
+                    count = len(layerUVs)
+                    uvs0 = layers.get_uvs(obj, layer.uvLayer0)
+                    uvs1 = layers.get_uvs(obj, layer.uvLayer2)
 
-                vertLoopDict = defaultdict(list)
-                vertLoopDict = objDicts[obj][0]
+                    uv0 = channels[layer.uvChannel0]
+                    uv1 = channels[layer.uvChannel1]
+                    uv2 = channels[layer.uvChannel2]
 
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    for loop_idx in loop_indices:
-                        if fillMode == 'COLOR':
-                            color = vertexColors[loop_idx].color
-                            hsl = convert.rgb_to_hsl(color)
-                            hsl[hslmode] += offset
-                            rgb = convert.hsl_to_rgb(hsl)
-                            vertexColors[loop_idx].color = (rgb[0], rgb[1], rgb[2], color[3])
-
-                        elif fillMode == 'UV4':
-                            rgb = (uvValues0[loop_idx].uv[fillChannel0], uvValues0[loop_idx].uv[fillChannel1], uvValues0[loop_idx].uv[fillChannel2])
-                            hsl = convert.rgb_to_hsl(rgb)
-                            hsl[hslmode] += offset
-                            rgb = convert.hsl_to_rgb(hsl)
-                            uvValues0[loop_idx].uv[fillChannel0] = rgb[0]
-                            uvValues1[loop_idx].uv[fillChannel1] = rgb[1]
-                            uvValues2[loop_idx].uv[fillChannel2] = rgb[2]
-
-                        elif (fillMode == 'UV') and (hslmode == 2):
-                            uvValue = uvValues0[loop_idx].uv[fillChannel0]
-                            uvValues0[loop_idx].uv[fillChannel0] = max(min(uvValue+offset, 1.0), 0.0)
+                    for i in range(count):
+                        target_color = [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)]]
+                        hsl = convert.rgb_to_hsl(target_color)
+                        hsl[hslmode] += offset
+                        rgb = convert.hsl_to_rgb(hsl)
+                        [uvs0[(uv0+i*2)], uvs0[(uv1+i*2)], uvs1[(uv2+i*2)]] = [rgb[0], rgb[1], rgb[2]]
+                    layers.set_uvs(obj, layer.uvLayer0, uvs0)
+                    layers.set_uvs(obj, layer.uvLayer2, uvs1)
 
         bpy.ops.object.mode_set(mode=mode)
 
@@ -2878,17 +3214,9 @@ class SXTOOLS_tools(object):
             layers.copy_channel(objs, sourceVertexColors, None, targetLayer.vertexColorLayer, None, 4)
         elif sourceType == 'COLOR' and targetType == 'UV4':
             sourceVertexColors = sourceLayer.vertexColorLayer
-            targetUVs = [targetLayer.uvLayer0, targetLayer.uvLayer1, targetLayer.uvLayer2, targetLayer.uvLayer3]
-            sourceChannels = ['R', 'G', 'B', 'A']
-            targetChannels = [targetLayer.uvChannel0, targetLayer.uvChannel1, targetLayer.uvChannel2, targetLayer.uvChannel3]
-            for i in range(4):
-                layers.copy_channel(objs, sourceVertexColors, sourceChannels[i], targetUVs[i], targetChannels[i], 3)
+            layers.copy_channel(objs, sourceVertexColors, None, targetLayer.name, None, 8)
         elif sourceType == 'UV4' and targetType == 'COLOR':
-            sourceUVs = [sourceLayer.uvLayer0, sourceLayer.uvLayer1, sourceLayer.uvLayer2, sourceLayer.uvLayer3]
-            sourceChannels = [sourceLayer.uvChannel0, sourceLayer.uvChannel1, sourceLayer.uvChannel2, sourceLayer.uvChannel3]
-            targetChannels = ['R', 'G', 'B', 'A']
-            for i in range(4):
-                layers.copy_channel(objs, sourceUVs[i], sourceChannels[i], targetLayer.vertexColorLayer, targetChannels[i], 5)
+            layers.copy_channel(objs, sourceLayer.name, None, targetLayer.vertexColorLayer, None, 7)
         elif sourceType == 'UV4' and targetType == 'UV':
             targetUVs = targetLayer.uvLayer0
             targetChannel = targetLayer.uvChannel0
@@ -2910,13 +3238,13 @@ class SXTOOLS_tools(object):
         elif sourceType == 'UV' and targetType == 'UV4':
             sourceUVs = sourceLayer.uvLayer0
             sourceChannel = sourceLayer.uvChannel0
-            targetUVs = [targetLayer.uvLayer0, targetLayer.uvLayer1, targetLayer.uvLayer2, targetLayer.uvLayer3]
-            targetChannels = [targetLayer.uvChannel0, targetLayer.uvChannel1, targetLayer.uvChannel2, targetLayer.uvChannel3]
-            for i in range(4):
-                layers.copy_channel(objs, sourceUVs, sourceChannel, targetUVs[i], targetChannels[i], 0)
+            layers.copy_channel(objs, sourceUVs, sourceChannel, targetLayer.name, None, 9)
 
 
     def apply_palette(self, objs, palette, noise, mono):
+        if not sxglobals.refreshInProgress:
+            sxglobals.refreshInProgress = True
+
         palette = [
             bpy.context.scene.sxpalettes[palette].color0,
             bpy.context.scene.sxpalettes[palette].color1,
@@ -2929,15 +3257,17 @@ class SXTOOLS_tools(object):
             color = palette[idx - 1] # convert.srgb_to_linear(palette[idx - 1])
             bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = color
 
-            self.apply_color(objs, layer, color, False, noise, mono)
+            self.apply_color_rgba(objs, layer, color, False, noise, mono)
+
+        sxglobals.refreshInProgress = False
 
 
     def apply_material(self, objs, targetLayer, material, overwrite, noise, mono):
         material = bpy.context.scene.sxmaterials[material]
 
-        self.apply_color(objs, objs[0].sxlayers['smoothness'], material.color2, overwrite, noise, mono)
-        self.apply_color(objs, objs[0].sxlayers['metallic'], material.color1, overwrite, noise, mono)
-        self.apply_color(objs, objs[0].sxlayers[7], material.color0, overwrite, noise, mono)
+        self.apply_color_uv(objs, objs[0].sxlayers['smoothness'], material.color2, overwrite, noise, mono)
+        self.apply_color_uv(objs, objs[0].sxlayers['metallic'], material.color1, overwrite, noise, mono)
+        self.apply_color_rgba(objs, objs[0].sxlayers[7], material.color0, overwrite, noise, mono)
 
 
     def add_modifiers(self, objs):
@@ -3205,8 +3535,9 @@ class SXTOOLS_tools(object):
         modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
         if color != modecolor:
+            print('color is not modecolor')
             bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
-            tools.apply_color(objs, layer, color, False, noise, mono)
+            tools.apply_color_rgba(objs, layer, color, False, noise, mono)
 
 
     def zero_verts(self, objs):
@@ -3335,6 +3666,9 @@ class SXTOOLS_magic(object):
     # baking category-specific values to achieve
     # consistent project-wide looks.
     def process_objects(self, objs):
+        if not sxglobals.refreshInProgress:
+            sxglobals.refreshInProgress = True
+
         then = time.time()
         scene = bpy.context.scene.sxtools
         viewlayer = bpy.context.view_layer
@@ -3572,6 +3906,7 @@ class SXTOOLS_magic(object):
 
         now = time.time()
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
+        sxglobals.refreshInProgress = False
 
 
     def process_default(self, objs):
@@ -3618,7 +3953,7 @@ class SXTOOLS_magic(object):
             overwrite = True
             noise = 0.0
             mono = True
-            tools.apply_color(objs, layer, color, overwrite, noise, mono)
+            tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -3666,7 +4001,7 @@ class SXTOOLS_magic(object):
         overwrite = True
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -3717,7 +4052,7 @@ class SXTOOLS_magic(object):
         overwrite = True
         noise = 0.01
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         layer4 = utils.find_layer_from_index(obj, 4)
         layer5 = utils.find_layer_from_index(obj, 5)
@@ -3726,15 +4061,15 @@ class SXTOOLS_magic(object):
 
         overwrite = False
 
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer4)
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer5)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer4)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer5)
 
         color = (0.0, 0.0, 0.0, 1.0)
         layer6 = utils.find_layer_from_index(obj, 6)
 
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer6)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer6)
 
         # Combine smoothness base mask with custom curvature gradient
         layer = obj.sxlayers['composite']
@@ -3785,9 +4120,9 @@ class SXTOOLS_magic(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        tools.apply_color(objs, layer, palette[0], False, noise, mono)
-        tools.apply_color(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
-        tools.apply_color(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
+        tools.apply_color_rgba(objs, layer, palette[0], False, noise, mono)
+        tools.apply_color_uv(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        tools.apply_color_uv(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
 
         # Mix metallic with occlusion (dirt in crevices)
         tools.layer_copy_manager(objs, obj.sxlayers['occlusion'], obj.sxlayers['composite'])
@@ -3808,11 +4143,11 @@ class SXTOOLS_magic(object):
         overwrite = True
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         # Emissives are not occluded
         layer = obj.sxlayers['occlusion']
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -3859,7 +4194,7 @@ class SXTOOLS_magic(object):
         mono = True
         overwrite = False
 
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         color = (0.5, 0.5, 0.5, 1.0)
         layer = obj.sxlayers['overlay']
@@ -3877,7 +4212,7 @@ class SXTOOLS_magic(object):
         overwrite = True
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         layer4 = utils.find_layer_from_index(obj, 4)
         layer5 = utils.find_layer_from_index(obj, 5)
@@ -3888,8 +4223,8 @@ class SXTOOLS_magic(object):
         overwrite = False
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer4)
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer5)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer4)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer5)
 
         color = (0.1, 0.1, 0.1, 1.0)
 
@@ -3899,7 +4234,7 @@ class SXTOOLS_magic(object):
 
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, layer6)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, layer6)
 
         # Combine smoothness base mask with custom curvature gradient
         layer = obj.sxlayers['composite']
@@ -3951,9 +4286,9 @@ class SXTOOLS_magic(object):
             bpy.context.scene.sxmaterials[material].color1,
             bpy.context.scene.sxmaterials[material].color2]
 
-        tools.apply_color(objs, layer, palette[0], False, noise, mono)
-        tools.apply_color(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
-        tools.apply_color(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
+        tools.apply_color_rgba(objs, layer, palette[0], False, noise, mono)
+        tools.apply_color_uv(objs, obj.sxlayers['metallic'], palette[1], overwrite, noise, mono, layer)
+        tools.apply_color_uv(objs, obj.sxlayers['smoothness'], palette[2], overwrite, noise, mono, layer)
 
         # Emissives are smooth
         color = (1.0, 1.0, 1.0, 1.0)
@@ -3963,7 +4298,7 @@ class SXTOOLS_magic(object):
         overwrite = True
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -4041,7 +4376,7 @@ class SXTOOLS_magic(object):
         obj.mode == 'OBJECT'
         noise = 0.01
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         layer4 = utils.find_layer_from_index(obj, 4)
         layer5 = utils.find_layer_from_index(obj, 5)
@@ -4056,7 +4391,7 @@ class SXTOOLS_magic(object):
             overwrite = True
         noise = 0.01
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
@@ -4070,7 +4405,7 @@ class SXTOOLS_magic(object):
 
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         # Combine previous mix with directional dust
         layer = obj.sxlayers['composite']
@@ -4105,9 +4440,9 @@ class SXTOOLS_magic(object):
 
         noise = 0.0
         mono = True
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, maskLayer)
         maskLayer = utils.find_layer_from_index(obj, 5)
-        tools.apply_color(objs, layer, color, overwrite, noise, mono, maskLayer)
+        tools.apply_color_uv(objs, layer, color, overwrite, noise, mono, maskLayer)
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -4389,12 +4724,14 @@ class SXTOOLS_export(object):
 #    Core Functions
 # ------------------------------------------------------------------------
 def update_layers(self, context):
-    if 'SXMaterial' not in bpy.data.materials.keys():
-        setup.create_sxmaterial()
-
-    sxmaterial = bpy.data.materials['SXMaterial'].node_tree.nodes
-
     if not sxglobals.refreshInProgress:
+        print('updating!!!!')
+
+        if 'SXMaterial' not in bpy.data.materials.keys():
+            setup.create_sxmaterial()
+
+        # sxmaterial = bpy.data.materials['SXMaterial'].node_tree.nodes
+
         shading_mode(self, context)
         objs = selection_validator(self, context)
         if len(objs) > 0:
@@ -4419,6 +4756,7 @@ def update_layers(self, context):
             # setup.setup_geometry(objs)
             if not context.scene.sxtools.gpucomposite:
                 sxglobals.composite = True
+                print('update layers comp')
                 layers.composite_layers(objs)
 
 
@@ -4426,11 +4764,20 @@ def refresh_actives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
+        print('refreshing!')
+        then0 = time.time()
+        then = time.time()
+
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
         mode = context.scene.sxtools.shadingmode
         sxmaterial = bpy.data.materials['SXMaterial']
         objs = selection_validator(self, context)
+
+        now = time.time()
+        print('Selection_validator: ', now-then, ' seconds')
+        then = time.time()
+
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
@@ -4441,6 +4788,10 @@ def refresh_actives(self, context):
                 layers.color_layers_to_values(objs)
             elif (prefs.materialtype != 'SMP') and (scene.toolmode == 'MAT'):
                 layers.material_layers_to_values(objs)
+
+            now = time.time()
+            print('Palettes tab update duration: ', now-then, ' seconds')
+            then = time.time()
 
             for obj in objs:
                 setattr(obj.sxtools, 'selectedlayer', idx)
@@ -4458,16 +4809,34 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
+            now = time.time()
+            print('Object property update duration: ', now-then, ' seconds')
+            then = time.time()
+
             # Update VertexColor0 to reflect latest layer changes
             if not context.scene.sxtools.gpucomposite:
                 if mode != 'FULL':
                     sxglobals.composite = True
+                    print('refresh actives comp')
+                print(sxglobals.composite, mode)
                 layers.composite_layers(objs)
-            sxglobals.refreshInProgress = False
+
+            now = time.time()
+            print('Composite duration: ', now-then, ' seconds')
+            then = time.time()
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_palette(objs, layer)
+
+            now = time.time()
+            print('Update layer palette duration: ', now-then, ' seconds')
+            then = time.time()
+
             layers.update_layer_hsl(objs, layer)
+
+            now = time.time()
+            print('Update layer HSL duration: ', now-then, ' seconds')
+            then = time.time()
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4479,9 +4848,17 @@ def refresh_actives(self, context):
                     bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
                     bpy.data.materials['SXMaterial'].use_backface_culling = False
 
+            now = time.time()
+            print('Material update duration: ', now-then, ' seconds')
+
         # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
             setup.start_modal()
+
+        sxglobals.refreshInProgress = False
+
+        now = time.time()
+        print('Refresh actives duration: ', now-then0, ' seconds')
 
 
 def shading_mode(self, context):
@@ -4747,6 +5124,7 @@ def adjust_hue(self, context):
             tools.apply_hsl(objs, layer, 0, context.scene.sxtools.huevalue)
 
             sxglobals.composite = True
+            print('adjust hue comp')
             refresh_actives(self, context)
 
 
@@ -4760,6 +5138,7 @@ def adjust_saturation(self, context):
             tools.apply_hsl(objs, layer, 1, context.scene.sxtools.saturationvalue)
 
             sxglobals.composite = True
+            print('adjust sat comp')
             refresh_actives(self, context)
 
 
@@ -4773,6 +5152,7 @@ def adjust_lightness(self, context):
             tools.apply_hsl(objs, layer, 2, context.scene.sxtools.lightnessvalue)
 
             sxglobals.composite = True
+            print('adjust lightness comp')
             refresh_actives(self, context)
 
 
@@ -5037,6 +5417,7 @@ def update_palette_layer1(self, context):
     color = (scene.newpalette0[0], scene.newpalette0[1], scene.newpalette0[2], scene.newpalette0[3])
     tools.update_palette_layer(objs, 1, color, 'PaletteColor0')
     sxglobals.composite = True
+    print('update palette layer1 comp')
     refresh_actives(self, context)
 
 
@@ -5046,6 +5427,7 @@ def update_palette_layer2(self, context):
     color = (scene.newpalette1[0], scene.newpalette1[1], scene.newpalette1[2], scene.newpalette1[3])
     tools.update_palette_layer(objs, 2, color, 'PaletteColor1')
     sxglobals.composite = True
+    print('update palette layer2 comp')
     refresh_actives(self, context)
 
 
@@ -5055,6 +5437,7 @@ def update_palette_layer3(self, context):
     color = (scene.newpalette2[0], scene.newpalette2[1], scene.newpalette2[2], scene.newpalette2[3])
     tools.update_palette_layer(objs, 3, color, 'PaletteColor2')
     sxglobals.composite = True
+    print('update palette layer3 comp')
     refresh_actives(self, context)
 
 
@@ -5064,6 +5447,7 @@ def update_palette_layer4(self, context):
     color = (scene.newpalette3[0], scene.newpalette3[1], scene.newpalette3[2], scene.newpalette3[3])
     tools.update_palette_layer(objs, 4, color, 'PaletteColor3')
     sxglobals.composite = True
+    print('update palette layer4 comp')
     refresh_actives(self, context)
 
 
@@ -5073,6 +5457,7 @@ def update_palette_layer5(self, context):
     color = (scene.newpalette4[0], scene.newpalette4[1], scene.newpalette4[2], scene.newpalette4[3])
     tools.update_palette_layer(objs, 5, color, 'PaletteColor4')
     sxglobals.composite = True
+    print('update palette layer5 comp')
     refresh_actives(self, context)
 
 
@@ -5103,8 +5488,9 @@ def update_material_layer1(self, context):
                 color = (rgb[0], rgb[1], rgb[2], 1.0)
 
     if color != modecolor:
-        tools.apply_color(objs, layer, color, False, noise, mono)
+        tools.apply_color_rgba(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
+        print('update material layer1 comp')
         refresh_actives(self, context)
 
 
@@ -5118,8 +5504,9 @@ def update_material_layer2(self, context):
     modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
     if color != modecolor:
-        tools.apply_color(objs, layer, color, False, noise, mono)
+        tools.apply_color_uv(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
+        print('update material layer2 comp')
         refresh_actives(self, context)
 
 
@@ -5133,8 +5520,9 @@ def update_material_layer3(self, context):
     modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
 
     if color != modecolor:
-        tools.apply_color(objs, layer, color, False, noise, mono)
+        tools.apply_color_uv(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
+        print('update material layer3 comp')
         refresh_actives(self, context)
 
 
@@ -7342,6 +7730,7 @@ class SXTOOLS_OT_applycolor(bpy.types.Operator):
             tools.update_recent_colors(color)
 
             sxglobals.composite = True
+            print('apply color operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7369,6 +7758,7 @@ class SXTOOLS_OT_applyramp(bpy.types.Operator):
             tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
 
             sxglobals.composite = True
+            print('apply ramp operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7406,6 +7796,7 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
             layers.merge_layers(objs, sourceLayer, targetLayer)
 
             sxglobals.composite = True
+            print('merge up operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7452,6 +7843,7 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
             layers.merge_layers(objs, sourceLayer, targetLayer)
 
             sxglobals.composite = True
+            print('merge down operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7503,6 +7895,7 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
                 layers.paste_layer(objs, sourceLayer, targetLayer, mode)
 
                 sxglobals.composite = True
+                print('paste layer operator comp')
                 refresh_actives(self, context)
                 return {'FINISHED'}
         return {'FINISHED'}
@@ -7527,6 +7920,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             layers.clear_layers(objs, layer)
 
             sxglobals.composite = True
+            print('clear layer operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7598,6 +7992,7 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
             tools.apply_palette(objs, palette, noise, mono)
 
             sxglobals.composite = True
+            print('apply palette operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7626,6 +8021,7 @@ class SXTOOLS_OT_applymaterial(bpy.types.Operator):
             tools.apply_material(objs, layer, material, overwrite, noise, mono)
 
             sxglobals.composite = True
+            print('apply material operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7782,7 +8178,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
-        viewlayer = bpy.context.view_layer
+        viewlayer = context.view_layer
         selected = None
 
         if event.shift:
@@ -7798,7 +8194,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
                 newObjs = export.smart_separate(selected)
                 for obj in newObjs:
                     obj.select_set(True)
-                selected = context.view_layer.objects.selected
+                selected = viewlayer.objects.selected
 
         # Make sure objects are in groups
         for obj in selected:
@@ -7814,6 +8210,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         if prefs.removelods:
             export.remove_exports()
         sxglobals.composite = True
+        print('export selected operator comp')
         refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7968,6 +8365,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
             tools.revert_objects(objs)
 
             sxglobals.composite = True
+            print('revert to control cages operator comp')
             refresh_actives(self, context)
 
             scene.shadingmode = 'FULL'
@@ -8266,6 +8664,11 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - why is export calling composite?
+# - Layer color palette cache
+# - alpha mode shows overlay incorrectly (?)
+# - apply color -> if component selection, always overwrite
+# - Limit UV4 clear workload (currently 4 passes)
 # - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
