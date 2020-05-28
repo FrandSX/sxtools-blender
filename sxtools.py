@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 0, 2),
+    'version': (4, 0, 4),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -18,7 +18,7 @@ import pathlib
 import statistics
 import sys
 from bpy.app.handlers import persistent
-from collections import defaultdict
+from collections import defaultdict, Counter
 from mathutils import Vector
 
 
@@ -463,30 +463,26 @@ class SXTOOLS_utils(object):
                 return sxLayer
 
 
-    def find_colors_by_frequency(self, objs, layer):
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
+    def find_colors_by_frequency(self, objs, layer, numcolors=None):
         colorArray = []
         for obj in objs:
             if layer.layerType == 'COLOR':
-                colorArray = layers.get_colors(obj, layer.vertexColorLayer, True)
+                colorArray.extend(layers.get_colors(obj, layer.vertexColorLayer, True))
             elif layer.layerType == 'UV':
-                colorArray = layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0, True)
+                colorArray.extend(layers.get_uvs(obj, layer.uvLayer0, layer.uvChannel0, True))
             elif layer.layerType == 'UV4':
-                colorArray = layers.get_uv4(obj, layer, True)
+                colorArray.extend(layers.get_uv4(obj, layer, True))
 
-        if len(colorArray) == 0:
-            colorArray.append([0.0, 0.0, 0.0, 1.0])
+        colors = list(filter(lambda a: a != (0.0, 0.0, 0.0, 0.0), colorArray))
+        sortList = [color for color, count in Counter(colors).most_common(numcolors)]
 
-        colorSet = set(color for color in colorArray)
-        colorFreq = []
-        for color in colorSet:
-            colorFreq.append((colorArray.count(color), color))
+        while len(sortList) < numcolors:
+            sortList.append([0.0, 0.0, 0.0, 1.0])
 
-        sortColors = sorted(colorFreq, key=lambda tup: tup[0])
+        sortColors = []
+        for i in range(numcolors):
+            sortColors.append(sortList[i])
 
-        bpy.ops.object.mode_set(mode=mode)
         return sortColors
 
 
@@ -1894,62 +1890,16 @@ class SXTOOLS_layers(object):
             tools.layer_copy_manager(objs, sourceLayer, targetLayer)
 
 
-    def update_layer_palette(self, objs, layer):
+    def update_layer_panel(self, objs, layer):
         scene = bpy.context.scene.sxtools
-        colors = utils.find_colors_by_frequency(objs, layer)
-        colLen = len(colors)
+        colors = utils.find_colors_by_frequency(objs, layer, 8)
 
-        while colLen < 8:
-            colors.append((0, [0.0, 0.0, 0.0, 1.0]))
-            colLen += 1
-
-        # uncomment to display a sampling of all color frequencies instead of 8 most frequent
-        # colors = colors[0::int(colLen/8)]
-        for i in range(8):
-            setattr(scene, 'layerpalette' + str(i + 1), colors[i][1])
-
-
-    def color_layers_to_values(self, objs):
-        # mode = objs[0].mode
-        scene = bpy.context.scene.sxtools
-        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        for i in range(5):
-            layer = objs[0].sxlayers[i+1]
-            palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
-            tabcolor = getattr(scene, 'newpalette' + str(i))
-
-            if not utils.color_compare(palettecolor, tabcolor):
-                setattr(scene, 'newpalette' + str(i), palettecolor)
-
-        # bpy.ops.object.mode_set(mode=mode)
-
-
-    def material_layers_to_values(self, objs):
-        mode = objs[0].mode
-        scene = bpy.context.scene.sxtools
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        layers = [7, 12, 13]
-
-        for i, idx in enumerate(layers):
-            layer = objs[0].sxlayers[idx]
-            palettecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
-            tabcolor = getattr(scene, 'newmaterial' + str(i))
-
-            if not utils.color_compare(palettecolor, tabcolor):
-                setattr(scene, 'newmaterial' + str(i), palettecolor)
-
-        bpy.ops.object.mode_set(mode=mode)
-
-
-    def update_layer_hsl(self, objs, layer):
-        colors = utils.find_colors_by_frequency(objs, layer)
-
+        # Update layer HSL elements
         hArray = []
         sArray = []
         lArray = []
         for color in colors:
-            hsl = convert.rgb_to_hsl(color[1])
+            hsl = convert.rgb_to_hsl(color)
             hArray.append(hsl[0])
             sArray.append(hsl[1])
             lArray.append(hsl[2])
@@ -1962,6 +1912,36 @@ class SXTOOLS_layers(object):
         bpy.context.scene.sxtools.saturationvalue = sat
         bpy.context.scene.sxtools.lightnessvalue = lightness
         sxglobals.hslUpdate = False
+
+        # Update layer palette elements
+        for i, color in enumerate(colors):
+            palettecolor = [color[0], color[1], color[2], 1.0]
+            setattr(scene, 'layerpalette' + str(i + 1), palettecolor)
+
+
+    def color_layers_to_values(self, objs):
+        scene = bpy.context.scene.sxtools
+
+        for i in range(5):
+            layer = objs[0].sxlayers[i+1]
+            palettecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+            tabcolor = getattr(scene, 'newpalette' + str(i))
+
+            if not utils.color_compare(palettecolor, tabcolor):
+                setattr(scene, 'newpalette' + str(i), palettecolor)
+
+
+    def material_layers_to_values(self, objs):
+        scene = bpy.context.scene.sxtools
+        layers = [7, 12, 13]
+
+        for i, idx in enumerate(layers):
+            layer = objs[0].sxlayers[idx]
+            palettecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+            tabcolor = getattr(scene, 'newmaterial' + str(i))
+
+            if not utils.color_compare(palettecolor, tabcolor):
+                setattr(scene, 'newmaterial' + str(i), palettecolor)
 
 
     def __del__(self):
@@ -2719,7 +2699,7 @@ class SXTOOLS_tools(object):
         colors = utils.find_colors_by_frequency(objs, layer)
         valueArray = []
         for color in colors:
-            hsl = convert.rgb_to_hsl(color[1])
+            hsl = convert.rgb_to_hsl(color)
             valueArray.append(hsl[hslmode])
         layervalue = max(valueArray)
 
@@ -3399,7 +3379,7 @@ class SXTOOLS_tools(object):
         layer = utils.find_layer_from_index(objs[0], layerindex)
         noise = scene.palettenoise
         mono = scene.palettemono
-        modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
+        modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
 
         if color != modecolor:
             print('color is not modecolor')
@@ -4706,16 +4686,10 @@ def refresh_actives(self, context):
             then = time.time()
 
             # Refresh SX Tools UI to latest selection
-            layers.update_layer_palette(objs, layer)
+            layers.update_layer_panel(objs, layer)
 
             now = time.time()
-            print('Update layer palette duration: ', now-then, ' seconds')
-            then = time.time()
-
-            layers.update_layer_hsl(objs, layer)
-
-            now = time.time()
-            print('Update layer HSL duration: ', now-then, ' seconds')
+            print('Update layer panel duration: ', now-then, ' seconds')
             then = time.time()
 
             # Update SX Material to latest selection
@@ -5348,7 +5322,7 @@ def update_material_layer1(self, context):
     color = (scene.newmaterial0[0], scene.newmaterial0[1], scene.newmaterial0[2], scene.newmaterial0[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
+    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
 
     if scene.enablelimit:
         hsl = convert.rgb_to_hsl(color)
@@ -5381,7 +5355,7 @@ def update_material_layer2(self, context):
     color = (scene.newmaterial1[0], scene.newmaterial1[1], scene.newmaterial1[2], scene.newmaterial1[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
+    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
 
     if color != modecolor:
         tools.apply_color_uv(objs, layer, color, False, noise, mono)
@@ -5397,7 +5371,7 @@ def update_material_layer3(self, context):
     color = (scene.newmaterial2[0], scene.newmaterial2[1], scene.newmaterial2[2], scene.newmaterial2[3])
     noise = scene.palettenoise
     mono = scene.palettemono
-    modecolor = utils.find_colors_by_frequency(objs, layer)[0][1]
+    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
 
     if color != modecolor:
         tools.apply_color_uv(objs, layer, color, False, noise, mono)
@@ -8089,9 +8063,9 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
         if prefs.removelods:
             export.remove_exports()
-        sxglobals.composite = True
-        print('export selected operator comp')
-        refresh_actives(self, context)
+        # sxglobals.composite = True
+        # print('export selected operator comp')
+        # refresh_actives(self, context)
         return {'FINISHED'}
 
 
@@ -8284,6 +8258,7 @@ class SXTOOLS_OT_selectup(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        mode = context.scene.sxtools.shadingmode
         objs = selection_validator(self, context)
         if len(objs) > 0:
             listLength = len(sxglobals.listItems)
@@ -8298,7 +8273,8 @@ class SXTOOLS_OT_selectup(bpy.types.Operator):
             for obj in objs:
                 obj.sxtools.selectedlayer = targetLayer.index
 
-            sxglobals.composite = True
+            if mode != 'FULL':
+                sxglobals.composite = True
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -8311,6 +8287,7 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
 
 
     def invoke(self, context, event):
+        mode = context.scene.sxtools.shadingmode
         objs = selection_validator(self, context)
         if len(objs) > 0:
             listLength = len(sxglobals.listItems)
@@ -8325,7 +8302,8 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
             for obj in objs:
                 obj.sxtools.selectedlayer = targetLayer.index
 
-            sxglobals.composite = True
+            if mode != 'FULL':
+                sxglobals.composite = True
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -8544,6 +8522,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - select_up and down are triggering refresh per object?
 # - why is export calling composite?
 # - Layer color palette cache
 # - alpha mode shows overlay incorrectly (?)
