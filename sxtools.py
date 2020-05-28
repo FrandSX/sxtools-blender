@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 0, 4),
+    'version': (4, 0, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1384,8 +1384,59 @@ class SXTOOLS_layers(object):
         self.set_uvs(obj, target2, uvs1, None, maskmode)
 
 
+    def get_vertex_noise(self, obj, noise=0.0, mono=False, single=False):
+        mode = obj.mode
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        mesh = obj.data
+
+        noisevalue = 1.0
+
+        def make_noise(noise, mono, single):
+            col = [None, None, None, 1.0]
+
+            if single:
+                return max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+            elif mono:
+                monoval = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+                for i in range(3):
+                    col[i] = monoval
+            else:
+                for i in range(3):
+                    col[i] = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
+
+            return col
+
+        count0 = len(obj.data.uv_layers[0].data)
+        count1 = len(obj.data.vertices)
+        if single:
+            noiselist = [None] * count0
+        else:
+            noiselist = [None] * count0 * 4
+        ids = [None] * count1
+        mesh.vertices.foreach_get('index', ids)
+
+        noisedict = {}
+        for vtx_id in ids:
+            noisedict[vtx_id] = make_noise(noise, mono, single)
+
+        if single:
+            i = 0
+            for poly in mesh.polygons:
+                for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                    noiselist[i] = noisedict[vert_idx]
+                    i+=1
+        else:
+            i = 0
+            for poly in mesh.polygons:
+                for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                    noiselist[(0+i*4):(4+i*4)] = noisedict[vert_idx]
+                    i+=1
+
+        bpy.ops.object.mode_set(mode=mode)
+        return noiselist
+
+
     def get_selection_mask(self, obj):
-        then = time.time()
         mode = obj.mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
@@ -1407,8 +1458,6 @@ class SXTOOLS_layers(object):
                     i+=1
 
         bpy.ops.object.mode_set(mode=mode)
-        now = time.time()
-        print('Get mask duration: ', now-then, ' seconds')
 
         return mask
 
@@ -2440,12 +2489,17 @@ class SXTOOLS_tools(object):
 
 
     def apply_color_rgba(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
+        then = time.time()
         mode = objs[0].mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             count = len(obj.data.vertex_colors[0].data)
             colors = [color[0], color[1], color[2], color[3]] * count
+            if noise != 0:
+                noisecolors = layers.get_vertex_noise(obj, noise, mono)
+                for i in range(len(colors)):
+                    colors[i] *= noisecolors[i]
 
             if masklayer:
                 mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
@@ -2470,8 +2524,11 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode=mode)
 
-        if noise != 0.0:
-            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
+        # if noise != 0.0:
+        #     self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
+
+        now = time.time()
+        print('Apply Color RGBA duration: ', now-then, ' seconds')
 
 
     def apply_color_uv(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
@@ -2483,6 +2540,10 @@ class SXTOOLS_tools(object):
         for obj in objs:
             count = len(obj.data.uv_layers[0].data)
             values = [fillValue] * count
+            if noise != 0:
+                noisevalues = layers.get_vertex_noise(obj, noise, True, True)
+                for i in range(len(values)):
+                    values[i] *= noisevalues[i]
 
             if masklayer:
                 mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
@@ -2509,9 +2570,6 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode=mode)
 
-        if noise != 0.0:
-            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
-
         now = time.time()
         print('Apply Color UV4 duration: ', now-then, ' seconds')
 
@@ -2524,6 +2582,10 @@ class SXTOOLS_tools(object):
         for obj in objs:
             count = len(obj.data.vertex_colors[0].data)
             colors = [color[0], color[1], color[2], color[3]] * count
+            if noise != 0:
+                noisecolors = layers.get_vertex_noise(obj, noise, mono)
+                for i in range(len(colors)):
+                    colors[i] *= noisecolors[i]
 
             if masklayer:
                 mask_values = layers.get_colors(obj, masklayer.vertexColorLayer)
@@ -2548,134 +2610,12 @@ class SXTOOLS_tools(object):
 
         bpy.ops.object.mode_set(mode=mode)
 
-        if noise != 0.0:
-            self.apply_noise(objs, layer, overwrite, noise, mono, masklayer)
-
         now = time.time()
         print('Apply color UV4 duration: ', now-then, ' seconds')
 
 
-    def apply_noise(self, objs, layer, overwrite, noise=0.0, mono=False, masklayer=None):
-        then = time.time()
-        objDicts = self.selection_handler(objs)
-        fillMode = layer.layerType
-        channels = {'U': 0, 'V': 1}
-        fillChannel0 = channels[layer.uvChannel0]
-        fillChannel1 = channels[layer.uvChannel1]
-        fillChannel2 = channels[layer.uvChannel2]
-        fillChannel3 = channels[layer.uvChannel3]
-
-        mode = objs[0].mode
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        for obj in objs:
-            noisecolor = [1.0, 1.0, 1.0, 1.0]
-            noisevalue = 1.0
-            vertLoopDict = defaultdict(list)
-            vertLoopDict = objDicts[obj][0]
-
-            if masklayer:
-                maskvalues = obj.data.vertex_colors[masklayer.vertexColorLayer].data
-
-            if fillMode == 'COLOR':
-                vertexColors = obj.data.vertex_colors[layer.vertexColorLayer].data
-
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    if mono:
-                        monoNoise = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
-                        for i in range(3):
-                            noisecolor[i] = monoNoise
-                    else:
-                        for i in range(3):
-                            noisecolor[i] = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
-                    for loop_idx in loop_indices:
-                        if masklayer:
-                            if maskvalues[loop_idx].color[3] > 0.0:
-                                vertexColors[loop_idx].color *= [noisecolor[0], noisecolor[1], noisecolor[2], maskvalues[loop_idx].color[3]]
-                            else:
-                                if overwrite:
-                                    vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-                        elif overwrite:
-                            vertexColors[loop_idx].color[0] *= noisecolor[0]
-                            vertexColors[loop_idx].color[1] *= noisecolor[1]
-                            vertexColors[loop_idx].color[2] *= noisecolor[2]
-                            vertexColors[loop_idx].color[3] = noisecolor[3]
-                        else:
-                            if vertexColors[loop_idx].color[3] > 0.0:
-                                vertexColors[loop_idx].color[0] *= noisecolor[0]
-                                vertexColors[loop_idx].color[1] *= noisecolor[1]
-                                vertexColors[loop_idx].color[2] *= noisecolor[2]
-                            else:
-                                vertexColors[loop_idx].color = [0.0, 0.0, 0.0, 0.0]
-            elif fillMode == 'UV4':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-                uvValues1 = obj.data.uv_layers[layer.uvLayer1].data
-                uvValues2 = obj.data.uv_layers[layer.uvLayer2].data
-                uvValues3 = obj.data.uv_layers[layer.uvLayer3].data
-
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    if mono:
-                        monoNoise = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
-                        for i in range(3):
-                            noisecolor[i] = monoNoise
-                    else:
-                        for i in range(3):
-                            noisecolor[i] = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
-                    for loop_idx in loop_indices:
-                        if masklayer:
-                            if maskvalues[loop_idx].color[3] > 0.0:
-                                uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
-                                uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
-                                uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
-                                uvValues3[loop_idx].uv[fillChannel3] *= maskvalues[loop_idx].color[3]
-                            else:
-                                if overwrite:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                    uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                    uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                    uvValues3[loop_idx].uv[fillChannel3] = 0.0
-                        elif overwrite:
-                            uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
-                            uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
-                            uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
-                            uvValues3[loop_idx].uv[fillChannel3] *= noisecolor[3]
-                        else:
-                            if uvValues3[loop_idx].uv[fillChannel3] > 0.0:
-                                uvValues0[loop_idx].uv[fillChannel0] *= noisecolor[0]
-                                uvValues1[loop_idx].uv[fillChannel1] *= noisecolor[1]
-                                uvValues2[loop_idx].uv[fillChannel2] *= noisecolor[2]
-                            else:
-                                uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                                uvValues1[loop_idx].uv[fillChannel1] = 0.0
-                                uvValues2[loop_idx].uv[fillChannel2] = 0.0
-                                uvValues3[loop_idx].uv[fillChannel3] = 0.0
-            elif fillMode == 'UV':
-                uvValues0 = obj.data.uv_layers[layer.uvLayer0].data
-
-                for vert_idx, loop_indices in vertLoopDict.items():
-                    value = max(min(noisevalue+random.uniform(-noise, noise), 1.0), 0.0)
-                    for loop_idx in loop_indices:
-                        if masklayer:
-                            if maskvalues[loop_idx].color[3] > 0.0:
-                                uvValues0[loop_idx].uv[fillChannel0] *= value * maskvalues[loop_idx].color[3]
-                            else:
-                                if overwrite:
-                                    uvValues0[loop_idx].uv[fillChannel0] = 0.0
-                        elif overwrite:
-                            uvValues0[loop_idx].uv[fillChannel0] *= value
-                        else:
-                            if uvValues0[loop_idx].uv[fillChannel0] > 0.0:
-                                uvValues0[loop_idx].uv[fillChannel0] *= value
-
-        bpy.ops.object.mode_set(mode=mode)
-
-        now = time.time()
-        print('Apply noise duration: ', now-then, ' seconds')
-
-
     # maskLayer accepts color layers only
     def apply_color(self, objs, layer, color, overwrite, noise=0.0, mono=False, masklayer=None):
-        then = time.time()
         fillMode = layer.layerType
 
         if fillMode =='COLOR':
@@ -2684,9 +2624,6 @@ class SXTOOLS_tools(object):
             self.apply_color_uv(objs, layer, color, overwrite, noise, mono, masklayer)
         elif fillMode == 'UV4':
             self.apply_color_uv4(objs, layer, color, overwrite, noise, mono, masklayer)
-
-        now = time.time()
-        print('Apply Color (legacy) duration: ', now-then, ' seconds')
 
 
     # mode 0: hue, mode 1: saturation, mode 2: lightness
@@ -4572,7 +4509,7 @@ class SXTOOLS_export(object):
 # ------------------------------------------------------------------------
 def update_layers(self, context):
     if not sxglobals.refreshInProgress:
-        print('updating!!!!')
+        print('Updating layers')
         then = time.time()
 
         if 'SXMaterial' not in bpy.data.materials.keys():
@@ -4613,7 +4550,6 @@ def update_layers(self, context):
             # setup.setup_geometry(objs)
             if not context.scene.sxtools.gpucomposite:
                 sxglobals.composite = True
-                print('update layers comp')
                 layers.composite_layers(objs)
 
                 now = time.time()
@@ -4624,7 +4560,6 @@ def refresh_actives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
-        print('refreshing!')
         then0 = time.time()
         then = time.time()
 
@@ -4677,8 +4612,6 @@ def refresh_actives(self, context):
             if not context.scene.sxtools.gpucomposite:
                 if mode != 'FULL':
                     sxglobals.composite = True
-                    print('refresh actives comp')
-                print(sxglobals.composite, mode)
                 layers.composite_layers(objs)
 
             now = time.time()
@@ -5271,7 +5204,6 @@ def update_palette_layer1(self, context):
     color = (scene.newpalette0[0], scene.newpalette0[1], scene.newpalette0[2], scene.newpalette0[3])
     tools.update_palette_layer(objs, 1, color, 'PaletteColor0')
     sxglobals.composite = True
-    print('update palette layer1 comp')
     refresh_actives(self, context)
 
 
@@ -5281,7 +5213,6 @@ def update_palette_layer2(self, context):
     color = (scene.newpalette1[0], scene.newpalette1[1], scene.newpalette1[2], scene.newpalette1[3])
     tools.update_palette_layer(objs, 2, color, 'PaletteColor1')
     sxglobals.composite = True
-    print('update palette layer2 comp')
     refresh_actives(self, context)
 
 
@@ -5291,7 +5222,6 @@ def update_palette_layer3(self, context):
     color = (scene.newpalette2[0], scene.newpalette2[1], scene.newpalette2[2], scene.newpalette2[3])
     tools.update_palette_layer(objs, 3, color, 'PaletteColor2')
     sxglobals.composite = True
-    print('update palette layer3 comp')
     refresh_actives(self, context)
 
 
@@ -5301,7 +5231,6 @@ def update_palette_layer4(self, context):
     color = (scene.newpalette3[0], scene.newpalette3[1], scene.newpalette3[2], scene.newpalette3[3])
     tools.update_palette_layer(objs, 4, color, 'PaletteColor3')
     sxglobals.composite = True
-    print('update palette layer4 comp')
     refresh_actives(self, context)
 
 
@@ -5311,7 +5240,6 @@ def update_palette_layer5(self, context):
     color = (scene.newpalette4[0], scene.newpalette4[1], scene.newpalette4[2], scene.newpalette4[3])
     tools.update_palette_layer(objs, 5, color, 'PaletteColor4')
     sxglobals.composite = True
-    print('update palette layer5 comp')
     refresh_actives(self, context)
 
 
@@ -5344,7 +5272,6 @@ def update_material_layer1(self, context):
     if color != modecolor:
         tools.apply_color_rgba(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
-        print('update material layer1 comp')
         refresh_actives(self, context)
 
 
@@ -5360,7 +5287,6 @@ def update_material_layer2(self, context):
     if color != modecolor:
         tools.apply_color_uv(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
-        print('update material layer2 comp')
         refresh_actives(self, context)
 
 
@@ -5376,7 +5302,6 @@ def update_material_layer3(self, context):
     if color != modecolor:
         tools.apply_color_uv(objs, layer, color, False, noise, mono)
         sxglobals.composite = True
-        print('update material layer3 comp')
         refresh_actives(self, context)
 
 
