@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 2, 0),
+    'version': (4, 2, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1187,6 +1187,10 @@ class SXTOOLS_convert(object):
         return luminance
 
 
+    def luminance_to_color(self, value):
+        return (value, value, value, 1.0)
+
+
     def srgb_to_linear(self, inColor):
         outColor = []
         for i in range(4):
@@ -1742,7 +1746,7 @@ class SXTOOLS_generate(object):
         if values is None:
             values = layers.get_luminances(obj, layer, as_rgba=False)
         colors = generate.empty_list(obj, 4)
-        count = len(values)//4
+        count = len(values)
 
         for i in range(count):
             ratio = max(min(values[i], 1.0), 0.0)
@@ -1892,11 +1896,11 @@ class SXTOOLS_layers(object):
 
 
     # takes RGBA buffers, converts and writes to appropriate uv and vertex sets
-    def set_layer(self, obj, values, targetlayer):
+    def set_layer(self, obj, colors, targetlayer):
         targetType = targetlayer.layerType
 
         if targetType == 'COLOR':
-            layers.set_colors(obj, targetlayer.vertexColorLayer, values)
+            layers.set_colors(obj, targetlayer.vertexColorLayer, colors)
 
         elif targetType == 'UV':
             count = len(obj.data.uv_layers[0].data)
@@ -1904,13 +1908,13 @@ class SXTOOLS_layers(object):
 
             for i in range(count):
                 # alpha = values[::4]
-                color = values[(0+i*4):(4+i*4)]
+                color = colors[(0+i*4):(4+i*4)]
                 target_uvs[i] = convert.color_to_luminance(color)
 
             layers.set_uvs(obj, targetlayer.uvLayer0, target_uvs, targetlayer.uvChannel0)
 
         elif targetType == 'UV4':
-            layers.set_uv4(obj, targetlayer, values)
+            layers.set_uv4(obj, targetlayer, colors)
 
 
     def get_layer_mask(self, obj, sourcelayer):
@@ -1956,21 +1960,34 @@ class SXTOOLS_layers(object):
         bpy.ops.object.mode_set(mode=mode)
 
 
-    def get_luminances(self, obj, sourcelayer, as_rgba=False):
-        layerType = sourcelayer.layerType
+    def get_luminances(self, obj, sourcelayer=None, colors=None, as_rgba=False):
+        if colors is None:
+            layerType = sourcelayer.layerType
+            if layerType == 'COLOR':
+                colors = self.get_colors(obj, sourcelayer.vertexColorLayer)
+            elif layerType == 'UV':
+                if as_rgba:
+                    values = self.get_uvs(obj, sourcelayer.uvLayer0, sourcelayer.uvChannel0)
+                    colors = generate.empty_list(obj, 4)
+                    count = len(values)
+                    for i in range(count):
+                        colors[(0+i*4):(4+i*4)] = convert.luminance_to_color(values[i])
+                    return colors
+                else:
+                    return self.get_uvs(obj, sourcelayer.uvLayer0, sourcelayer.uvChannel0)
+            elif layerType == 'UV4':
+                colors = self.get_uv4(obj, sourcelayer)
 
-        if layerType == 'COLOR':
-            colors = self.get_colors(obj, sourcelayer.vertexColorLayer)
-        elif layerType == 'UV':
-            return self.get_uvs(obj, sourcelayer.uvLayer0, sourcelayer.uvChannel0)
-        elif layerType == 'UV4':
-            colors = self.get_uv4(obj, sourcelayer)
-
-        values = generate.empty_list(obj, 1)
-
-        count = len(values)
-        for i in range(count):
-            values[i] = convert.color_to_luminance(colors[(0+i*4):(4+i*4)])
+        if as_rgba:
+            values = generate.empty_list(obj, 4)
+            count = len(values)
+            for i in range(count):
+                values[(0+i*4):(4+i*4)] = convert.luminance_to_color(convert.color_to_luminance(colors[(0+i*4):(4+i*4)]))
+        else:
+            values = generate.empty_list(obj, 1)
+            count = len(values)
+            for i in range(count):
+                values[i] = convert.color_to_luminance(colors[(0+i*4):(4+i*4)])
 
         return values
 
@@ -2292,7 +2309,7 @@ class SXTOOLS_layers(object):
         sourceMode = sourceLayer.layerType
         targetMode = targetLayer.layerType
 
-        if sourceMode == 'COLOR' and targetMode == 'COLOR':
+        if sourceMode == 'COLOR' and (targetMode == 'COLOR' or targetMode == 'UV4'):
             for obj in objs:
                 sourceBlend = getattr(obj.sxlayers[sourceLayer.index], 'blendMode')[:]
                 targetBlend = getattr(obj.sxlayers[targetLayer.index], 'blendMode')[:]
@@ -2769,7 +2786,10 @@ class SXTOOLS_tools(object):
 
     def layer_copy_manager(self, objs, sourcelayer, targetlayer):
         for obj in objs:
-            sourcevalues = layers.get_layer(obj, sourcelayer)
+            if sourcelayer.layerType == 'UV' and targetlayer.layerType == 'UV':
+                sourcevalues = layers.get_luminances(obj, sourcelayer, as_rgba=True)
+            else:
+                sourcevalues = layers.get_layer(obj, sourcelayer)
             layers.set_layer(obj, sourcevalues, targetlayer)
 
 
@@ -3412,10 +3432,6 @@ class SXTOOLS_magic(object):
         if scene.numoverlays > 0:
             layers.flatten_alphas(objs)
 
-        # Enable modifier stack for LODs
-        for obj in objs:
-            obj.sxtools.modifiervisibility = True
-
         # LOD mesh generation for low-detail
         if scene.exportquality == 'LO':
             nonLodObjs = []
@@ -3448,6 +3464,10 @@ class SXTOOLS_magic(object):
         now = time.time()
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
         sxglobals.refreshInProgress = False
+
+        # Enable modifier stack for LODs
+        for obj in objs:
+            obj.sxtools.modifiervisibility = True
 
 
     def process_default(self, objs):
@@ -3494,9 +3514,9 @@ class SXTOOLS_magic(object):
             scene.fillalpha = True
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        # bpy.ops.mesh.select_all(action='DESELECT')
+        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
 
     def process_paletted(self, objs):
@@ -3616,6 +3636,7 @@ class SXTOOLS_magic(object):
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 5))
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            color = (0.0, 0.0, 0.0, 1.0)
             colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 6))
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Combine with smoothness from PBR material
@@ -3628,13 +3649,16 @@ class SXTOOLS_magic(object):
             scene.curvaturenormalize = True
             scene.ramplist = 'CURVATURESMOOTHNESS'
             colors1 = generate.curvature_list(obj)
-            colors1 = generate.luminance_remap_list(obj, values=colors1)
+            values = layers.get_luminances(obj, colors=colors1)
+            colors1 = generate.luminance_remap_list(obj, values=values)
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             # Combine previous mix with directional dust
             scene.ramplist = 'DIRECTIONALDUST'
             scene.angle = 0.0
             scene.inclination = 40.0
             colors1 = generate.direction_list(obj)
+            values = layers.get_luminances(obj, colors=colors1)
+            colors1 = generate.luminance_remap_list(obj, values=values)
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             # Emissives are smooth
             color = (1.0, 1.0, 1.0, 1.0)
@@ -3645,22 +3669,22 @@ class SXTOOLS_magic(object):
             layer = obj.sxlayers['smoothness']
             layers.set_layer(obj, colors, layer)
 
+            # Apply PBR metal based on layer7
+            scene.fillalpha = False
+            # noise = 0.01
+            # mono = True
+            scene.toolmode = 'COL'
+            scene.toolopacity = 1.0
+            scene.toolblend = 'ALPHA'
+
+            colors = generate.color_list(obj, palette[0], utils.find_layer_from_index(obj, 7))
+            # Mix metallic with occlusion (dirt in crevices)
+            colors1 = layers.get_luminances(obj, obj.sxlayers['occlusion'], as_rgba=True)
+            # colors8 = generate.color_list(obj, [1.0, 1.0, 1.0, 1.0], obj.sxlayers['occlusion'])
+            colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+            layers.set_layer(obj, colors, obj.sxlayers['metallic'])
+
             obj.data.update()
-
-        # Apply PBR metal based on layer7
-        scene.fillalpha = False
-        # noise = 0.01
-        # mono = True
-        scene.toolmode = 'COL'
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
-
-        tools.apply_tool(objs, utils.find_layer_from_index(obj, 7), color=palette[0])
-        # Mix metallic with occlusion (dirt in crevices)
-        colors7 = generate.color_list(obj, palette[1], layer)
-        colors8 = generate.color_list(obj, [1.0, 1.0, 1.0, 1.0], obj.sxlayers['occlusion'])
-        colors = tools.blend_values(colors8, colors7, 'MUL', 1.0)
-        layers.set_layer(obj, colors, obj.sxlayers['metallic'])
 
         # bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         # bpy.ops.mesh.select_all(action='DESELECT')
@@ -4387,8 +4411,8 @@ class SXTOOLS_export(object):
 # ------------------------------------------------------------------------
 def update_layers(self, context):
     if not sxglobals.refreshInProgress:
-        print('Updating layers')
-        then = time.time()
+        # print('Updating layers')
+        # then = time.time()
 
         if 'SXMaterial' not in bpy.data.materials.keys():
             setup.create_sxmaterial()
@@ -4398,9 +4422,9 @@ def update_layers(self, context):
         shading_mode(self, context)
         objs = selection_validator(self, context)
 
-        now = time.time()
-        print('Selection_validator: ', now-then, ' seconds')
-        then = time.time()
+        # now = time.time()
+        # print('Selection_validator: ', now-then, ' seconds')
+        # then = time.time()
 
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
@@ -4421,17 +4445,17 @@ def update_layers(self, context):
 
                 sxglobals.refreshInProgress = False
 
-            now = time.time()
-            print('object attribute update: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('object attribute update: ', now-then, ' seconds')
+            # then = time.time()
 
             # setup.setup_geometry(objs)
             if not context.scene.sxtools.gpucomposite:
                 sxglobals.composite = True
                 layers.composite_layers(objs)
 
-                now = time.time()
-                print('compositing duration: ', now-then, ' seconds')
+                # now = time.time()
+                # print('compositing duration: ', now-then, ' seconds')
 
 
 def refresh_actives(self, context):
@@ -4439,7 +4463,7 @@ def refresh_actives(self, context):
         sxglobals.refreshInProgress = True
 
         then0 = time.time()
-        then = time.time()
+        # then = time.time()
 
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
@@ -4447,9 +4471,9 @@ def refresh_actives(self, context):
         sxmaterial = bpy.data.materials['SXMaterial']
         objs = selection_validator(self, context)
 
-        now = time.time()
-        print('Selection_validator: ', now-then, ' seconds')
-        then = time.time()
+        # now = time.time()
+        # print('Selection_validator: ', now-then, ' seconds')
+        # then = time.time()
 
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
@@ -4462,9 +4486,9 @@ def refresh_actives(self, context):
             elif (prefs.materialtype != 'SMP') and (scene.toolmode == 'MAT'):
                 layers.material_layers_to_values(objs)
 
-            now = time.time()
-            print('Palettes tab update duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Palettes tab update duration: ', now-then, ' seconds')
+            # then = time.time()
 
             for obj in objs:
                 setattr(obj.sxtools, 'selectedlayer', idx)
@@ -4482,9 +4506,9 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-            now = time.time()
-            print('Object property update duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Object property update duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Update VertexColor0 to reflect latest layer changes
             if not context.scene.sxtools.gpucomposite:
@@ -4492,16 +4516,16 @@ def refresh_actives(self, context):
                     sxglobals.composite = True
                 layers.composite_layers(objs)
 
-            now = time.time()
-            print('Composite duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Composite duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_panel(objs, layer)
 
-            now = time.time()
-            print('Update layer panel duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Update layer panel duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4513,8 +4537,8 @@ def refresh_actives(self, context):
                     bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
                     bpy.data.materials['SXMaterial'].use_backface_culling = False
 
-            now = time.time()
-            print('Material update duration: ', now-then, ' seconds')
+            # now = time.time()
+            # print('Material update duration: ', now-then, ' seconds')
 
         # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
@@ -4789,7 +4813,6 @@ def adjust_hue(self, context):
             tools.apply_hsl(objs, layer, 0, context.scene.sxtools.huevalue)
 
             sxglobals.composite = True
-            print('adjust hue comp')
             refresh_actives(self, context)
 
 
@@ -4803,7 +4826,6 @@ def adjust_saturation(self, context):
             tools.apply_hsl(objs, layer, 1, context.scene.sxtools.saturationvalue)
 
             sxglobals.composite = True
-            print('adjust sat comp')
             refresh_actives(self, context)
 
 
@@ -4817,7 +4839,6 @@ def adjust_lightness(self, context):
             tools.apply_hsl(objs, layer, 2, context.scene.sxtools.lightnessvalue)
 
             sxglobals.composite = True
-            print('adjust lightness comp')
             refresh_actives(self, context)
 
 
@@ -7519,7 +7540,6 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
                 tools.update_recent_colors(color)
 
             sxglobals.composite = True
-            print('apply tool operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7557,7 +7577,6 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
             layers.merge_layers(objs, sourceLayer, targetLayer)
 
             sxglobals.composite = True
-            print('merge up operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7604,7 +7623,6 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
             layers.merge_layers(objs, sourceLayer, targetLayer)
 
             sxglobals.composite = True
-            print('merge down operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7656,7 +7674,6 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
                 layers.paste_layer(objs, sourceLayer, targetLayer, mode)
 
                 sxglobals.composite = True
-                print('paste layer operator comp')
                 refresh_actives(self, context)
                 return {'FINISHED'}
         return {'FINISHED'}
@@ -7681,7 +7698,6 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
             layers.clear_layers(objs, layer)
 
             sxglobals.composite = True
-            print('clear layer operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7753,7 +7769,6 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
             tools.apply_palette(objs, palette, noise, mono)
 
             sxglobals.composite = True
-            print('apply palette operator comp')
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -7968,7 +7983,6 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         if prefs.removelods:
             export.remove_exports()
         # sxglobals.composite = True
-        # print('export selected operator comp')
         # refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -8127,7 +8141,6 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
             tools.revert_objects(objs)
 
             sxglobals.composite = True
-            print('revert to control cages operator comp')
             refresh_actives(self, context)
 
             scene.shadingmode = 'FULL'
@@ -8429,15 +8442,8 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - apply palette (sometimes!) fails to preserve alpha
 # - magic process fails (not updated to apply_tool yet)
-# - apply to components fails if multiple objects are selected
-# - applymaterial to use selected layer as mask for the others
 # - select_up and down are triggering refresh per object?
-# - why is export calling composite?
-# - Layer color palette cache
-# - alpha mode shows overlay incorrectly (?)
-# - apply color -> if component selection, always overwrite
 # - Limit UV4 clear workload (currently 4 passes)
 # - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
