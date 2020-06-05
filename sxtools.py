@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 2, 1),
+    'version': (4, 3, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -17,6 +17,7 @@ import json
 import pathlib
 import statistics
 import sys
+import numpy as np
 from bpy.app.handlers import persistent
 from collections import defaultdict, Counter
 from mathutils import Vector
@@ -1365,19 +1366,40 @@ class SXTOOLS_generate(object):
 
     def direction_list(self, obj, masklayer=None):
         scene = bpy.context.scene.sxtools
-        inclination = (scene.dirInclination - 90.0)* (2*math.pi)/360.0
-        angle = (scene.dirAngle + 90) * (2*math.pi)/360.0
-        direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
+        coneangle = scene.dirCone
+        cone = coneangle*0.5
+
+        if coneangle == 0:
+            samples = 1
+        else:
+            samples = coneangle * 5
+        # accumulation_list = np.array(generate.empty_list(obj, 4))
 
         vert_dir_dict = {}
         vert_dict = self.vertex_pos_dict(obj)
         vert_ids = self.vertex_id_list(obj)
 
         for vert_id in vert_ids:
-            vertWorldNormal = Vector(vert_dict[vert_id][3])
-            vert_dir_dict[vert_id] = max(min(vertWorldNormal @ direction, 1.0), 0.0)
+            vert_dir_dict[vert_id] = 0.0
 
-        vert_dir_list = self.vert_dict_to_loop_list(obj, vert_dir_dict, 1, 4)
+        for i in range(samples):
+            inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0)* (2*math.pi)/360.0
+            angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2*math.pi)/360.0
+
+            direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
+
+            for vert_id in vert_ids:
+                vertWorldNormal = Vector(vert_dict[vert_id][3])
+                vert_dir_dict[vert_id] += max(min(vertWorldNormal @ direction, 1.0), 0.0)
+
+        values = np.array(self.vert_dict_to_loop_list(obj, vert_dir_dict, 1, 1))
+        values *= 1.0/values.max()
+        values = values.tolist()
+
+        vert_dir_list = [None] * len(values) * 4
+        for i in range(len(values)):
+            vert_dir_list[(0+i*4):(4+i*4)] = [values[i], values[i], values[i], 1.0]
+
         return self.mask_list(obj, vert_dir_list, masklayer)
 
 
@@ -1772,7 +1794,7 @@ class SXTOOLS_generate(object):
         mode = obj.mode
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         count = len(obj.data.uv_layers[0].data)
-        looplist = [None] * count * channelcount
+        looplist = [0.0] * count * channelcount
         bpy.ops.object.mode_set(mode=mode)
         return looplist
 
@@ -4562,6 +4584,7 @@ def shading_mode(self, context):
 
         if prefs.materialtype == 'SMP':
             context.scene.eevee.use_bloom = False
+            context.scene.eevee.use_ssr = False
             areas = bpy.context.workspace.screens[0].areas
             shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
             for area in areas:
@@ -4587,6 +4610,8 @@ def shading_mode(self, context):
             if mode == 'FULL':
                 if emission:
                     context.scene.eevee.use_bloom = True
+                if metallic or smoothness:
+                    context.scene.eevee.use_ssr = True
                 areas = bpy.context.workspace.screens[0].areas
                 shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
                 for area in areas:
@@ -4649,6 +4674,8 @@ def shading_mode(self, context):
             else:
                 if emission:
                     context.scene.eevee.use_bloom = False
+                if metallic or smoothness:
+                    context.scene.eevee.use_ssr = False
                 areas = bpy.context.workspace.screens[0].areas
                 shading = 'MATERIAL'  # 'WIREFRAME' 'SOLID' 'MATERIAL' 'RENDERED'
                 for area in areas:
@@ -5936,6 +5963,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=360.0,
         default=0.0)
 
+    dirCone: bpy.props.IntProperty(
+        name='Spread',
+        description='Softens the result with multiple samples',
+        min=0,
+        max=360,
+        default=0)
+
     curvaturenormalize: bpy.props.BoolProperty(
         name='Normalize Curvature',
         description='Normalize convex and concave ranges\nfor improved artistic control',
@@ -6610,6 +6644,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_fill = box_fill.column(align=True)
                         col_fill.prop(scene, 'dirInclination', slider=True, text='Inclination')
                         col_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
+                        col_fill.prop(scene, 'dirCone', slider=True, text='Spread')
 
                         col_fill.separator()
                         row3_fill = box_fill.row()
