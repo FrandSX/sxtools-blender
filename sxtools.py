@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 11),
+    'version': (4, 3, 12),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2051,7 +2051,6 @@ class SXTOOLS_layers(object):
                 setattr(obj.sxlayers[layer.index], 'alpha', 1.0)
                 setattr(obj.sxlayers[layer.index], 'visibility', True)
                 if layer == obj.sxlayers['overlay']:
-                    print('overlay: ', obj.name)
                     setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
                 else:
                     setattr(obj.sxlayers[layer.index], 'blendMode', 'ALPHA')
@@ -2076,7 +2075,7 @@ class SXTOOLS_layers(object):
                 obj.data.update()
         else:
             for obj in objs:
-                clear_layer(obj, targetlayer)
+                clear_layer(obj, obj.sxlayers[targetlayer.index])
                 obj.data.update()
 
 
