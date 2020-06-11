@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 8),
+    'version': (4, 3, 9),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1478,6 +1478,74 @@ class SXTOOLS_generate(object):
         return groundPlane
 
 
+    def thickness_list(self, obj, raycount, bias=0.000001, masklayer=None):
+
+        def dist_hit(vert_id, loc, vertPos, dist_list):
+            distanceVec = Vector((loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2]))
+            dist_list.append(distanceVec.length)
+
+        def thick_hit(vert_id, loc, vertPos, dist_list):
+            vert_occ_dict[vert_id] += contribution
+
+        def ray_caster(obj, raycount, vert_dict, vert_ids, hitfunction, raydistance=1.70141e+38):
+            hemiSphere = self.ray_randomizer(raycount)
+
+            for vert_id in vert_ids:
+                vert_occ_dict[vert_id] = 0.0
+                vertLoc = Vector(vert_dict[vert_id][0])
+                vertNormal = Vector(vert_dict[vert_id][1])
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+
+                biasVec = tuple([bias*x for x in invNormal])
+                rotQuat = forward.rotation_difference(invNormal)
+
+                # offset ray origin with normal bias
+                vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
+
+                for sample in hemiSphere:
+                    sample = Vector(sample)
+                    sample.rotate(rotQuat)
+
+                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=raydistance)
+
+                    if hit:
+                        hitfunction(vert_id, loc, vertPos, dist_list)
+
+        # then = time.time()
+        contribution = 1.0/float(raycount)
+        forward = Vector((0.0, 0.0, 1.0))
+        bias = 1e-5
+
+        dist_list = []
+        vert_occ_dict = {}
+        vert_dict = self.vertex_pos_dict(obj)
+        vert_ids = self.vertex_id_list(obj)
+
+        for modifier in obj.modifiers:
+            if modifier.type == 'SUBSURF':
+                modifier.show_viewport = False
+
+        # First pass to analyze ray hit distances,
+        # then set max ray distance to half of median distance
+        ray_caster(obj, 20, vert_dict, vert_ids, dist_hit)
+        distance = statistics.median(dist_list) * 0.5
+
+        # Second pass for final results
+        ray_caster(obj, raycount, vert_dict, vert_ids, thick_hit, raydistance=distance)
+
+        for modifier in obj.modifiers:
+            if modifier.type == 'SUBSURF':
+                modifier.show_viewport = obj.sxtools.modifiervisibility
+
+        vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
+
+        # now = time.time()
+        # print('thk_list duration: ', now-then, ' seconds')
+        return self.mask_list(obj, vert_occ_list, masklayer)      
+
+
     def occlusion_list(self, obj, raycount=100, blend=0.5, dist=10.0, groundplane=False, bias=0.01, masklayer=None):
         scene = bpy.context.scene
         contribution = 1.0/float(raycount)
@@ -1544,86 +1612,6 @@ class SXTOOLS_generate(object):
 
         if groundplane:
             bpy.data.objects.remove(ground, do_unlink=True)
-
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = obj.sxtools.modifiervisibility
-
-        vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
-        return self.mask_list(obj, vert_occ_list, masklayer)
-
-
-    def thickness_list(self, obj, raycount, bias=0.000001, masklayer=None):
-        contribution = 1.0/float(raycount)
-        hemiSphere = self.ray_randomizer(raycount)
-        forward = Vector((0.0, 0.0, 1.0))
-        bias = 1e-5
-
-        vert_occ_dict = {}
-        vert_dict = self.vertex_pos_dict(obj)
-        vert_ids = self.vertex_id_list(obj)
-
-        distances = []
-
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = False
-
-        # First pass to analyze ray hit distances,
-        # then set max ray distance to half of median distance
-        distHemiSphere = self.ray_randomizer(20)
-
-        for vert_id in vert_ids:
-            vertLoc = Vector(vert_dict[vert_id][0])
-            vertNormal = Vector(vert_dict[vert_id][1])
-
-            # Invert normal to cast inside object
-            invNormal = tuple([-1*x for x in vertNormal])
-
-            biasVec = tuple([bias*x for x in invNormal])
-            rotQuat = forward.rotation_difference(invNormal)
-
-            # offset ray origin with normal bias
-            vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
-
-            for sample in distHemiSphere:
-                sample = Vector(sample)
-                sample.rotate(rotQuat)
-
-                hit, loc, normal, index = obj.ray_cast(vertPos, sample)
-
-                if hit:
-                    distanceVec = Vector((loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2]))
-                    distances.append(distanceVec.length)
-
-        rayDistance = statistics.median(distances) * 0.5
-
-        vert_occ_dict = {}
-
-        for vert_id in vert_ids:
-            thicknessValue = 0.0
-            vertLoc = Vector(vert_dict[vert_id][0])
-            vertNormal = Vector(vert_dict[vert_id][1])
-
-            # Invert normal to cast inside object
-            invNormal = tuple([-1*x for x in vertNormal])
-
-            biasVec = tuple([bias*x for x in invNormal])
-            rotQuat = forward.rotation_difference(invNormal)
-
-            # offset ray origin with normal bias
-            vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
-
-            for sample in hemiSphere:
-                sample = Vector(sample)
-                sample.rotate(rotQuat)
-
-                hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=rayDistance)
-
-                if hit:
-                    thicknessValue += contribution
-
-            vert_occ_dict[vert_id] = thicknessValue
 
         for modifier in obj.modifiers:
             if modifier.type == 'SUBSURF':
@@ -3059,6 +3047,13 @@ class SXTOOLS_magic(object):
         viewlayer = bpy.context.view_layer
         orgObjNames = {}
 
+        org_toolmode = scene.toolmode
+        org_toolopacity = scene.toolopacity
+        org_toolblend = scene.toolblend
+        org_fillalpha = scene.fillalpha
+        org_rampmode = scene.rampmode
+        org_ramplist = scene.ramplist
+
         # Make sure export and source Collections exist
         if 'ExportObjects' not in bpy.data.collections.keys():
             exportObjects = bpy.data.collections.new('ExportObjects')
@@ -3297,6 +3292,13 @@ class SXTOOLS_magic(object):
         # Enable modifier stack for LODs
         for obj in objs:
             obj.sxtools.modifiervisibility = True
+
+        scene.toolmode = org_toolmode
+        scene.toolopacity = org_toolopacity
+        scene.toolblend = org_toolblend
+        scene.fillalpha = org_fillalpha
+        scene.rampmode = org_rampmode
+        scene.ramplist = org_ramplist
 
 
     def process_default(self, objs):
@@ -5333,8 +5335,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         items=[
             ('COL', 'Color', ''),
             ('GRD', 'Gradient', ''),
-            ('CRV', 'Curvature', ''),
             ('NSE', 'Noise', ''),
+            ('CRV', 'Curvature', ''),
             ('OCC', 'Ambient Occlusion', ''),
             ('THK', 'Mesh Thickness', ''),
             ('DIR', 'Directional', ''),
@@ -7327,9 +7329,9 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 
             layers.clear_layers(objs, layer)
 
+            utils.mode_manager(objs, revert=True)
             sxglobals.composite = True
             refresh_actives(self, context)
-            utils.mode_manager(objs, revert=True)
         return {'FINISHED'}
 
 
@@ -8071,6 +8073,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Clear components does not return to EDIT mode
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
 # - Blend modes behave slightly strangely on gradient1 and gradient2
@@ -8079,7 +8082,6 @@ if __name__ == '__main__':
 # - HSL H and S broken?
 # - Re-categorize filler tools
 # - magic process fails (not updated to apply_tool yet)
-# - select_up and down are triggering refresh per object?
 # - Limit UV4 clear workload (currently 4 passes)
 # - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
