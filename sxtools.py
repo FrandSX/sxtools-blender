@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 7),
+    'version': (4, 3, 8),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7822,8 +7822,7 @@ class SXTOOLS_OT_selectup(bpy.types.Operator):
             else:
                 targetLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[0])
 
-            for obj in objs:
-                obj.sxtools.selectedlayer = targetLayer.index
+            objs[0].sxtools.selectedlayer = targetLayer.index
 
             if mode != 'FULL':
                 sxglobals.composite = True
@@ -7851,8 +7850,7 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
             else:
                 targetLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[listLength - 1])
 
-            for obj in objs:
-                obj.sxtools.selectedlayer = targetLayer.index
+            objs[0].sxtools.selectedlayer = targetLayer.index
 
             if mode != 'FULL':
                 sxglobals.composite = True
