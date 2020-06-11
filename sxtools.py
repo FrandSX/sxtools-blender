@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 10),
+    'version': (4, 3, 11),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2051,6 +2051,7 @@ class SXTOOLS_layers(object):
                 setattr(obj.sxlayers[layer.index], 'alpha', 1.0)
                 setattr(obj.sxlayers[layer.index], 'visibility', True)
                 if layer == obj.sxlayers['overlay']:
+                    print('overlay: ', obj.name)
                     setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
                 else:
                     setattr(obj.sxlayers[layer.index], 'blendMode', 'ALPHA')
@@ -2495,6 +2496,39 @@ class SXTOOLS_tools(object):
         if (fillColor not in palCols) and (fillColor[3] > 0.0):
             for i in range(8):
                 setattr(scene, 'fillpalette' + str(i + 1), colorArray[i])
+
+
+    def select_color_mask(self, objs, color, invertmask=False):
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)        
+
+        for obj in objs:
+            colors = layers.get_layer(obj, obj.sxlayers['composite'])
+            mesh = obj.data
+            i = 0
+            if bpy.context.tool_settings.mesh_select_mode[2]:
+                for poly in mesh.polygons:
+                    for loop_idx in poly.loop_indices:
+                        if invertmask:
+                            if not utils.color_compare(colors[(0+i*4):(4+i*4)], color):
+                                poly.select = True
+                        else:
+                            if utils.color_compare(colors[(0+i*4):(4+i*4)], color):
+                                poly.select = True
+                        i+=1
+            else:
+                for poly in mesh.polygons:
+                    for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
+                        if invertmask:
+                            if not utils.color_compare(colors[(0+i*4):(4+i*4)], color):
+                                mesh.vertices[vert_idx].select = True
+                        else:
+                            if utils.color_compare(colors[(0+i*4):(4+i*4)], color):
+                                mesh.vertices[vert_idx].select = True
+                        i+=1
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
 
     def select_mask(self, objs, layer, invertmask=False):
@@ -6168,8 +6202,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 else:
                     paste_text = 'Paste'
                 row_misc2.operator('sxtools.pastelayer', text=paste_text)
-                if not scene.shift:
+                if not scene.shift and not scene.ctrl:
                     sel_text = 'Select Mask'
+                elif not scene.shift and scene.ctrl:
+                    sel_text = 'Select Color'
                 else:
                     sel_text = 'Select Inverse'
                 row_misc2.operator('sxtools.selmask', text=sel_text)
@@ -7333,7 +7369,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 class SXTOOLS_OT_selmask(bpy.types.Operator):
     bl_idname = 'sxtools.selmask'
     bl_label = 'Select Layer Mask'
-    bl_description = 'Click to select components with alpha\nShift-click to invert selection'
+    bl_description = 'Click to select components with alpha\nShift-click to invert selection\nCtrl-click to select visible faces with Fill Color'
     bl_options = {'UNDO'}
 
 
@@ -7345,10 +7381,14 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
             else:
                 inverse = False
 
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.find_layer_from_index(objs[0], idx)
-            # bpy.context.view_layer.objects.active = objs[0]
-            tools.select_mask(objs, layer, inverse)
+            if event.ctrl:
+                color = context.scene.sxtools.fillcolor
+                tools.select_color_mask(objs, color, inverse)
+            else:
+                idx = objs[0].sxtools.selectedlayer
+                layer = utils.find_layer_from_index(objs[0], idx)
+                # bpy.context.view_layer.objects.active = objs[0]
+                tools.select_mask(objs, layer, inverse)
         return {'FINISHED'}
 
 
@@ -7766,14 +7806,15 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
         scene = bpy.context.scene.sxtools
         objs = selection_validator(self, context)
         if len(objs) > 0:
+            utils.mode_manager(objs, set_mode=True)
             tools.revert_objects(objs)
 
+            bpy.ops.object.shade_flat()
+            scene.shadingmode = 'FULL'
             sxglobals.composite = True
             refresh_actives(self, context)
 
-            scene.shadingmode = 'FULL'
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-            bpy.ops.object.shade_flat()
+            utils.mode_manager(objs, revert=False)
         return {'FINISHED'}
 
 
@@ -8068,13 +8109,11 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Revert to control cages -> blending issue
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
 # - Blend modes behave slightly strangely on gradient1 and gradient2
 # - Metallic broken in buildings category
-# - EDIT mode HSL sliders broken
-# - HSL H and S broken?
+# - EDIT mode HSL sliders don't refresh on component selection change
 # - Re-categorize filler tools
 # - magic process fails (not updated to apply_tool yet)
 # - Limit UV4 clear workload (currently 4 passes)
