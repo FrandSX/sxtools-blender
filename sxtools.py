@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 9),
+    'version': (4, 3, 10),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3053,6 +3053,14 @@ class SXTOOLS_magic(object):
         org_fillalpha = scene.fillalpha
         org_rampmode = scene.rampmode
         org_ramplist = scene.ramplist
+        org_dirangle = scene.dirAngle
+        org_dirinclination = scene.dirInclination
+        org_dircone = scene.dirCone
+
+        sxglobals.mode = 'OBJECT'
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        scene.toolopacity = 1.0
+        scene.toolblend = 'ALPHA'
 
         # Make sure export and source Collections exist
         if 'ExportObjects' not in bpy.data.collections.keys():
@@ -3299,15 +3307,14 @@ class SXTOOLS_magic(object):
         scene.fillalpha = org_fillalpha
         scene.rampmode = org_rampmode
         scene.ramplist = org_ramplist
+        scene.dirAngle = org_dirangle
+        scene.dirInclination = org_dirinclination
+        scene.dirCone = org_dircone
 
 
     def process_default(self, objs):
         print('SX Tools: Processing Default')
         scene = bpy.context.scene.sxtools
-        sxglobals.mode = 'OBJECT'
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
         obj = objs[0]
 
         # Apply occlusion
@@ -3355,10 +3362,6 @@ class SXTOOLS_magic(object):
     def process_paletted(self, objs):
         print('SX Tools: Processing Paletted')
         scene = bpy.context.scene.sxtools
-        sxglobals.mode = 'OBJECT'
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
         obj = objs[0]
 
         # Apply occlusion masked by emission
@@ -3408,11 +3411,7 @@ class SXTOOLS_magic(object):
 
     def process_vehicles(self, objs):
         print('SX Tools: Processing Vehicles')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         scene = bpy.context.scene.sxtools
-        sxglobals.mode = 'OBJECT'
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
         obj = objs[0]
 
         # Apply occlusion masked by emission
@@ -3488,8 +3487,9 @@ class SXTOOLS_magic(object):
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             # Combine previous mix with directional dust
             scene.ramplist = 'DIRECTIONALDUST'
-            scene.angle = 0.0
-            scene.inclination = 40.0
+            scene.dirAngle = 0.0
+            scene.dirInclination = 40.0
+            scene.dirCone = 30
             colors1 = generate.direction_list(obj)
             values = layers.get_luminances(obj, colors=colors1)
             colors1 = generate.luminance_remap_list(obj, values=values)
@@ -3523,12 +3523,8 @@ class SXTOOLS_magic(object):
 
     def process_buildings(self, objs):
         print('SX Tools: Processing Buildings')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         scene = bpy.context.scene.sxtools
-        sxglobals.mode = 'OBJECT'
         obj = objs[0]
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
 
         # Apply occlusion
@@ -3636,7 +3632,6 @@ class SXTOOLS_magic(object):
     def process_trees(self, objs):
         print('SX Tools: Processing Trees')
         scene = bpy.context.scene.sxtools
-        sxglobals.mode = 'OBJECT'
         obj = objs[0]
         ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
         inverse = False
@@ -8073,7 +8068,7 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Clear components does not return to EDIT mode
+# - Revert to control cages -> blending issue
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
 # - Blend modes behave slightly strangely on gradient1 and gradient2
