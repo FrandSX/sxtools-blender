@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 12),
+    'version': (4, 3, 14),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3332,6 +3332,7 @@ class SXTOOLS_magic(object):
 
         # Enable modifier stack for LODs
         for obj in objs:
+            obj.data.update()
             obj.sxtools.modifiervisibility = True
 
         scene.toolmode = org_toolmode
@@ -3388,8 +3389,8 @@ class SXTOOLS_magic(object):
             scene.fillalpha = True
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
-        for obj in objs:
-            obj.data.update()
+        # for obj in objs:
+        #     obj.data.update()
 
 
     def process_paletted(self, objs):
@@ -3438,8 +3439,8 @@ class SXTOOLS_magic(object):
         scene.fillalpha = True
         tools.apply_tool(objs, layer, masklayer=mask, color=color)
 
-        for obj in objs:
-            obj.data.update()
+        # for obj in objs:
+        #     obj.data.update()
 
 
     def process_vehicles(self, objs):
@@ -3551,14 +3552,13 @@ class SXTOOLS_magic(object):
                 colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
 
-            obj.data.update()
+            # obj.data.update()
 
 
     def process_buildings(self, objs):
         print('SX Tools: Processing Buildings')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
-        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
@@ -3659,45 +3659,37 @@ class SXTOOLS_magic(object):
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
 
-            obj.data.update()
+            # obj.data.update()
 
 
     def process_trees(self, objs):
         print('SX Tools: Processing Trees')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
-        ramp = bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp']
-        inverse = False
 
         # Apply occlusion
         layer = obj.sxlayers['occlusion']
-        rampmode = 'OCC'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.0
-        mono = True
+        scene.toolmode = 'OCC'
+        scene.fillalpha = True
+        scene.noisemono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
+        scene.occlusionbias = 0.05
+        color = (1.0, 1.0, 1.0, 1.0)
 
-        mergebbx = scene.rampbbox
-        overwrite = True
-        obj.mode == 'OBJECT'
-
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # Apply custom overlay
-        layer = obj.sxlayers['overlay']
-        rampmode = 'CN'
-        scene.ramplist = 'BLACKANDWHITE'
-        noise = 0.01
-        mono = False
-
-        obj.mode == 'OBJECT'
-
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
+            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            layers.set_layer(obj, colors, layer)
+
+        # Apply overlay
+        scene.curvaturenormalize = True
+        for obj in objs:
+            layer = obj.sxlayers['overlay']
+            colors = generate.curvature_list(obj)
+            # Noise for variance
+            colors1 = generate.noise_list(obj, 0.03, False)
+            colors = tools.blend_values(colors1, colors, 'OVR', 1.0)
+            layers.set_layer(obj, colors, layer)
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
@@ -3706,103 +3698,46 @@ class SXTOOLS_magic(object):
         layers.clear_layers(objs, obj.sxlayers['smoothness'])
         layers.clear_layers(objs, obj.sxlayers['transmission'])
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # Apply thickness
+        # Apply thickness to transmission
         layer = obj.sxlayers['transmission']
-        rampmode = 'THK'
         scene.ramplist = 'FOLIAGERAMP'
-        noise = 0.0
-        mono = True
-        scene.occlusionrays = 500
+        color = (1.0, 1.0, 1.0, 1.0)
 
-        overwrite = True
-        obj.mode == 'OBJECT'
-
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        # Construct layer1-7 smoothness base mask
-        color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-        obj.mode == 'OBJECT'
-        noise = 0.01
-        mono = True
-        tools.apply_tool(objs, layer, color)
-
-        layer4 = utils.find_layer_from_index(obj, 4)
-        layer5 = utils.find_layer_from_index(obj, 5)
-        sxlayers = [layer4, layer5]
-        tools.select_mask(objs, sxlayers, inverse)
-
-        color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
-
-        layer = obj.sxlayers['smoothness']
-        overwrite = scene.fillalpha
-        if obj.mode == 'EDIT':
-            overwrite = True
-        noise = 0.01
-        mono = True
-        tools.apply_tool(objs, layer, color)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        color = (0.0, 0.0, 0.0, 1.0)
-
-        maskLayer = utils.find_layer_from_index(obj, 6)
-        layer = obj.sxlayers['smoothness']
-        overwrite = True
-
-        noise = 0.0
-        mono = True
-        tools.apply_tool(objs, layer, color, masklayer=maskLayer)
-
-        # Combine previous mix with directional dust
-        layer = obj.sxlayers['composite']
-        rampmode = 'DIR'
-        scene.ramplist = 'DIRECTIONALDUST'
-        scene.angle = 0.0
-        scene.inclination = 90.0
-        noise = 0.01
-        mono = True
-
-        obj.mode == 'OBJECT'
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        tools.apply_ramp(objs, layer, ramp, rampmode, overwrite, mergebbx, noise, mono)
         for obj in objs:
-            obj.sxlayers['smoothness'].alpha = 1.0
-            obj.sxlayers['smoothness'].blendMode = 'MUL'
-            obj.sxlayers['composite'].alpha = 1.0
-        layers.blend_layers(objs, [obj.sxlayers['smoothness'], ], obj.sxlayers['composite'], obj.sxlayers['composite'])
-        tools.layer_copy_manager(objs, obj.sxlayers['composite'], obj.sxlayers['smoothness'])
-        for obj in objs:
-            obj.sxlayers['smoothness'].blendMode = 'ALPHA'
-
-        # Clear layer4-5 mask from transmission
-        color = (0.0, 0.0, 0.0, 1.0)
-
-        maskLayer = utils.find_layer_from_index(obj, 4)
-        layer = obj.sxlayers['transmission']
-        overwrite = True
-
-        noise = 0.0
-        mono = True
-        tools.apply_tool(objs, layer, color, masklayer=maskLayer)
-        maskLayer = utils.find_layer_from_index(obj, 5)
-        tools.apply_tool(objs, layer, color, masklayer=maskLayer)
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            colors = generate.thickness_list(obj, 500, bias=0.000001, masklayer=None)
+            values = layers.get_luminances(obj, colors=colors)
+            colors = generate.luminance_remap_list(obj, values=values)
+            colors1 = generate.color_list(obj, color=color, masklayer=utils.find_layer_from_index(obj, 4))
+            colors2 = generate.color_list(obj, color=color, masklayer=utils.find_layer_from_index(obj, 5))
+            colors1 = tools.blend_values(colors1, colors2, 'ALPHA', 1.0)
+            colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+            layers.set_layer(obj, colors, layer)
+            # Construct layer1-7 smoothness base mask
+            color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
+            colors = generate.color_list(obj, color)
+            color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 4))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 5))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            color = (0.0, 0.0, 0.0, 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 6))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            colors1 = generate.noise_list(obj, 0.01, True)
+            colors = tools.blend_values(colors1, colors, 'OVR', 1.0)
+            # Combine previous mix with directional dust
+            scene.ramplist = 'DIRECTIONALDUST'
+            scene.dirAngle = 0.0
+            scene.dirInclination = 90.0
+            scene.dirCone = 30
+            colors1 = generate.direction_list(obj)
+            values = layers.get_luminances(obj, colors=colors1)
+            colors1 = generate.luminance_remap_list(obj, values=values)
+            colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+            # Write smoothness
+            scene.fillalpha = True
+            layer = obj.sxlayers['smoothness']
+            layers.set_layer(obj, colors, layer)
 
 
     def __del__(self):
@@ -4121,8 +4056,8 @@ def refresh_actives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
-        then0 = time.time()
-        then = time.time()
+        # then0 = time.time()
+        # then = time.time()
 
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
@@ -4143,9 +4078,9 @@ def refresh_actives(self, context):
             elif (prefs.materialtype != 'SMP') and (scene.toolmode == 'MAT'):
                 layers.material_layers_to_values(objs)
 
-            now = time.time()
-            print('Palettes tab update duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Palettes tab update duration: ', now-then, ' seconds')
+            # then = time.time()
 
             for obj in objs:
                 setattr(obj.sxtools, 'selectedlayer', idx)
@@ -4163,9 +4098,9 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-            now = time.time()
-            print('Object property update duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Object property update duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Update VertexColor0 to reflect latest layer changes
             if not context.scene.sxtools.gpucomposite:
@@ -4173,16 +4108,16 @@ def refresh_actives(self, context):
                     sxglobals.composite = True
                 layers.composite_layers(objs)
 
-            now = time.time()
-            print('Composite duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Composite duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_panel(objs, layer)
 
-            now = time.time()
-            print('Update layer panel duration: ', now-then, ' seconds')
-            then = time.time()
+            # now = time.time()
+            # print('Update layer panel duration: ', now-then, ' seconds')
+            # then = time.time()
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4194,8 +4129,8 @@ def refresh_actives(self, context):
                     bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
                     bpy.data.materials['SXMaterial'].use_backface_culling = False
 
-            now = time.time()
-            print('Material update duration: ', now-then, ' seconds')
+            # now = time.time()
+            # print('Material update duration: ', now-then, ' seconds')
 
         # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
@@ -4204,8 +4139,8 @@ def refresh_actives(self, context):
         utils.mode_manager(objs, revert=True)
         sxglobals.refreshInProgress = False
 
-        now = time.time()
-        print('Refresh actives duration: ', now-then0, ' seconds')
+        # now = time.time()
+        # print('Refresh actives duration: ', now-then0, ' seconds')
 
 
 def shading_mode(self, context):
@@ -6613,7 +6548,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_debug.label(text='Debug Tools')
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
-                            col_debug.prop(scene, 'gpucomposite', text='GPU Compositing')
+                            col_debug.prop(scene, 'gpucomposite', text='GPU Compositing (Experimental)')
                             col_debug.operator('sxtools.smart_separate', text='Debug: Smart Separate sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
@@ -8114,7 +8049,6 @@ if __name__ == '__main__':
 # - Metallic broken in buildings category
 # - EDIT mode HSL sliders don't refresh on component selection change
 # - Re-categorize filler tools
-# - magic process fails (not updated to apply_tool yet)
 # - Limit UV4 clear workload (currently 4 passes)
 # - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
