@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 14),
+    'version': (4, 3, 15),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2667,7 +2667,7 @@ class SXTOOLS_tools(object):
             bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
 
             scene.sxtools.fillalpha = False
-            self.apply_tool(objs, layer, color=palette_color, clear=True)
+            self.apply_tool(objs, layer, color=palette_color)
 
         sxglobals.refreshInProgress = False
 
@@ -2680,9 +2680,9 @@ class SXTOOLS_tools(object):
             scene.fillalpha = False
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
-            self.apply_tool([obj, ], targetlayer, color=material.color0, clear=True)
-            self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1, clear=True)
-            self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2, clear=True)
+            self.apply_tool([obj, ], targetlayer, color=material.color0)
+            self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
+            self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
 
 
     def add_modifiers(self, objs):
@@ -3546,13 +3546,11 @@ class SXTOOLS_magic(object):
             scene.toolblend = 'ALPHA'
 
             # Mix metallic with occlusion (dirt in crevices)
-            colors = generate.color_list(obj, palette[0], utils.find_layer_from_index(obj, 7))
+            colors = generate.color_list(obj, color=palette[1], masklayer=utils.find_layer_from_index(obj, 7))
             colors1 = layers.get_layer(obj, obj.sxlayers['occlusion'], uv_luminance=True)
-            if colors1 is not None and colors is not None:
+            if colors is not None:
                 colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
-
-            # obj.data.update()
 
 
     def process_buildings(self, objs):
@@ -3655,11 +3653,9 @@ class SXTOOLS_magic(object):
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
 
-            colors = generate.color_list(obj, palette[0], utils.find_layer_from_index(obj, 7))
+            colors = generate.color_list(obj, color=palette[0], masklayer=utils.find_layer_from_index(obj, 7))
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
-
-            # obj.data.update()
 
 
     def process_trees(self, objs):
@@ -4858,6 +4854,14 @@ def update_scene_configuration(self, context):
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
     sxglobals.librariesLoaded = False
+
+    if bpy.data.scenes['Scene'].sxtools.rampmode == '':
+        bpy.data.scenes['Scene'].sxtools.rampmode = 'X'
+
+    for obj in bpy.data.objects:
+        if (len(obj.sxtools.keys()) > 0):
+            if obj.sxtools.hardmode == '':
+                obj.sxtools.hardmode = 'SHARP'
 
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
@@ -6265,19 +6269,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if mode == 'OBJECT':
                             box_fill.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
 
-                        col_fill = box_fill.column(align=True)
-                        if scene.rampmode == 'DIR':
-                            col_fill.prop(scene, 'dirInclination', slider=True, text='Inclination')
-                            col_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
-                        elif scene.rampmode == 'OCC' or scene.rampmode == 'THK':
-                            col_fill.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
-                            col_fill.prop(scene, 'occlusionbias', slider=True, text='Bias')
-                            if scene.rampmode == 'OCC':
-                                col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
-                                col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
-                                col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
-
-                        col_fill.separator()
+                        box_fill.separator()
                         row4_fill = box_fill.row()
                         row4_fill.prop(scene, 'toolopacity', slider=True)
                         split3_fill = box_fill.split()
@@ -8043,6 +8035,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Palette and Material tools should auto-refresh on selection
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
 # - Blend modes behave slightly strangely on gradient1 and gradient2
