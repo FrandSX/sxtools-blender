@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 16),
+    'version': (4, 3, 17),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1194,7 +1194,7 @@ class SXTOOLS_convert(object):
         linLum = lumR * linColor[0] + lumG * linColor[1] + lumB * linColor[2]
         luminance = self.linear_to_srgb([linLum, linLum, linLum, 1.0])[0]
         # luminance = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-        return luminance
+        return luminance * color[3]
 
 
     def luminance_to_color(self, value):
