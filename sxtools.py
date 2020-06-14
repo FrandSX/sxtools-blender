@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 15),
+    'version': (4, 3, 16),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2649,7 +2649,7 @@ class SXTOOLS_tools(object):
             layers.set_layer(obj, sourcevalues, targetlayer)
 
 
-    def apply_palette(self, objs, palette, noise, mono):
+    def apply_palette(self, objs, palette):
         if not sxglobals.refreshInProgress:
             sxglobals.refreshInProgress = True
 
@@ -5541,18 +5541,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         description='Choose palette category',
         items=palette_category_lister)
 
-    palettenoise: bpy.props.FloatProperty(
-        name='Noise',
-        description='Random per-vertex noise',
-        min=0.0,
-        max=1.0,
-        default=0.0)
-
-    palettemono: bpy.props.BoolProperty(
-        name='Monochrome',
-        description='Uncheck to randomize all noise channels separately',
-        default=False)
-
     materialcategories: bpy.props.EnumProperty(
         name='Category',
         description='Choose material category',
@@ -5562,18 +5550,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Overwrite Alpha',
         description='Check to flood fill entire selection\nUncheck to retain current alpha mask',
         default=True)
-
-    materialnoise: bpy.props.FloatProperty(
-        name='Noise',
-        description='Random per-vertex noise',
-        min=0.0,
-        max=1.0,
-        default=0.0)
-
-    materialmono: bpy.props.BoolProperty(
-        name='Monochrome',
-        description='Uncheck to randomize all noise channels separately',
-        default=False)
 
     creasemode: bpy.props.EnumProperty(
         name='Edge Weight Mode',
@@ -6340,11 +6316,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                         mp_button = split2_mpalette.operator('sxtools.delpalette', text='Delete')
                                         mp_button.label = name
 
-                            row_mnoise = box_fill.row(align=True)
-                            row_mnoise.prop(scene, 'palettenoise', slider=True)
-                            col_mcolor = box_fill.column(align=True)
-                            col_mcolor.prop(scene, 'palettemono', text='Monochromatic')
-
                 # PBR Materials -------------------------------------------------
                 elif scene.toolmode == 'MAT':
                     if prefs.materialtype == 'SMP':
@@ -6394,10 +6365,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                             mat_button = split2_mat.operator('sxtools.delmaterial', text='Delete')
                                             mat_button.label = name
 
-                                row_pbrnoise = box_fill.row(align=True)
-                                row_pbrnoise.prop(scene, 'materialnoise', slider=True)
                                 col_matcolor = box_fill.column(align=True)
-                                col_matcolor.prop(scene, 'materialmono', text='Monochromatic')
                                 if mode == 'OBJECT':
                                     col_matcolor.prop(scene, 'materialalpha')
 
@@ -7357,10 +7325,7 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             palette = self.label
-            noise = context.scene.sxtools.palettenoise
-            mono = context.scene.sxtools.palettemono
-
-            tools.apply_palette(objs, palette, noise, mono)
+            tools.apply_palette(objs, palette)
 
             sxglobals.composite = True
             refresh_actives(self, context)
@@ -8035,6 +8000,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Apply_palette calls data update per layer
 # - Palette and Material tools should auto-refresh on selection
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
@@ -8043,7 +8009,6 @@ if __name__ == '__main__':
 # - EDIT mode HSL sliders don't refresh on component selection change
 # - Re-categorize filler tools
 # - Limit UV4 clear workload (currently 4 passes)
-# - Gradient color to update from changes in layer4 and 5 colors?
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 # - Different defaultColor if overlay layer blend mode changed?
