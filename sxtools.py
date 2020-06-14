@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 17),
+    'version': (4, 3, 18),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2650,6 +2650,7 @@ class SXTOOLS_tools(object):
 
 
     def apply_palette(self, objs, palette):
+        utils.mode_manager(objs, set_mode=True)
         if not sxglobals.refreshInProgress:
             sxglobals.refreshInProgress = True
 
@@ -2661,15 +2662,20 @@ class SXTOOLS_tools(object):
             scene.sxpalettes[palette].color3,
             scene.sxpalettes[palette].color4]
 
-        for idx in range(1, 6):
-            layer = utils.find_layer_from_index(objs[0], idx)
-            palette_color = palette[idx - 1] # convert.srgb_to_linear(palette[idx - 1])
-            bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
+        for obj in objs:
+            for idx in range(1, 6):
+                scene.sxtools.fillalpha = False
+                layer = utils.find_layer_from_index(objs[0], idx)
+                palette_color = palette[idx - 1] # convert.srgb_to_linear(palette[idx - 1])
+                bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
+                colors = generate.color_list(obj, color=palette_color, masklayer=layer)
+                if colors is not None:
+                    layers.set_layer(obj, colors, layer)
 
-            scene.sxtools.fillalpha = False
-            self.apply_tool(objs, layer, color=palette_color)
+            obj.data.update()
 
         sxglobals.refreshInProgress = False
+        utils.mode_manager(objs, revert=True)
 
 
     def apply_material(self, objs, targetlayer, material):
@@ -3389,9 +3395,6 @@ class SXTOOLS_magic(object):
             scene.fillalpha = True
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
-        # for obj in objs:
-        #     obj.data.update()
-
 
     def process_paletted(self, objs):
         print('SX Tools: Processing Paletted')
@@ -3438,9 +3441,6 @@ class SXTOOLS_magic(object):
         layer = obj.sxlayers['smoothness']
         scene.fillalpha = True
         tools.apply_tool(objs, layer, masklayer=mask, color=color)
-
-        # for obj in objs:
-        #     obj.data.update()
 
 
     def process_vehicles(self, objs):
@@ -8000,12 +8000,10 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - Apply_palette calls data update per layer
 # - Palette and Material tools should auto-refresh on selection
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
 # - Blend modes behave slightly strangely on gradient1 and gradient2
-# - Metallic broken in buildings category
 # - EDIT mode HSL sliders don't refresh on component selection change
 # - Re-categorize filler tools
 # - Limit UV4 clear workload (currently 4 passes)
