@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 18),
+    'version': (4, 3, 19),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -471,7 +471,7 @@ class SXTOOLS_utils(object):
         colorArray = []
 
         for obj in objs:
-            values = generate.mask_list(obj, layers.get_layer(obj, layer), as_rgba=True)
+            values = generate.mask_list(obj, layers.get_layer(obj, layer), as_tuple=True)
             if values is not None:
                 colorArray.extend(values)
 
@@ -1621,11 +1621,11 @@ class SXTOOLS_generate(object):
         return self.mask_list(obj, vert_occ_list, masklayer)
 
 
-    def mask_list(self, obj, colors, masklayer=None, as_rgba=False):
+    def mask_list(self, obj, colors, masklayer=None, as_tuple=False):
         count = len(colors)//4
 
         if (masklayer is None) and (sxglobals.mode == 'OBJECT'):
-            if as_rgba:
+            if as_tuple:
                 rgba = [None] * count
                 for i in range(count):
                     rgba[i] = tuple(colors[(0+i*4):(4+i*4)])
@@ -1642,7 +1642,7 @@ class SXTOOLS_generate(object):
                 if empty:
                     return None
 
-            if as_rgba:
+            if as_tuple:
                 rgba = [None] * count
                 for i in range(count):
                     rgba[i] = tuple(Vector(colors[(0+i*4):(4+i*4)]) * mask[i])
@@ -1656,11 +1656,11 @@ class SXTOOLS_generate(object):
                 return color_list
 
 
-    def color_list(self, obj, color, masklayer=None, as_rgba=False):
+    def color_list(self, obj, color, masklayer=None, as_tuple=False):
         count = len(obj.data.vertex_colors[0].data)
         colors = [color[0], color[1], color[2], color[3]] * count
 
-        return self.mask_list(obj, colors, masklayer, as_rgba)
+        return self.mask_list(obj, colors, masklayer, as_tuple)
 
 
     def ramp_list(self, obj, objs, rampmode, masklayer=None, mergebbx=True):
@@ -1842,7 +1842,7 @@ class SXTOOLS_layers(object):
 
 
     # wrapper for low-level functions, always returns layerdata in RGBA
-    def get_layer(self, obj, sourcelayer, as_rgba=False, uv_luminance=False):
+    def get_layer(self, obj, sourcelayer, as_tuple=False, uv_luminance=False):
         sourceType = sourcelayer.layerType
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
 
@@ -1871,7 +1871,7 @@ class SXTOOLS_layers(object):
         elif sourceType == 'UV4':
             values = layers.get_uv4(obj, sourcelayer)
 
-        if as_rgba:
+        if as_tuple:
             count = len(values)//4
             rgba = [None] * count
             for i in range(count):
@@ -1992,7 +1992,7 @@ class SXTOOLS_layers(object):
             targetUVs.foreach_set('uv', target_uvs)
 
 
-    def get_uv4(self, obj, sourcelayer, as_rgba=False):
+    def get_uv4(self, obj, sourcelayer):
         channels = {'U': 0, 'V':1}
         sourceUVs0 = obj.data.uv_layers[sourcelayer.uvLayer0].data
         sourceUVs1 = obj.data.uv_layers[sourcelayer.uvLayer2].data
@@ -2007,14 +2007,9 @@ class SXTOOLS_layers(object):
         uv2 = channels[sourcelayer.uvChannel2]
         uv3 = channels[sourcelayer.uvChannel3]
 
-        if as_rgba:
-            colors = [None] * count
-            for i in range(count):
-                colors[i] = tuple((source_uvs0[uv0+i*2], source_uvs0[uv1+i*2], source_uvs1[uv2+i*2], source_uvs1[uv3+i*2]))
-        else:
-            colors = [None] * count * 4
-            for i in range(count):
-                colors[(0+i*4):(4+i*4)] = [source_uvs0[uv0+i*2], source_uvs0[uv1+i*2], source_uvs1[uv2+i*2], source_uvs1[uv3+i*2]]
+        colors = [None] * count * 4
+        for i in range(count):
+            colors[(0+i*4):(4+i*4)] = [source_uvs0[uv0+i*2], source_uvs0[uv1+i*2], source_uvs1[uv2+i*2], source_uvs1[uv3+i*2]]
 
         return colors
 
@@ -2327,7 +2322,6 @@ class SXTOOLS_tools(object):
             colors = [None] * count * 4
             midpoint = 0.5 # convert.srgb_to_linear([0.5, 0.5, 0.5, 1.0])[0]
 
-            # print('blend values: ', blendmode, blendvalue, topcolors[0:4], basecolors[0:4])
             for i in range(count):
                 top = Vector(topcolors[(0+i*4):(4+i*4)])
                 base = Vector(basecolors[(0+i*4):(4+i*4)])
@@ -2335,11 +2329,7 @@ class SXTOOLS_tools(object):
 
                 if blendmode == 'ALPHA':
                     base = top * a + base * (1 - a)
-                    # if i==0:
-                    #     print('base alpha: ', base[3])
                     base[3] = min(base[3]+a, 1.0)
-                    # if i==0:
-                    #     print('base alpha again: ', base[3])
 
                 elif blendmode == 'ADD':
                     base += top * a
@@ -2365,8 +2355,7 @@ class SXTOOLS_tools(object):
 
                 if base[3] == 0.0:
                     base = [0.0, 0.0, 0.0, 0.0]
-                # if i==0:
-                #     print('base post blend: ', base)
+
                 colors[(0+i*4):(4+i*4)] = base
             return colors
 
@@ -3350,6 +3339,9 @@ class SXTOOLS_magic(object):
         scene.dirAngle = org_dirangle
         scene.dirInclination = org_dirinclination
         scene.dirCone = org_dircone
+
+        now = time.time()
+        print('SX Tools: Modifier stack duration: ', now-then, ' seconds')
 
 
     def process_default(self, objs):
@@ -8000,6 +7992,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - update_palette_layer does a blend pass
+# - Alpha showing up in Palette tool
 # - Palette and Material tools should auto-refresh on selection
 # - UI refresh delayed by one click in some situations
 # - Palette swatches not auto-updated on component selection HSL slider tweak
