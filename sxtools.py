@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 19),
+    'version': (4, 3, 20),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2859,7 +2859,8 @@ class SXTOOLS_tools(object):
             if mode == 1:
                 bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
                 if force:
-                    pivot_loc = obj.location.copy()
+                    # pivot_loc = obj.location.copy()
+                    pivot_loc = obj.matrix_world.to_translation()
                     if obj.sxtools.xmirror:
                         pivot_loc[0] = 0.0
                     if obj.sxtools.ymirror:
@@ -2871,7 +2872,8 @@ class SXTOOLS_tools(object):
             elif mode == 2:
                 bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
                 if force:
-                    pivot_loc = obj.location.copy()
+                    # pivot_loc = obj.location.copy()
+                    pivot_loc = obj.matrix_world.to_translation()
                     if obj.sxtools.xmirror:
                         pivot_loc[0] = 0.0
                     if obj.sxtools.ymirror:
