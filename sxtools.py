@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 22),
+    'version': (4, 3, 24),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1384,31 +1384,33 @@ class SXTOOLS_generate(object):
             samples = coneangle * 5
 
         vert_dir_dict = {}
-        vert_dict = self.vertex_pos_dict(obj)
-        vert_ids = self.vertex_id_list(obj)
+        vert_dict = self.vertex_pos_dict(obj, masklayer)
 
-        for vert_id in vert_ids:
-            vert_dir_dict[vert_id] = 0.0
+        if len(vert_dict.keys()) > 0:
+            for vert_id in vert_dict.keys():
+                vert_dir_dict[vert_id] = 0.0
 
-        for i in range(samples):
-            inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0)* (2*math.pi)/360.0
-            angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2*math.pi)/360.0
+            for i in range(samples):
+                inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0)* (2*math.pi)/360.0
+                angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2*math.pi)/360.0
 
-            direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
+                direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
 
-            for vert_id in vert_ids:
-                vertWorldNormal = Vector(vert_dict[vert_id][3])
-                vert_dir_dict[vert_id] += max(min(vertWorldNormal @ direction, 1.0), 0.0)
+                for vert_id in vert_dict.keys():
+                    vertWorldNormal = Vector(vert_dict[vert_id][3])
+                    vert_dir_dict[vert_id] += max(min(vertWorldNormal @ direction, 1.0), 0.0)
 
-        values = np.array(self.vert_dict_to_loop_list(obj, vert_dir_dict, 1, 1))
-        values *= 1.0/values.max()
-        values = values.tolist()
+            values = np.array(self.vert_dict_to_loop_list(obj, vert_dir_dict, 1, 1))
+            values *= 1.0/values.max()
+            values = values.tolist()
 
-        vert_dir_list = [None] * len(values) * 4
-        for i in range(len(values)):
-            vert_dir_list[(0+i*4):(4+i*4)] = [values[i], values[i], values[i], 1.0]
+            vert_dir_list = [None] * len(values) * 4
+            for i in range(len(values)):
+                vert_dir_list[(0+i*4):(4+i*4)] = [values[i], values[i], values[i], 1.0]
 
-        return self.mask_list(obj, vert_dir_list, masklayer)
+            return self.mask_list(obj, vert_dir_list, masklayer)
+        else:
+            return None
 
 
     def noise_list(self, obj, amplitude=0.5, offset=0.5, mono=False, masklayer=None):
@@ -1488,10 +1490,10 @@ class SXTOOLS_generate(object):
         def thick_hit(vert_id, loc, vertPos, dist_list):
             vert_occ_dict[vert_id] += contribution
 
-        def ray_caster(obj, raycount, vert_dict, vert_ids, hitfunction, raydistance=1.70141e+38):
+        def ray_caster(obj, raycount, vert_dict, hitfunction, raydistance=1.70141e+38):
             hemiSphere = self.ray_randomizer(raycount)
 
-            for vert_id in vert_ids:
+            for vert_id in vert_dict.keys():
                 vert_occ_dict[vert_id] = 0.0
                 vertLoc = Vector(vert_dict[vert_id][0])
                 vertNormal = Vector(vert_dict[vert_id][1])
@@ -1520,27 +1522,29 @@ class SXTOOLS_generate(object):
 
         dist_list = []
         vert_occ_dict = {}
-        vert_dict = self.vertex_pos_dict(obj)
-        vert_ids = self.vertex_id_list(obj)
+        vert_dict = self.vertex_pos_dict(obj, masklayer)
 
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = False
+        if len(vert_dict.keys()) > 0:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
 
-        # First pass to analyze ray hit distances,
-        # then set max ray distance to half of median distance
-        ray_caster(obj, 20, vert_dict, vert_ids, dist_hit)
-        distance = statistics.median(dist_list) * 0.5
+            # First pass to analyze ray hit distances,
+            # then set max ray distance to half of median distance
+            ray_caster(obj, 20, vert_dict, dist_hit)
+            distance = statistics.median(dist_list) * 0.5
 
-        # Second pass for final results
-        ray_caster(obj, raycount, vert_dict, vert_ids, thick_hit, raydistance=distance)
+            # Second pass for final results
+            ray_caster(obj, raycount, vert_dict, thick_hit, raydistance=distance)
 
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = obj.sxtools.modifiervisibility
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = obj.sxtools.modifiervisibility
 
-        vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
-        return self.mask_list(obj, vert_occ_list, masklayer)      
+            vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
+            return self.mask_list(obj, vert_occ_list, masklayer)
+        else:
+            return None
 
 
     def occlusion_list(self, obj, raycount=100, blend=0.5, dist=10.0, groundplane=False, bias=0.01, masklayer=None):
@@ -1551,71 +1555,74 @@ class SXTOOLS_generate(object):
         forward = Vector((0.0, 0.0, 1.0))
 
         vert_occ_dict = {}
-        vert_dict = self.vertex_pos_dict(obj)
-        vert_ids = self.vertex_id_list(obj)
+        vert_dict = self.vertex_pos_dict(obj, masklayer)
 
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = False
+        if len(vert_dict.keys()) > 0:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
 
-        if groundplane:
-            pivot = utils.find_root_pivot([obj, ])
-            pivot = (pivot[0], pivot[1], pivot[2] - 0.5)
-            ground = self.ground_plane(20, pivot)
+            if groundplane:
+                pivot = utils.find_root_pivot([obj, ])
+                pivot = (pivot[0], pivot[1], pivot[2] - 0.5)
+                ground = self.ground_plane(20, pivot)
 
-        for vert_id in vert_ids:
-            occValue = 1.0
-            scnOccValue = 1.0
-            vertLoc = Vector(vert_dict[vert_id][0])
-            vertNormal = Vector(vert_dict[vert_id][1])
-            vertWorldLoc = Vector(vert_dict[vert_id][2])
-            vertWorldNormal = Vector(vert_dict[vert_id][3])
+            for vert_id in vert_dict.keys():
+                occValue = 1.0
+                scnOccValue = 1.0
+                vertLoc = Vector(vert_dict[vert_id][0])
+                vertNormal = Vector(vert_dict[vert_id][1])
+                vertWorldLoc = Vector(vert_dict[vert_id][2])
+                vertWorldNormal = Vector(vert_dict[vert_id][3])
 
-            # Pass 1: Local space occlusion for individual object
-            if 0.0 <= mix < 1.0:
-                biasVec = tuple([bias*x for x in vertNormal])
-                rotQuat = forward.rotation_difference(vertNormal)
+                # Pass 1: Local space occlusion for individual object
+                if 0.0 <= mix < 1.0:
+                    biasVec = tuple([bias*x for x in vertNormal])
+                    rotQuat = forward.rotation_difference(vertNormal)
 
-                # offset ray origin with normal bias
-                vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
+                    # offset ray origin with normal bias
+                    vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
 
-                for sample in hemiSphere:
-                    sample = Vector(sample)
-                    sample.rotate(rotQuat)
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
 
-                    hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
+                        hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
 
-                    if hit:
-                        occValue -= contribution
+                        if hit:
+                            occValue -= contribution
 
-            # Pass 2: Worldspace occlusion for scene
-            if 0.0 < mix <= 1.0:
-                biasVec = tuple([bias*x for x in vertWorldNormal])
-                rotQuat = forward.rotation_difference(vertWorldNormal)
+                # Pass 2: Worldspace occlusion for scene
+                if 0.0 < mix <= 1.0:
+                    biasVec = tuple([bias*x for x in vertWorldNormal])
+                    rotQuat = forward.rotation_difference(vertWorldNormal)
 
-                # offset ray origin with normal bias
-                scnVertPos = (vertWorldLoc[0] + biasVec[0], vertWorldLoc[1] + biasVec[1], vertWorldLoc[2] + biasVec[2])
+                    # offset ray origin with normal bias
+                    scnVertPos = (vertWorldLoc[0] + biasVec[0], vertWorldLoc[1] + biasVec[1], vertWorldLoc[2] + biasVec[2])
 
-                for sample in hemiSphere:
-                    sample = Vector(sample)
-                    sample.rotate(rotQuat)
+                    for sample in hemiSphere:
+                        sample = Vector(sample)
+                        sample.rotate(rotQuat)
 
-                    scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
 
-                    if scnHit:
-                        scnOccValue -= contribution
+                        if scnHit:
+                            scnOccValue -= contribution
 
-            vert_occ_dict[vert_id] = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
+                vert_occ_dict[vert_id] = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
 
-        if groundplane:
-            bpy.data.objects.remove(ground, do_unlink=True)
+            if groundplane:
+                bpy.data.objects.remove(ground, do_unlink=True)
 
-        for modifier in obj.modifiers:
-            if modifier.type == 'SUBSURF':
-                modifier.show_viewport = obj.sxtools.modifiervisibility
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = obj.sxtools.modifiervisibility
 
-        vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
-        return self.mask_list(obj, vert_occ_list, masklayer)
+            vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
+            return self.mask_list(obj, vert_occ_list, masklayer)
+
+        else:
+            return None
 
 
     def mask_list(self, obj, colors, masklayer=None, as_tuple=False):
@@ -1674,7 +1681,7 @@ class SXTOOLS_generate(object):
         else:
             xmin, xmax, ymin, ymax, zmin, zmax = utils.get_selection_bounding_box(objs)
 
-        vertPosDict = self.vertex_pos_dict(obj)
+        vertPosDict = self.vertex_pos_dict(obj, masklayer)
         ramp_dict = {}
 
         for vert_id in vertPosDict.keys():
@@ -1780,16 +1787,28 @@ class SXTOOLS_generate(object):
         return loop_list
 
 
-    def vertex_pos_dict(self, obj):
+    def vertex_pos_dict(self, obj, masklayer=None):
         mesh = obj.data
         mat = obj.matrix_world
         ids = self.vertex_id_list(obj)
 
         vertex_dict = {}
-        if sxglobals.mode == 'EDIT':
-            for vert_id in ids:
-                if mesh.vertices[vert_id].select:
-                    vertex_dict[vert_id] = (mesh.vertices[vert_id].co, mesh.vertices[vert_id].normal, mat @ mesh.vertices[vert_id].co, (mat @ mesh.vertices[vert_id].normal - mat @ Vector()).normalized())
+        if masklayer is not None:
+            mask, empty = layers.get_layer_mask(obj, masklayer)
+            if not empty:
+                i = 0
+                for poly in mesh.polygons:
+                    for vert_id, loop_idx in zip(poly.vertices, poly.loop_indices):
+                        if mask[i] > 0.0:
+                            vertex_dict[vert_id] = (mesh.vertices[vert_id].co, mesh.vertices[vert_id].normal, mat @ mesh.vertices[vert_id].co, (mat @ mesh.vertices[vert_id].normal - mat @ Vector()).normalized())
+                        i+=1
+        elif sxglobals.mode == 'EDIT':
+            vert_sel = [None] * len(mesh.vertices)
+            mesh.vertices.foreach_get('select', vert_sel)
+            if True in vert_sel:
+                for vert_id, sel in enumerate(vert_sel):
+                    if sel:
+                        vertex_dict[vert_id] = (mesh.vertices[vert_id].co, mesh.vertices[vert_id].normal, mat @ mesh.vertices[vert_id].co, (mat @ mesh.vertices[vert_id].normal - mat @ Vector()).normalized())
         else:
             for vert_id in ids:
                 vertex_dict[vert_id] = (mesh.vertices[vert_id].co, mesh.vertices[vert_id].normal, mat @ mesh.vertices[vert_id].co, (mat @ mesh.vertices[vert_id].normal - mat @ Vector()).normalized())
@@ -2390,13 +2409,13 @@ class SXTOOLS_tools(object):
             elif scene.toolmode == 'CRV':
                 colors = generate.curvature_list(obj, masklayer)
             elif scene.toolmode == 'OCC':
-                colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+                colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias, masklayer)
             elif scene.toolmode == 'THK':
-                colors = generate.thickness_list(obj, scene.occlusionrays, scene.occlusionbias)
+                colors = generate.thickness_list(obj, scene.occlusionrays, scene.occlusionbias, masklayer)
             elif scene.toolmode == 'DIR':
-                colors = generate.direction_list(obj)
+                colors = generate.direction_list(obj, masklayer)
             elif scene.toolmode == 'LUM':
-                colors = generate.luminance_remap_list(obj, targetlayer)
+                colors = generate.luminance_remap_list(obj, targetlayer, masklayer)
 
             if colors is not None:
                 # Write to target
@@ -7944,6 +7963,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - occlusion filler does not respect layer mask
 # - update_palette_layer does a blend pass
 # - Alpha showing up in Palette tool
 # - Palette and Material tools should auto-refresh on selection
