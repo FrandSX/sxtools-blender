@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 21),
+    'version': (4, 3, 22),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -323,7 +323,6 @@ class SXTOOLS_utils(object):
 
 
     def mode_manager(self, objs, set_mode=False, revert=False):
-        # print('mode manager called')
         if set_mode:
             sxglobals.mode = objs[0].mode
             if objs[0].mode != 'OBJECT':
@@ -1515,7 +1514,6 @@ class SXTOOLS_generate(object):
                     if hit:
                         hitfunction(vert_id, loc, vertPos, dist_list)
 
-        # then = time.time()
         contribution = 1.0/float(raycount)
         forward = Vector((0.0, 0.0, 1.0))
         bias = 1e-5
@@ -1542,9 +1540,6 @@ class SXTOOLS_generate(object):
                 modifier.show_viewport = obj.sxtools.modifiervisibility
 
         vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
-
-        # now = time.time()
-        # print('thk_list duration: ', now-then, ' seconds')
         return self.mask_list(obj, vert_occ_list, masklayer)      
 
 
@@ -1624,11 +1619,9 @@ class SXTOOLS_generate(object):
 
 
     def mask_list(self, obj, colors, masklayer=None, as_tuple=False):
-        # print('mask_list mode: ', sxglobals.mode, ' masklayer: ', masklayer)
         count = len(colors)//4
 
         if (masklayer is None) and (sxglobals.mode == 'OBJECT'):
-            # print('object mode, no mask')
             if as_tuple:
                 rgba = [None] * count
                 for i in range(count):
@@ -1638,13 +1631,10 @@ class SXTOOLS_generate(object):
                 return colors
         else:
             if masklayer is None:
-                # print('in edit mode, getting selection mask')
                 mask, empty = self.selection_mask(obj)
-                # print('empty: ', empty)
                 if empty:
                     return None
             else:
-                # print('getting layer mask')
                 mask, empty = layers.get_layer_mask(obj, masklayer)
                 if empty:
                     return None
@@ -2083,8 +2073,6 @@ class SXTOOLS_layers(object):
 
     def composite_layers(self, objs):
         if sxglobals.composite:
-            # print('comping')
-            # utils.mode_manager(objs, set_mode=True)
             # then = time.time()
             prefs = bpy.context.preferences.addons['sxtools'].preferences
             compLayers = utils.find_comp_layers(objs[0])
@@ -2100,8 +2088,6 @@ class SXTOOLS_layers(object):
                 self.blend_debug(objs, layer, shadingmode)
 
             sxglobals.composite = False
-            # utils.mode_manager(objs, revert=True)
-            # print('comping done')
             # now = time.time()
             # print('Compositing duration: ', now-then, ' seconds')
 
@@ -2125,8 +2111,7 @@ class SXTOOLS_layers(object):
                     colors[(0+i*4):(4+i*4)] = [a, a, a, 1.0]
 
             self.set_layer(obj, colors, obj.sxlayers['composite'])
-            obj.data.update()
-
+            # obj.data.update()
         bpy.context.view_layer.objects.active = active
 
 
@@ -2147,8 +2132,6 @@ class SXTOOLS_layers(object):
                     basecolors = tools.blend_values(topcolors, basecolors, blendmode, layeralpha)
 
             self.set_layer(obj, basecolors, resultLayer)
-            # obj.data.update()
-
         bpy.context.view_layer.objects.active = active
 
 
@@ -2373,9 +2356,7 @@ class SXTOOLS_tools(object):
 
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
         # then = time.time()
-        # print('apply tooling')
         utils.mode_manager(objs, set_mode=True)
-        # print('apply_tool mode: ', sxglobals.mode)
         scene = bpy.context.scene.sxtools
         amplitude = scene.noiseamplitude
         offset = scene.noiseoffset
@@ -2390,7 +2371,6 @@ class SXTOOLS_tools(object):
             mergebbx = scene.rampbbox
 
         for obj in objs:
-            # then1 = time.time()
             if scene.fillalpha:
                 masklayer = None
             else:
@@ -2419,35 +2399,18 @@ class SXTOOLS_tools(object):
                 colors = generate.luminance_remap_list(obj, targetlayer)
 
             if colors is not None:
-                # print(obj.name, targetlayer.name)
-                # now = time.time()
-                # print('Generate colors duration: ', now-then1, ' seconds')
-                # then1 = time.time()
-
                 # Write to target
-
-                # print('colors: ', colors)
                 target_colors = layers.get_layer(obj, targetlayer)
-                # print('target colors: ', blendmode, blendvalue, target_colors)
                 colors = self.blend_values(colors, target_colors, blendmode, blendvalue)
-                # print('blended colors:', colors)
                 layers.set_layer(obj, colors, targetlayer)
-                # spoon = layers.get_layer(obj, targetlayer)
-                # print('readback: ', spoon)
-
-                # obj.data.update()
-                # now = time.time()
-                # print('Write colors duration: ', now-then1, ' seconds')
 
         utils.mode_manager(objs, revert=True)
-        # print('applytooling done')
         # now = time.time()
         # print('Apply tool ', scene.toolmode, ' duration: ', now-then, ' seconds')
 
 
     # mode 0: hue, mode 1: saturation, mode 2: lightness
     def apply_hsl(self, objs, layer, hslmode, newValue):
-        # then = time.time()
         utils.mode_manager(objs, set_mode=True)
 
         colors = utils.find_colors_by_frequency(objs, layer)
@@ -2468,7 +2431,6 @@ class SXTOOLS_tools(object):
                 target_colors = layers.get_layer(obj, layer)
                 colors = self.blend_values(colors, target_colors, 'ALPHA', 1.0)
                 layers.set_layer(obj, colors, layer)
-                # obj.data.update()
 
         elif (layervalue != 1.0) or (layervalue == 1.0 and offset < 0.0):
             for obj in objs:
@@ -2485,11 +2447,8 @@ class SXTOOLS_tools(object):
                     target_colors = layers.get_layer(obj, layer)
                     colors = self.blend_values(colors, target_colors, 'ALPHA', 1.0)
                     layers.set_layer(obj, colors, layer)
-                    # obj.data.update()
 
         utils.mode_manager(objs, revert=True)
-        # now = time.time()
-        # print('Apply hsl duration: ', now-then, ' seconds')
 
 
     def update_recent_colors(self, color):
@@ -2687,8 +2646,6 @@ class SXTOOLS_tools(object):
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
                     layers.set_layer(obj, colors, layer)
-
-            # obj.data.update()
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True)
@@ -3363,7 +3320,6 @@ class SXTOOLS_magic(object):
 
         # Enable modifier stack for LODs
         for obj in objs:
-            # obj.data.update()
             obj.sxtools.modifiervisibility = True
 
         now = time.time()
@@ -3982,7 +3938,6 @@ class SXTOOLS_export(object):
 
 
     def remove_exports(self):
-        scene = bpy.context.scene.sxtools
         if 'ExportObjects' in bpy.data.collections.keys():
             exportObjects = bpy.data.collections['ExportObjects'].objects
             for obj in exportObjects:
@@ -4021,20 +3976,12 @@ class SXTOOLS_export(object):
 # ------------------------------------------------------------------------
 def update_layers(self, context):
     if not sxglobals.refreshInProgress:
-        # print('Updating layers')
-        # then = time.time()
 
         if 'SXMaterial' not in bpy.data.materials.keys():
             setup.create_sxmaterial()
 
-        # sxmaterial = bpy.data.materials['SXMaterial'].node_tree.nodes
-
         shading_mode(self, context)
         objs = selection_validator(self, context)
-
-        # now = time.time()
-        # print('Selection_validator: ', now-then, ' seconds')
-        # then = time.time()
 
         if len(objs) > 0:
             utils.mode_manager(objs, set_mode=True)
@@ -4056,27 +4003,17 @@ def update_layers(self, context):
 
                 sxglobals.refreshInProgress = False
 
-            # now = time.time()
-            # print('object attribute update: ', now-then, ' seconds')
-            # then = time.time()
-
             # setup.setup_geometry(objs)
             if not context.scene.sxtools.gpucomposite:
                 sxglobals.composite = True
                 layers.composite_layers(objs)
 
-                # now = time.time()
-                # print('compositing duration: ', now-then, ' seconds')
             utils.mode_manager(objs, revert=True)
 
 
 def refresh_actives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
-        # print('refreshing actives')
-
-        # then0 = time.time()
-        # then = time.time()
 
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
@@ -4097,10 +4034,6 @@ def refresh_actives(self, context):
             elif (prefs.materialtype != 'SMP') and (scene.toolmode == 'MAT'):
                 layers.material_layers_to_values(objs)
 
-            # now = time.time()
-            # print('Palettes tab update duration: ', now-then, ' seconds')
-            # then = time.time()
-
             for obj in objs:
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 if vcols != '':
@@ -4117,26 +4050,14 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
-            # now = time.time()
-            # print('Object property update duration: ', now-then, ' seconds')
-            # then = time.time()
-
             # Update VertexColor0 to reflect latest layer changes
             if not context.scene.sxtools.gpucomposite:
                 if mode != 'FULL':
                     sxglobals.composite = True
                 layers.composite_layers(objs)
 
-            # now = time.time()
-            # print('Composite duration: ', now-then, ' seconds')
-            # then = time.time()
-
             # Refresh SX Tools UI to latest selection
             layers.update_layer_panel(objs, layer)
-
-            # now = time.time()
-            # print('Update layer panel duration: ', now-then, ' seconds')
-            # then = time.time()
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4148,19 +4069,12 @@ def refresh_actives(self, context):
                     bpy.data.materials['SXMaterial'].blend_method = 'OPAQUE'
                     bpy.data.materials['SXMaterial'].use_backface_culling = False
 
-            # now = time.time()
-            # print('Material update duration: ', now-then, ' seconds')
-
         # Verify selectionMonitor is running
         if not sxglobals.modalStatus:
             setup.start_modal()
 
         utils.mode_manager(objs, revert=True)
         sxglobals.refreshInProgress = False
-        # print('refreshing actives done')
-
-        # now = time.time()
-        # print('Refresh actives duration: ', now-then0, ' seconds')
 
 
 def shading_mode(self, context):
@@ -4468,7 +4382,6 @@ def update_modifier_visibility(self, context):
             if obj.sxtools.modifiervisibility != vis:
                 obj.sxtools.modifiervisibility = vis
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxMirror' in obj.modifiers.keys():
                 obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
@@ -4500,8 +4413,6 @@ def update_modifier_visibility(self, context):
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
-        # utils.mode_manager(objs, revert=True)
-
 
 def update_mirror_modifier(self, context):
     objs = selection_validator(self, context)
@@ -4521,7 +4432,6 @@ def update_mirror_modifier(self, context):
             if obj.sxtools.mirrorobject != mirrorobj:
                 obj.sxtools.mirrorobject = mirrorobj
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxMirror' in obj.modifiers.keys():
                 obj.modifiers['sxMirror'].use_axis[0] = xmirror
@@ -4538,8 +4448,6 @@ def update_mirror_modifier(self, context):
                 else:
                     obj.modifiers['sxMirror'].show_viewport = False
 
-        # utils.mode_manager(objs, revert=True)
-
 
 def update_crease_modifier(self, context):
     objs = selection_validator(self, context)
@@ -4549,15 +4457,12 @@ def update_crease_modifier(self, context):
             if obj.sxtools.hardmode != hardmode:
                 obj.sxtools.hardmode = hardmode
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxWeightedNormal' in obj.modifiers.keys():
                 if hardmode == 'SMOOTH':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
                 else:
                     obj.modifiers['sxWeightedNormal'].keep_sharp = True
-
-        # utils.mode_manager(objs, revert=True)
 
 
 def update_subdivision_modifier(self, context):
@@ -4574,7 +4479,6 @@ def update_subdivision_modifier(self, context):
             if obj.sxtools.subdivisionlevel != subdivLevel:
                 obj.sxtools.subdivisionlevel = subdivLevel
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxSubdivision' in obj.modifiers.keys():
                 obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
@@ -4593,8 +4497,6 @@ def update_subdivision_modifier(self, context):
                 else:
                     obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
 
-        # utils.mode_manager(objs, revert=True)
-
 
 def update_bevel_modifier(self, context):
     objs = selection_validator(self, context)
@@ -4610,7 +4512,6 @@ def update_bevel_modifier(self, context):
             if obj.sxtools.beveltype != bevelType:
                 obj.sxtools.beveltype = bevelType
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxBevel' in obj.modifiers.keys():
                 if obj.sxtools.bevelsegments == 0:
@@ -4622,8 +4523,6 @@ def update_bevel_modifier(self, context):
                 obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
                 obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype
 
-        # utils.mode_manager(objs, revert=True)
-
 
 def update_weld_modifier(self, context):
     objs = selection_validator(self, context)
@@ -4633,7 +4532,6 @@ def update_weld_modifier(self, context):
             if obj.sxtools.weldthreshold != weldThreshold:
                 obj.sxtools.weldthreshold = weldThreshold
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxWeld' in obj.modifiers.keys():
                 obj.modifiers['sxWeld'].merge_threshold = weldThreshold
@@ -4641,8 +4539,6 @@ def update_weld_modifier(self, context):
                     obj.modifiers['sxWeld'].show_viewport = False
                 elif (obj.sxtools.weldthreshold > 0) and obj.sxtools.modifiervisibility:
                     obj.modifiers['sxWeld'].show_viewport = True
-
-        # utils.mode_manager(objs, revert=True)
 
 
 def update_decimate_modifier(self, context):
@@ -4653,7 +4549,6 @@ def update_decimate_modifier(self, context):
             if obj.sxtools.decimation != decimation:
                 obj.sxtools.decimation = decimation
 
-        # utils.mode_manager(objs, set_mode=True)
         for obj in objs:
             if 'sxDecimate' in obj.modifiers.keys():
                 obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
@@ -4663,8 +4558,6 @@ def update_decimate_modifier(self, context):
                 elif (obj.sxtools.decimation > 0) and obj.sxtools.modifiervisibility:
                     obj.modifiers['sxDecimate'].show_viewport = True
                     obj.modifiers['sxDecimate2'].show_viewport = True
-
-        # utils.mode_manager(objs, revert=True)
 
 
 def update_custom_props(self, context):
@@ -7400,7 +7293,6 @@ class SXTOOLS_OT_hidemodifiers(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selection_validator(self, context)
-        scene = context.scene.sxtools
 
         if objs[0].sxtools.modifiervisibility is True:
             objs[0].sxtools.modifiervisibility = False
@@ -7761,7 +7653,6 @@ class SXTOOLS_OT_selectup(bpy.types.Operator):
         mode = context.scene.sxtools.shadingmode
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            listLength = len(sxglobals.listItems)
             idx = objs[0].sxtools.selectedlayer
             sourceLayer = utils.find_layer_from_index(objs[0], idx)
             listIndex = utils.find_list_index(objs[0], sourceLayer)
@@ -8057,9 +7948,8 @@ if __name__ == '__main__':
 # - Alpha showing up in Palette tool
 # - Palette and Material tools should auto-refresh on selection
 # - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
-# - UI refresh delayed by one click in some situations
-# - Palette swatches not auto-updated on component selection HSL slider tweak
-# - Blend modes behave slightly strangely on gradient1 and gradient2
+# - Layer Palette swatches not auto-updated on component selection HSL slider tweak
+# - Blend mode fills misbehave on gradient1 and gradient2
 # - EDIT mode HSL sliders don't refresh on component selection change
 # - Re-categorize filler tools
 # - Limit UV4 clear workload (currently 4 passes)
