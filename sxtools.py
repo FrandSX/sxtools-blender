@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 24),
+    'version': (4, 3, 26),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -476,8 +476,10 @@ class SXTOOLS_utils(object):
             if values is not None:
                 colorArray.extend(values)
 
-        colors = list(filter(lambda a: a != (0.0, 0.0, 0.0, 0.0), colorArray))
+        # colors = list(filter(lambda a: a != (0.0, 0.0, 0.0, 0.0), colorArray))
+        colors = list(filter(lambda a: a[3] != 0.0, colorArray))
         sortList = [color for color, count in Counter(colors).most_common(numcolors)]
+
 
         if numcolors is not None:
             while len(sortList) < numcolors:
@@ -6595,7 +6597,8 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
             sxglobals.modalStatus = False
             return {'CANCELLED'}
 
-        selection = context.object
+        # selection = context.object
+        selection = context.view_layer.objects.selected.keys()
 
         if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
             sxglobals.librariesLoaded = False
@@ -6603,9 +6606,10 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         if not sxglobals.librariesLoaded:
             load_libraries(self, context)
 
-        if selection is not self.prevSelection:
-            self.prevSelection = context.object
-            if (selection is not None) and len(selection.sxlayers) > 0:
+        if selection != self.prevSelection:
+            # self.prevSelection = context.object
+            self.prevSelection = context.view_layer.objects.selected.keys()
+            if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
                 refresh_actives(self, context)
             return {'PASS_THROUGH'}
         else:
@@ -6614,7 +6618,8 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         # return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
-        self.prevSelection = context.object
+        # self.prevSelection = context.object
+        self.prevSelection = context.view_layer.objects.selected.keys()
         context.window_manager.modal_handler_add(self)
         print('SX Tools: Starting selection monitor')
         return {'RUNNING_MODAL'}
@@ -7963,14 +7968,14 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - occlusion filler does not respect layer mask
-# - update_palette_layer does a blend pass
-# - Alpha showing up in Palette tool
-# - Palette and Material tools should auto-refresh on selection
-# - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
-# - Layer Palette swatches not auto-updated on component selection HSL slider tweak
-# - Blend mode fills misbehave on gradient1 and gradient2
+# - component selection monitor trailing by one click
+# - selection monitor starts only after a layer change following a context loss
 # - EDIT mode HSL sliders don't refresh on component selection change
+# - Palette and Material tools should auto-refresh on selection
+# - Layer Palette swatches not auto-updated after returning to object mode from component selection HSL slider tweak
+# - update_palette_layer does a blend pass
+# - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
+# - Blend mode fills misbehave on gradient1 and gradient2
 # - Re-categorize filler tools
 # - Limit UV4 clear workload (currently 4 passes)
 # - Investigate breaking refresh
