@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 27),
+    'version': (4, 3, 28),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -946,7 +946,7 @@ class SXTOOLS_setup(object):
                 input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
                 sxmaterial.node_tree.links.new(input, output)
 
-            if (i == numlayers + numgradients + numoverlays -2):
+            if (i == numlayers + numgradients + numoverlays - 2):
                 if overlay:
                     output = ovrRGB.outputs['Image']
                     input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Color2']
@@ -1211,7 +1211,7 @@ class SXTOOLS_convert(object):
                 outColor.append(0.0)
             elif 0.0 <= inColor[i] <= 0.0404482362771082:
                 outColor.append(float(inColor[i]) / 12.92)
-            elif  0.0404482362771082 < inColor[i] <= 1.0:
+            elif 0.0404482362771082 < inColor[i] <= 1.0:
                 outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
             elif inColor[i] > 1.0:
                 outColor.append(1.0)
@@ -1226,7 +1226,7 @@ class SXTOOLS_convert(object):
                 outColor.append(0.0)
             elif 0.0 <= inColor[i] <= 0.00313066844250063:
                 outColor.append(float(inColor[i]) * 12.92)
-            elif  0.00313066844250063 < inColor[i] <= 1.0:
+            elif 0.00313066844250063 < inColor[i] <= 1.0:
                 outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
             elif inColor[i] > 1.0:
                 outColor.append(1.0)
@@ -1803,7 +1803,7 @@ class SXTOOLS_generate(object):
                     for vert_id, loop_idx in zip(poly.vertices, poly.loop_indices):
                         if mask[i] > 0.0:
                             vertex_dict[vert_id] = (mesh.vertices[vert_id].co, mesh.vertices[vert_id].normal, mat @ mesh.vertices[vert_id].co, (mat @ mesh.vertices[vert_id].normal - mat @ Vector()).normalized())
-                        i+=1
+                        i += 1
         elif sxglobals.mode == 'EDIT':
             vert_sel = [None] * len(mesh.vertices)
             mesh.vertices.foreach_get('select', vert_sel)
@@ -1834,12 +1834,12 @@ class SXTOOLS_generate(object):
                     sel = float(poly.select)
                     for loop_idx in poly.loop_indices:
                         mask[i] = sel
-                        i+=1
+                        i += 1
             else:
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         mask[i] = float(mesh.vertices[vert_idx].select)
-                        i+=1
+                        i += 1
 
             return mask, False
 
@@ -2662,7 +2662,7 @@ class SXTOOLS_tools(object):
             for idx in range(1, 6):
                 scene.sxtools.fillalpha = False
                 layer = utils.find_layer_from_index(objs[0], idx)
-                palette_color = palette[idx - 1] # convert.srgb_to_linear(palette[idx - 1])
+                palette_color = palette[idx - 1]  # convert.srgb_to_linear(palette[idx - 1])
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
@@ -2717,7 +2717,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
                 obj.modifiers['sxSubdivision'].show_only_control_edges = True
                 obj.modifiers['sxSubdivision'].show_on_cage = True
-            if 'sxBevel' not in  obj.modifiers.keys():
+            if 'sxBevel' not in obj.modifiers.keys():
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
                 obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxBevel'].show_expanded = False
@@ -2728,7 +2728,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
                 obj.modifiers['sxBevel'].harden_normals = False
-                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype # 'OFFSET' 'WIDTH' 'PERCENT'
+                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype  # 'OFFSET' 'WIDTH' 'PERCENT'
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxWeld' not in obj.modifiers.keys():
@@ -7026,7 +7026,7 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
-            color = context.scene.sxtools.fillcolor # convert.srgb_to_linear(context.scene.sxtools.fillcolor)
+            color = context.scene.sxtools.fillcolor  # convert.srgb_to_linear(context.scene.sxtools.fillcolor)
 
             if objs[0].mode == 'EDIT':
                 context.scene.sxtools.rampalpha = True
