@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 26),
+    'version': (4, 3, 27),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -229,7 +229,7 @@ class SXTOOLS_files(object):
 
     # In paletted export mode, gradients and overlays are
     # not composited to VertexColor0 as that will be
-    # done by the shader on the game engine side 
+    # done by the shader on the game engine side
     def export_files(self, groups):
         scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences.addons['sxtools'].preferences
@@ -247,7 +247,7 @@ class SXTOOLS_files(object):
             bpy.ops.object.select_all(action='DESELECT')
             group.select_set(True)
             org_loc = group.location.copy()
-            group.location = (0,0,0)
+            group.location = (0, 0, 0)
             bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
             selArray = bpy.context.view_layer.objects.selected
@@ -331,7 +331,7 @@ class SXTOOLS_utils(object):
             bpy.ops.object.mode_set(mode=sxglobals.mode)
             # sxglobals.mode = None
         else:
-            if sxglobals.mode == None:
+            if sxglobals.mode is None:
                 print('MISSING MODE SET!')
             elif objs[0].mode != 'OBJECT':
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -663,11 +663,11 @@ class SXTOOLS_setup(object):
             # Check if vertex color layers exist,
             # and delete if legacy data is found
             for vertexColor in mesh.vertex_colors.keys():
-                if not 'VertexColor' in vertexColor:
+                if 'VertexColor' not in vertexColor:
                     mesh.vertex_colors.remove(mesh.vertex_colors[vertexColor])
 
             for sxLayer in colorArray:
-                if not sxLayer.vertexColorLayer in mesh.vertex_colors.keys():
+                if sxLayer.vertexColorLayer not in mesh.vertex_colors.keys():
                     mesh.vertex_colors.new(name=sxLayer.vertexColorLayer)
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
@@ -713,7 +713,7 @@ class SXTOOLS_setup(object):
 
 
     def create_sxmaterial(self):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences        
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
         if prefs.materialtype == 'SMP':
             self.create_simple_sxmaterial()
         else:
@@ -1211,7 +1211,7 @@ class SXTOOLS_convert(object):
                 outColor.append(0.0)
             elif 0.0 <= inColor[i] <= 0.0404482362771082:
                 outColor.append(float(inColor[i]) / 12.92)
-            elif  0.0404482362771082 < inColor[i] <= 1.0: 
+            elif  0.0404482362771082 < inColor[i] <= 1.0:
                 outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
             elif inColor[i] > 1.0:
                 outColor.append(1.0)
@@ -1226,7 +1226,7 @@ class SXTOOLS_convert(object):
                 outColor.append(0.0)
             elif 0.0 <= inColor[i] <= 0.00313066844250063:
                 outColor.append(float(inColor[i]) * 12.92)
-            elif  0.00313066844250063 < inColor[i] <= 1.0: 
+            elif  0.00313066844250063 < inColor[i] <= 1.0:
                 outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
             elif inColor[i] > 1.0:
                 outColor.append(1.0)
@@ -1393,8 +1393,8 @@ class SXTOOLS_generate(object):
                 vert_dir_dict[vert_id] = 0.0
 
             for i in range(samples):
-                inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0)* (2*math.pi)/360.0
-                angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2*math.pi)/360.0
+                inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0) * (2 * math.pi) / 360.0
+                angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2 * math.pi) / 360.0
 
                 direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
 
@@ -1757,34 +1757,34 @@ class SXTOOLS_generate(object):
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         value = vert_dict.get(vert_idx, 0.0)
                         loop_list[(0+i*listchannelcount):(listchannelcount+i*listchannelcount)] = [value, value]
-                        i+=1 
+                        i += 1
             elif (dictchannelcount == 1) and (listchannelcount == 4):
                 i = 0
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         value = vert_dict.get(vert_idx, 0.0)
                         loop_list[(0+i*listchannelcount):(listchannelcount+i*listchannelcount)] = [value, value, value, 1.0]
-                        i+=1
+                        i += 1
             elif (dictchannelcount == 3) and (listchannelcount == 4):
                 i = 0
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         value = vert_dict.get(vert_idx, [0.0, 0.0, 0.0])
                         loop_list[(0+i*listchannelcount):(listchannelcount+i*listchannelcount)] = [value[0], value[1], value[2], 1.0]
-                        i+=1  
+                        i += 1
         else:
             if listchannelcount == 1:
                 i = 0
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         loop_list[i] = vert_dict.get(vert_idx, 0.0)
-                        i+=1
+                        i += 1
             else:
                 i = 0
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
                         loop_list[(0+i*listchannelcount):(listchannelcount+i*listchannelcount)] = vert_dict.get(vert_idx, [0.0] * listchannelcount)
-                        i+=1 
+                        i += 1
 
         return loop_list
 
@@ -1868,7 +1868,7 @@ class SXTOOLS_layers(object):
             values = self.get_colors(obj, sourcelayer.vertexColorLayer)
         elif sourceType == 'UV':
             uvs = self.get_uvs(obj, sourcelayer.uvLayer0, channel=sourcelayer.uvChannel0)
-            count = len(uvs) # len(obj.data.uv_layers[0].data)
+            count = len(uvs)  # len(obj.data.uv_layers[0].data)
             values = [None] * count * 4
 
             if (sourcelayer.name == 'gradient1') or (sourcelayer.name == 'gradient2'):
@@ -2011,7 +2011,7 @@ class SXTOOLS_layers(object):
 
 
     def get_uv4(self, obj, sourcelayer):
-        channels = {'U': 0, 'V':1}
+        channels = {'U': 0, 'V': 1}
         sourceUVs0 = obj.data.uv_layers[sourcelayer.uvLayer0].data
         sourceUVs1 = obj.data.uv_layers[sourcelayer.uvLayer2].data
         count = len(sourceUVs0)
@@ -2033,7 +2033,7 @@ class SXTOOLS_layers(object):
 
 
     def set_uv4(self, obj, targetlayer, colors):
-        channels = {'U': 0, 'V':1}
+        channels = {'U': 0, 'V': 1}
 
         uvs0 = generate.empty_list(obj, 2)
         uvs1 = generate.empty_list(obj, 2)
@@ -2330,12 +2330,12 @@ class SXTOOLS_tools(object):
 
 
     def blend_values(self, topcolors, basecolors, blendmode, blendvalue):
-        if topcolors == None:
+        if topcolors is None:
             return basecolors
         else:
             count = len(basecolors)//4
             colors = [None] * count * 4
-            midpoint = 0.5 # convert.srgb_to_linear([0.5, 0.5, 0.5, 1.0])[0]
+            midpoint = 0.5  # convert.srgb_to_linear([0.5, 0.5, 0.5, 1.0])[0]
 
             for i in range(count):
                 top = Vector(topcolors[(0+i*4):(4+i*4)])
@@ -2496,7 +2496,7 @@ class SXTOOLS_tools(object):
     def select_color_mask(self, objs, color, invertmask=False):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)        
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         for obj in objs:
             colors = layers.get_layer(obj, obj.sxlayers['composite'])
@@ -2511,7 +2511,7 @@ class SXTOOLS_tools(object):
                         else:
                             if utils.color_compare(colors[(0+i*4):(4+i*4)], color):
                                 poly.select = True
-                        i+=1
+                        i += 1
             else:
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
@@ -2521,7 +2521,7 @@ class SXTOOLS_tools(object):
                         else:
                             if utils.color_compare(colors[(0+i*4):(4+i*4)], color):
                                 mesh.vertices[vert_idx].select = True
-                        i+=1
+                        i += 1
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -2545,7 +2545,7 @@ class SXTOOLS_tools(object):
                         else:
                             if mask[i] > 0.0:
                                 poly.select = True
-                        i+=1
+                        i += 1
             else:
                 for poly in mesh.polygons:
                     for vert_idx, loop_idx in zip(poly.vertices, poly.loop_indices):
@@ -2555,7 +2555,7 @@ class SXTOOLS_tools(object):
                         else:
                             if mask[i] > 0.0:
                                 mesh.vertices[vert_idx].select = True
-                        i+=1
+                        i += 1
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
 
@@ -2777,7 +2777,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
             if 'sxMirror' in obj.modifiers.keys():
-                if obj.modifiers['sxMirror'].show_viewport == False:
+                if obj.modifiers['sxMirror'].show_viewport is False:
                     bpy.ops.object.modifier_remove(modifier='sxMirror')
                 else:
                     bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
@@ -2847,7 +2847,7 @@ class SXTOOLS_tools(object):
         viewlayer = bpy.context.view_layer
         active = viewlayer.objects.active
         selected = viewlayer.objects.selected[:]
-        modedict = {'OFF': 0, 'MASS': 1, 'BBOX':2, 'ROOT': 3, 'ORG': 4}
+        modedict = {'OFF': 0, 'MASS': 1, 'BBOX': 2, 'ROOT': 3, 'ORG': 4}
 
         for sel in viewlayer.objects.selected:
             sel.select_set(False)
@@ -3201,7 +3201,7 @@ class SXTOOLS_magic(object):
                 obj.sxtools.category == 'DEFAULT'
 
         for obj in viewlayer.objects:
-            if obj.type == 'MESH' and obj.hide_viewport == False:
+            if obj.type == 'MESH' and obj.hide_viewport is False:
                 obj.hide_viewport = True
 
         # Mandatory to update visibility?
@@ -3769,7 +3769,7 @@ class SXTOOLS_export(object):
         if len(sepObjs) > 0:
             for obj in sepObjs:
                 if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
-                    sourceObjects.objects.link(obj)       
+                    sourceObjects.objects.link(obj)
 
         separatedObjs = []
         if len(sepObjs) > 0:
@@ -3840,7 +3840,7 @@ class SXTOOLS_export(object):
                                     xstring = '_left'
 
                         if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
-                            if not zstring+ystring+xstring in suffixDict:
+                            if zstring+ystring+xstring not in suffixDict:
                                 suffixDict[zstring+ystring+xstring] = 0
                             else:
                                 suffixDict[zstring+ystring+xstring] += 1
@@ -4244,7 +4244,7 @@ def shading_mode(self, context):
 def selection_validator(self, context):
     selObjs = []
     for obj in context.view_layer.objects.selected:
-        if obj.type == 'MESH' and obj.hide_viewport == False:
+        if obj.type == 'MESH' and obj.hide_viewport is False:
             selObjs.append(obj)
 
     return selObjs
@@ -4788,6 +4788,7 @@ def update_scene_configuration(self, context):
         scene.enabletransmission = True
         scene.enableemission = True
 
+
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevMode = 'FULL'
@@ -4892,7 +4893,7 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         layout_split5.label(text='Clear LOD Meshes After Export')
         layout_split5.prop(self, 'removelods', text='')
         layout_split6 = layout.split()
-        layout_split6.label(text='Reverse Smart Mirror Naming:')        
+        layout_split6.label(text='Reverse Smart Mirror Naming:')
         layout_split7 = layout_split6.split()
         layout_split7.prop(self, 'flipsmartx', text='X-Axis')
         layout_split7.prop(self, 'flipsmarty', text='Y-Axis')
@@ -5889,7 +5890,7 @@ class SXTOOLS_rampcolor(bpy.types.PropertyGroup):
         name='Element Position',
         min=0.0,
         max=1.0,
-        default=0.0)    
+        default=0.0)
 
     color: bpy.props.FloatVectorProperty(
         name='Element Color',
@@ -7457,7 +7458,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
                 selected = bpy.data.collections['SXObjects'].all_objects
         else:
             selected = context.view_layer.objects.selected
-            if context.scene.sxtools.exportquality=='LO':
+            if context.scene.sxtools.exportquality == 'LO':
                 newObjs = export.smart_separate(selected)
                 for obj in newObjs:
                     obj.select_set(True)
@@ -7734,7 +7735,7 @@ class SXTOOLS_OT_componentselectionmonitor(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             if objs[0].mode == 'EDIT':
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)    
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 mesh = objs[0].data
                 selection = [None] * len(mesh.vertices)
                 mesh.vertices.foreach_get('select', selection)
