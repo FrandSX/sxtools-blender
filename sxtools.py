@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 3, 28),
+    'version': (4, 4, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -270,7 +270,7 @@ class SXTOOLS_files(object):
                     compLayers = utils.find_comp_layers(obj, obj['staticVertexColors'])
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
-                    layers.blend_layers([obj, ], compLayers, layer1, layer0)
+                    layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
 
                 # If linear colorspace exporting is selected
                 if colorspace == 'LIN':
@@ -1204,6 +1204,10 @@ class SXTOOLS_convert(object):
         return (value, value, value, 1.0)
 
 
+    def luminance_to_alpha(self, value):
+        return (1.0, 1.0, 1.0, value)
+
+
     def srgb_to_linear(self, inColor):
         outColor = []
         for i in range(4):
@@ -1386,7 +1390,7 @@ class SXTOOLS_generate(object):
             samples = coneangle * 5
 
         vert_dir_dict = {}
-        vert_dict = self.vertex_pos_dict(obj, masklayer)
+        vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
             for vert_id in vert_dict.keys():
@@ -1524,7 +1528,7 @@ class SXTOOLS_generate(object):
 
         dist_list = []
         vert_occ_dict = {}
-        vert_dict = self.vertex_pos_dict(obj, masklayer)
+        vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
             for modifier in obj.modifiers:
@@ -1557,7 +1561,7 @@ class SXTOOLS_generate(object):
         forward = Vector((0.0, 0.0, 1.0))
 
         vert_occ_dict = {}
-        vert_dict = self.vertex_pos_dict(obj, masklayer)
+        vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
             for modifier in obj.modifiers:
@@ -1683,7 +1687,7 @@ class SXTOOLS_generate(object):
         else:
             xmin, xmax, ymin, ymax, zmin, zmax = utils.get_selection_bounding_box(objs)
 
-        vertPosDict = self.vertex_pos_dict(obj, masklayer)
+        vertPosDict = self.vertex_data_dict(obj, masklayer)
         ramp_dict = {}
 
         for vert_id in vertPosDict.keys():
@@ -1789,7 +1793,7 @@ class SXTOOLS_generate(object):
         return loop_list
 
 
-    def vertex_pos_dict(self, obj, masklayer=None):
+    def vertex_data_dict(self, obj, masklayer=None):
         mesh = obj.data
         mat = obj.matrix_world
         ids = self.vertex_id_list(obj)
@@ -1860,9 +1864,10 @@ class SXTOOLS_layers(object):
 
 
     # wrapper for low-level functions, always returns layerdata in RGBA
-    def get_layer(self, obj, sourcelayer, as_tuple=False, uv_luminance=False):
+    def get_layer(self, obj, sourcelayer, as_tuple=False, uv_as_alpha=False, apply_layer_alpha=False):
         sourceType = sourcelayer.layerType
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+        alpha = sourcelayer.alpha
 
         if sourceType == 'COLOR':
             values = self.get_colors(obj, sourcelayer.vertexColorLayer)
@@ -1879,15 +1884,23 @@ class SXTOOLS_layers(object):
 
                 for i in range(count):
                     values[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], uvs[i]]
-            elif uv_luminance:
+            elif uv_as_alpha:
                 for i in range(count):
-                    values[(0+i*4):(4+i*4)] = [1.0, 1.0, 1.0, uvs[i]]
+                    if uvs[i] > 0.0:
+                        values[(0+i*4):(4+i*4)] = [1.0, 1.0, 1.0, uvs[i]]
+                    else:
+                        values[(0+i*4):(4+i*4)] = [0.0, 0.0, 0.0, uvs[i]]
             else:
                 for i in range(count):
                     values[(0+i*4):(4+i*4)] = [uvs[i], uvs[i], uvs[i], 1.0]
 
         elif sourceType == 'UV4':
             values = layers.get_uv4(obj, sourcelayer)
+
+        if apply_layer_alpha and alpha != 1.0:
+            count = len(values)//4
+            for i in range(count):
+                values[3+i*4] *= alpha 
 
         if as_tuple:
             count = len(values)//4
@@ -1944,29 +1957,20 @@ class SXTOOLS_layers(object):
         targetColors.foreach_set('color', colors)
 
 
-    def get_luminances(self, obj, sourcelayer=None, colors=None, as_rgba=False):
+    def get_luminances(self, obj, sourcelayer=None, colors=None, as_rgba=False, as_alpha=False):
         if colors is None:
-            layerType = sourcelayer.layerType
-            if layerType == 'COLOR':
-                colors = self.get_colors(obj, sourcelayer.vertexColorLayer)
-            elif layerType == 'UV':
-                if as_rgba:
-                    values = self.get_uvs(obj, sourcelayer.uvLayer0, sourcelayer.uvChannel0)
-                    colors = generate.empty_list(obj, 4)
-                    count = len(values)
-                    for i in range(count):
-                        colors[(0+i*4):(4+i*4)] = convert.luminance_to_color(values[i])
-                    return colors
-                else:
-                    return self.get_uvs(obj, sourcelayer.uvLayer0, sourcelayer.uvChannel0)
-            elif layerType == 'UV4':
-                colors = self.get_uv4(obj, sourcelayer)
+            colors = self.get_layer(obj, sourcelayer)
 
         if as_rgba:
             values = generate.empty_list(obj, 4)
-            count = len(values)
+            count = len(values)//4
             for i in range(count):
                 values[(0+i*4):(4+i*4)] = convert.luminance_to_color(convert.color_to_luminance(colors[(0+i*4):(4+i*4)]))
+        elif as_alpha:
+            values = generate.empty_list(obj, 4)
+            count = len(values)//4
+            for i in range(count):
+                values[(0+i*4):(4+i*4)] = convert.luminance_to_alpha(convert.color_to_luminance(colors[(0+i*4):(4+i*4)]))
         else:
             values = generate.empty_list(obj, 1)
             count = len(values)
@@ -2104,7 +2108,7 @@ class SXTOOLS_layers(object):
             if shadingmode == 'FULL':
                 layer0 = utils.find_layer_from_index(objs[0], 0)
                 layer1 = utils.find_layer_from_index(objs[0], 1)
-                self.blend_layers(objs, compLayers, layer1, layer0)
+                self.blend_layers(objs, compLayers, layer1, layer0, uv_as_alpha=True)
             elif prefs.materialtype != 'SMP':
                 self.blend_debug(objs, layer, shadingmode)
 
@@ -2118,17 +2122,17 @@ class SXTOOLS_layers(object):
         bpy.context.view_layer.objects.active = objs[0]
 
         for obj in objs:
-            colors = self.get_layer(obj, layer, uv_luminance=True)
+            colors = self.get_layer(obj, layer, uv_as_alpha=True)
             count = len(colors)//4
 
             if shadingmode == 'DEBUG':
                 for i in range(count):
                     color = colors[(0+i*4):(4+i*4)]
-                    a = color[3]
+                    a = color[3] * layer.alpha
                     colors[(0+i*4):(4+i*4)] = [color[0]*a, color[1]*a, color[2]*a, 1.0]
             elif shadingmode == 'ALPHA':
                 for i in range(count):
-                    a = colors[3+i*4]
+                    a = colors[3+i*4] * layer.alpha
                     colors[(0+i*4):(4+i*4)] = [a, a, a, 1.0]
 
             self.set_layer(obj, colors, obj.sxlayers['composite'])
@@ -2136,12 +2140,12 @@ class SXTOOLS_layers(object):
         bpy.context.view_layer.objects.active = active
 
 
-    def blend_layers(self, objs, topLayerArray, baseLayer, resultLayer, uv_luminance=False):
+    def blend_layers(self, objs, topLayerArray, baseLayer, resultLayer, uv_as_alpha=False):
         active = bpy.context.view_layer.objects.active
         bpy.context.view_layer.objects.active = objs[0]
 
         for obj in objs:
-            basecolors = self.get_layer(obj, baseLayer)
+            basecolors = self.get_layer(obj, baseLayer, uv_as_alpha=uv_as_alpha)
 
             for layer in topLayerArray:
                 layerIdx = layer.index
@@ -2149,7 +2153,7 @@ class SXTOOLS_layers(object):
                 if getattr(obj.sxlayers[layerIdx], 'visibility'):
                     blendmode = getattr(obj.sxlayers[layerIdx], 'blendMode')
                     layeralpha = getattr(obj.sxlayers[layerIdx], 'alpha')
-                    topcolors = self.get_layer(obj, obj.sxlayers[layerIdx], uv_luminance=True)
+                    topcolors = self.get_layer(obj, obj.sxlayers[layerIdx], uv_as_alpha=uv_as_alpha)
                     basecolors = tools.blend_values(topcolors, basecolors, blendmode, layeralpha)
 
             self.set_layer(obj, basecolors, resultLayer)
@@ -2216,52 +2220,57 @@ class SXTOOLS_layers(object):
                     layer.alpha = 1.0
 
 
-    def merge_layers(self, objs, sourceLayer, targetLayer):
-        if sourceLayer.index < targetLayer.index:
-            baseLayer = sourceLayer
-            topLayer = targetLayer
+    def merge_layers(self, objs, toplayer, baselayer, targetlayer):
+        for obj in objs:
+            basecolors = self.get_layer(obj, baselayer, apply_layer_alpha=True, uv_as_alpha=True)
+            topcolors = self.get_layer(obj, toplayer, apply_layer_alpha=True, uv_as_alpha=True)
+
+            blendmode = toplayer.blendMode
+            colors = tools.combine_layers(topcolors, basecolors, blendmode)
+            self.set_layer(obj, colors, targetlayer)
+
+        for obj in objs:
+            setattr(obj.sxlayers[targetlayer.index], 'visibility', True)
+            setattr(obj.sxlayers[targetlayer.index], 'blendMode', 'ALPHA')
+            setattr(obj.sxlayers[targetlayer.index], 'alpha', 1.0)
+            obj.sxtools.selectedlayer = targetlayer.index
+
+        if toplayer.name == targetlayer.name:
+            self.clear_layers(objs, baselayer)
         else:
-            baseLayer = targetLayer
-            topLayer = sourceLayer
-
-        for obj in objs:
-            setattr(obj.sxlayers[sourceLayer.index], 'visibility', True)
-            setattr(obj.sxlayers[targetLayer.index], 'visibility', True)
-
-        self.blend_layers(objs, [topLayer, ], baseLayer, targetLayer)
-        self.clear_layers(objs, sourceLayer)
-
-        for obj in objs:
-            setattr(obj.sxlayers[sourceLayer.index], 'blendMode', 'ALPHA')
-            setattr(obj.sxlayers[targetLayer.index], 'blendMode', 'ALPHA')
-
-            obj.sxtools.selectedlayer = targetLayer.index
+            self.clear_layers(objs, toplayer)
 
 
     def paste_layer(self, objs, sourceLayer, targetLayer, fillMode):
         sourceMode = sourceLayer.layerType
         targetMode = targetLayer.layerType
 
-        if sourceMode == 'COLOR' and (targetMode == 'COLOR' or targetMode == 'UV4'):
+        if (sourceMode == 'COLOR' or sourceMode == 'UV4') and (targetMode == 'COLOR' or targetMode == 'UV4'):
             for obj in objs:
                 sourceBlend = getattr(obj.sxlayers[sourceLayer.index], 'blendMode')[:]
                 targetBlend = getattr(obj.sxlayers[targetLayer.index], 'blendMode')[:]
+                sourceAlpha = getattr(obj.sxlayers[sourceLayer.index], 'alpha')
+                targetAlpha = getattr(obj.sxlayers[targetLayer.index], 'alpha')
 
                 if fillMode == 'swap':
                     setattr(obj.sxlayers[sourceLayer.index], 'blendMode', targetBlend)
                     setattr(obj.sxlayers[targetLayer.index], 'blendMode', sourceBlend)
+                    setattr(obj.sxlayers[sourceLayer.index], 'alpha', targetAlpha)
+                    setattr(obj.sxlayers[targetLayer.index], 'alpha', sourceAlpha)
                 else:
                     setattr(obj.sxlayers[targetLayer.index], 'blendMode', sourceBlend)
+                    setattr(obj.sxlayers[targetLayer.index], 'alpha', sourceAlpha)
 
         if fillMode == 'swap':
-            tempLayer = objs[0].sxlayers['composite']
-            tools.layer_copy_manager(objs, sourceLayer, tempLayer)
-            tools.layer_copy_manager(objs, targetLayer, sourceLayer)
-            tools.layer_copy_manager(objs, tempLayer, targetLayer)
-        elif fillMode == 'merge':
-            self.merge_layers(objs, sourceLayer, targetLayer)
+            for obj in objs:
+                layer1_colors = layers.get_layer(obj, sourceLayer)
+                layer2_colors = layers.get_layer(obj, targetLayer)
+                layers.set_layer(obj, layer1_colors, targetLayer)
+                layers.set_layer(obj, layer2_colors, sourceLayer)
         else:
-            tools.layer_copy_manager(objs, sourceLayer, targetLayer)
+            for obj in objs:
+                sourcevalues = layers.get_layer(obj, sourceLayer)
+                layers.set_layer(obj, sourcevalues, targetLayer)
 
 
     def update_layer_panel(self, objs, layer):
@@ -2365,14 +2374,57 @@ class SXTOOLS_tools(object):
                     base = over * b + base * (1.0 - b)
                     base[3] = min(base[3]+a, 1.0)
 
-                elif blendmode == 'CLR':
-                    base = top
-
                 if base[3] == 0.0:
                     base = [0.0, 0.0, 0.0, 0.0]
 
                 colors[(0+i*4):(4+i*4)] = base
             return colors
+
+
+    def combine_layers(self, topcolors, basecolors, blendmode):
+        count = len(basecolors)//4
+        colors = [None] * count * 4
+        midpoint = 0.5  # convert.srgb_to_linear([0.5, 0.5, 0.5, 1.0])[0]
+
+        for i in range(count):
+            top_rgb = Vector(topcolors[(0+i*4):(3+i*4)])
+            top_alpha = topcolors[3+i*4]
+            base_rgb = Vector(basecolors[(0+i*4):(3+i*4)])
+            base_alpha = basecolors[3+i*4]
+            result_rgb = [0.0, 0.0, 0.0]
+            result_alpha = min((base_alpha + top_alpha), 1.0)
+
+            if result_alpha > 0.0:
+                if blendmode == 'ALPHA':
+                    result_rgb = (top_rgb * top_alpha + base_rgb * (1.0 - top_alpha))
+
+                elif blendmode == 'ADD':
+                    result_rgb = base_rgb + top_rgb
+
+                elif blendmode == 'MUL':
+                    for j in range(3):
+                        result_rgb[j] = base_rgb[j] * (top_rgb[j] * top_alpha + (1.0 - top_alpha))
+
+                elif blendmode == 'OVR':
+                    over = Vector([0.0, 0.0, 0.0])
+                    over_alpha = top_alpha
+                    for j in range(3):
+                        if base_rgb[j] < midpoint:
+                            over[j] = 2.0 * base_rgb[j] * top_rgb[j]
+                        else:
+                            over[j] = 1.0 - 2.0 * (1.0 - base_rgb[j]) * (1.0 - top_rgb[j])
+                    result_rgb = over * over_alpha + base_rgb * (1.0 - over_alpha)
+
+            # print('blendmode: ', blendmode)
+            # print('top:       ', top_rgb[0], top_rgb[1], top_rgb[2], top_alpha)
+            # print('base:      ', base_rgb[0], base_rgb[1], base_rgb[2], base_alpha)
+            # print('result:    ', result_rgb[0], result_rgb[1], result_rgb[2], result_alpha, '\n')
+
+            colors[(0+i*4):(4+i*4)] = [result_rgb[0], result_rgb[1], result_rgb[2], result_alpha]
+        return colors
+
+
+
 
 
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
@@ -2634,15 +2686,6 @@ class SXTOOLS_tools(object):
                     edge.select = True
 
             bmesh.update_edit_mesh(mesh)
-
-
-    def layer_copy_manager(self, objs, sourcelayer, targetlayer):
-        for obj in objs:
-            if sourcelayer.layerType == 'UV' and targetlayer.layerType == 'UV':
-                sourcevalues = layers.get_luminances(obj, sourcelayer, as_rgba=True)
-            else:
-                sourcevalues = layers.get_layer(obj, sourcelayer)
-            layers.set_layer(obj, sourcevalues, targetlayer)
 
 
     def apply_palette(self, objs, palette):
@@ -3407,7 +3450,7 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
-            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_luminance=True)
+            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             layers.set_layer(obj, colors, layer)
 
@@ -3454,7 +3497,7 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
-            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_luminance=True)
+            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
 
             layers.set_layer(obj, colors, layer)
@@ -3544,7 +3587,7 @@ class SXTOOLS_magic(object):
 
             # Mix metallic with occlusion (dirt in crevices)
             colors = generate.color_list(obj, color=palette[1], masklayer=utils.find_layer_from_index(obj, 7))
-            colors1 = layers.get_layer(obj, obj.sxlayers['occlusion'], uv_luminance=True)
+            colors1 = layers.get_layer(obj, obj.sxlayers['occlusion'], uv_as_alpha=True)
             if colors is not None:
                 colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
@@ -4755,14 +4798,14 @@ def expand_export(self, context):
 
 def compositing_mode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial'].node_tree
-    swoutput = sxmaterial.nodes['Vertex Color'].outputs['Color']
-    hwoutput = sxmaterial.nodes['Final Step'].outputs['Color']
+    sw_output = sxmaterial.nodes['Vertex Color'].outputs['Color']
+    hw_output = sxmaterial.nodes['Final Step'].outputs['Color']
     input = sxmaterial.nodes['Mix'].inputs['Color1']
 
     if context.scene.sxtools.gpucomposite:
-        sxmaterial.links.new(input, hwoutput)
+        sxmaterial.links.new(input, hw_output)
     else:
-        sxmaterial.links.new(input, swoutput)
+        sxmaterial.links.new(input, sw_output)
 
 
 def update_scene_configuration(self, context):
@@ -5976,8 +6019,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                    (layer.name == 'smoothness') or
                    (layer.name == 'metallic') or
                    (layer.name == 'transmission') or
-                   (layer.name == 'emission') or
-                   (scene.shadingmode != 'FULL')):
+                   (layer.name == 'emission')):
                     row_alpha.enabled = False
 
                 if scene.expandlayer:
@@ -6040,7 +6082,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Layer Copy Paste Merge ---------------------------------------
                 row_misc1 = self.layout.row(align=True)
                 row_misc1.operator('sxtools.mergeup')
-                row_misc1.operator('sxtools.copylayer', text='Copy')
+                if sxglobals.copyLayer is None:
+                    copy_text = 'Copy'
+                else:
+                    copy_text = 'Copy'
+                row_misc1.operator('sxtools.copylayer', text=copy_text)
                 if not scene.shift:
                     clr_text = 'Clear'
                 else:
@@ -6049,7 +6095,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_misc2 = self.layout.row(align=True)
                 row_misc2.operator('sxtools.mergedown')
                 if scene.alt:
-                    paste_text = 'Merge'
+                    paste_text = 'Merge Into'
                 elif scene.shift:
                     paste_text = 'Swap'
                 else:
@@ -7067,10 +7113,10 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
-            sourceLayer = utils.find_layer_from_index(objs[0], idx)
-            listIndex = utils.find_list_index(objs[0], sourceLayer)
-            targetLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[listIndex - 1])
-            layers.merge_layers(objs, sourceLayer, targetLayer)
+            topLayer = utils.find_layer_from_index(objs[0], idx)
+            listIndex = utils.find_list_index(objs[0], topLayer)
+            baseLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[listIndex - 1])
+            layers.merge_layers(objs, topLayer, baseLayer, baseLayer)
 
             sxglobals.composite = True
             refresh_actives(self, context)
@@ -7113,10 +7159,10 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
-            sourceLayer = utils.find_layer_from_index(objs[0], idx)
-            listIndex = utils.find_list_index(objs[0], sourceLayer)
-            targetLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[listIndex + 1])
-            layers.merge_layers(objs, sourceLayer, targetLayer)
+            baseLayer = utils.find_layer_from_index(objs[0], idx)
+            listIndex = utils.find_list_index(objs[0], baseLayer)
+            topLayer = utils.find_layer_from_index(objs[0], sxglobals.listItems[listIndex + 1])
+            layers.merge_layers(objs, topLayer, baseLayer, topLayer)
 
             sxglobals.composite = True
             refresh_actives(self, context)
@@ -7142,7 +7188,7 @@ class SXTOOLS_OT_copylayer(bpy.types.Operator):
 class SXTOOLS_OT_pastelayer(bpy.types.Operator):
     bl_idname = 'sxtools.pastelayer'
     bl_label = 'Paste Layer'
-    bl_description = 'Shift-click to swap with copied layer\nAlt-click to merge with the target layer\n(Color layers only!)'
+    bl_description = 'Shift-click to swap with copied layer\nAlt-click to merge into the target layer'
     bl_options = {'UNDO'}
 
 
@@ -7153,18 +7199,20 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
             sourceLayer = sxglobals.copyLayer
             targetLayer = utils.find_layer_from_index(objs[0], idx)
 
-            if event.shift:
+            if event.alt and sourceLayer is not None:
+                layers.merge_layers(objs, sourceLayer, targetLayer, targetLayer)
+
+                sxglobals.composite = True
+                refresh_actives(self, context)
+                return {'FINISHED'}
+
+            elif event.shift:
                 mode = 'swap'
-            elif event.alt:
-                mode = 'merge'
             else:
                 mode = False
 
             if sourceLayer is None:
                 message_box('Nothing to paste!')
-                return {'FINISHED'}
-            elif (targetLayer.layerType != 'COLOR') and (mode == 'merge'):
-                message_box('Merging only supported with color layers')
                 return {'FINISHED'}
             else:
                 layers.paste_layer(objs, sourceLayer, targetLayer, mode)
@@ -7211,6 +7259,8 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selection_validator(self, context)
         if len(objs) > 0:
+            bpy.context.view_layer.objects.active = objs[0]
+
             if event.shift:
                 inverse = True
             else:
@@ -7222,7 +7272,6 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
             else:
                 idx = objs[0].sxtools.selectedlayer
                 layer = utils.find_layer_from_index(objs[0], idx)
-                # bpy.context.view_layer.objects.active = objs[0]
                 tools.select_mask(objs, layer, inverse)
         return {'FINISHED'}
 
@@ -7969,6 +8018,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - color to UV layer merge overwrites base layer in some cases
 # - component selection monitor trailing by one click
 # - selection monitor starts only after a layer change following a context loss
 # - EDIT mode HSL sliders don't refresh on component selection change
