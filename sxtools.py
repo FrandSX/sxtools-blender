@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 5, 1),
+    'version': (4, 5, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -36,10 +36,13 @@ class SXTOOLS_sxglobals(object):
         self.copyLayer = None
         self.listItems = []
         self.listIndices = {}
-        self.prevMode = 'FULL'
+        self.prevMode = 'OBJECT'
+        self.prevShadingMode = 'FULL'
         self.mode = None
+        self.modeID = None
 
         self.prevSelection = []
+        self.prevComponentSelection = []
         self.rampDict = {}
         self.categoryDict = {}
         self.presetLookup = {}
@@ -322,19 +325,21 @@ class SXTOOLS_utils(object):
         return None
 
 
-    def mode_manager(self, objs, set_mode=False, revert=False):
+    def mode_manager(self, objs, set_mode=False, revert=False, mode_id=None):
         if set_mode:
-            sxglobals.mode = objs[0].mode
-            if objs[0].mode != 'OBJECT':
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            if sxglobals.modeID == None:
+                sxglobals.modeID = mode_id
+                sxglobals.mode = objs[0].mode
+                if objs[0].mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            else:
+                if objs[0].mode != 'OBJECT':
+                    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         elif revert:
-            bpy.ops.object.mode_set(mode=sxglobals.mode)
-            # sxglobals.mode = None
-        else:
-            if sxglobals.mode is None:
-                print('MISSING MODE SET!')
-            elif objs[0].mode != 'OBJECT':
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+            if sxglobals.modeID == mode_id:
+                bpy.ops.object.mode_set(mode=sxglobals.mode)
+                sxglobals.modeID = None
 
 
     # Finds groups to be exported,
@@ -1142,7 +1147,7 @@ class SXTOOLS_setup(object):
         sxglobals.copyLayer = None
         sxglobals.listItems = []
         sxglobals.listIndices = {}
-        sxglobals.prevMode = 'FULL'
+        sxglobals.prevShadingMode = 'FULL'
         sxglobals.composite = False
         sxglobals.paletteDict = {}
         sxglobals.masterPaletteArray = []
@@ -2432,7 +2437,7 @@ class SXTOOLS_tools(object):
 
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
         # then = time.time()
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='apply_tool')
         scene = bpy.context.scene.sxtools
         amplitude = scene.noiseamplitude
         offset = scene.noiseoffset
@@ -2480,14 +2485,14 @@ class SXTOOLS_tools(object):
                 colors = self.blend_values(colors, target_colors, blendmode, blendvalue)
                 layers.set_layer(obj, colors, targetlayer)
 
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='apply_tool')
         # now = time.time()
         # print('Apply tool ', scene.toolmode, ' duration: ', now-then, ' seconds')
 
 
     # mode 0: hue, mode 1: saturation, mode 2: lightness
     def apply_hsl(self, objs, layer, hslmode, newValue):
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='apply_hsl')
 
         colors = utils.find_colors_by_frequency(objs, layer)
         if len(colors) > 0:
@@ -2524,7 +2529,7 @@ class SXTOOLS_tools(object):
                     colors = self.blend_values(colors, target_colors, 'ALPHA', 1.0)
                     layers.set_layer(obj, colors, layer)
 
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='apply_hsl')
 
 
     def update_recent_colors(self, color):
@@ -2692,7 +2697,7 @@ class SXTOOLS_tools(object):
 
 
     def apply_palette(self, objs, palette):
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='apply_palette')
         if not sxglobals.refreshInProgress:
             sxglobals.refreshInProgress = True
 
@@ -2715,7 +2720,7 @@ class SXTOOLS_tools(object):
                     layers.set_layer(obj, colors, layer)
 
         sxglobals.refreshInProgress = False
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='apply_palette')
 
 
     def apply_material(self, objs, targetlayer, material):
@@ -2866,7 +2871,7 @@ class SXTOOLS_tools(object):
 
 
     def group_objects(self, objs):
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='group_objects')
         bpy.context.view_layer.objects.active = objs[0]
 
         pivot = utils.find_root_pivot(objs)
@@ -2884,7 +2889,7 @@ class SXTOOLS_tools(object):
             obj.location.y -= group.location.y
             obj.location.z -= group.location.z
 
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='group_objects')
 
 
     # pivotmodes: 0 == no change, 1 == center of mass, 2 == center of bbox,
@@ -3034,12 +3039,12 @@ class SXTOOLS_validate(object):
 
 
     def validate_objects(self, objs):
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='validate_objects')
 
         ok1 = self.test_palette_layers(objs)
         ok2 = self.test_names(objs)
 
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='validate_objects')
 
         if ok1 and ok2:
             print('SX Tools: Selected objects passed validation tests')
@@ -4050,7 +4055,7 @@ def update_layers(self, context):
         objs = selection_validator(self, context)
 
         if len(objs) > 0:
-            utils.mode_manager(objs, set_mode=True)
+            utils.mode_manager(objs, set_mode=True, mode_id='update_layers')
             idx = objs[0].sxtools.selectedlayer
             alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
             blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
@@ -4081,7 +4086,7 @@ def update_layers(self, context):
                 sxglobals.composite = True
                 layers.composite_layers(objs)
 
-            utils.mode_manager(objs, revert=True)
+            utils.mode_manager(objs, revert=True, mode_id='update_layers')
 
 
 def refresh_actives(self, context):
@@ -4094,7 +4099,7 @@ def refresh_actives(self, context):
         sxmaterial = bpy.data.materials['SXMaterial']
         objs = selection_validator(self, context)
 
-        utils.mode_manager(objs, set_mode=True)
+        utils.mode_manager(objs, set_mode=True, mode_id='refresh_actives')
 
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
@@ -4146,7 +4151,7 @@ def refresh_actives(self, context):
         if not sxglobals.modalStatus:
             setup.start_modal()
 
-        utils.mode_manager(objs, revert=True)
+        utils.mode_manager(objs, revert=True, mode_id='refresh_actives')
         sxglobals.refreshInProgress = False
 
 
@@ -4268,7 +4273,7 @@ def shading_mode(self, context):
                 sxmaterial.node_tree.links.remove(attrLink)
 
                 # Check if already debug
-                if sxglobals.prevMode == 'FULL':
+                if sxglobals.prevShadingMode == 'FULL':
                     attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
                     sxmaterial.node_tree.links.remove(attrLink)
                     if metallic:
@@ -4290,7 +4295,7 @@ def shading_mode(self, context):
                 input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
                 sxmaterial.node_tree.links.new(input, output)
 
-            sxglobals.prevMode = mode
+            sxglobals.prevShadingMode = mode
 
 
 def selection_validator(self, context):
@@ -4849,7 +4854,7 @@ def update_scene_configuration(self, context):
 
 @persistent
 def load_post_handler(dummy):
-    sxglobals.prevMode = 'FULL'
+    sxglobals.prevShadingMode = 'FULL'
     sxglobals.librariesLoaded = False
 
     if bpy.data.scenes['Scene'].sxtools.rampmode == '':
@@ -6644,8 +6649,7 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
 class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
     bl_idname = 'sxtools.selectionmonitor'
     bl_label = 'Selection Monitor'
-
-    prevSelection: None
+    bl_description = 'Refreshes the UI on selection change'
 
 
     @classmethod
@@ -6659,29 +6663,50 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
             sxglobals.modalStatus = False
             return {'CANCELLED'}
 
-        # selection = context.object
-        selection = context.view_layer.objects.selected.keys()
-
         if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
             sxglobals.librariesLoaded = False
 
         if not sxglobals.librariesLoaded:
             load_libraries(self, context)
 
-        if selection != self.prevSelection:
-            # self.prevSelection = context.object
-            self.prevSelection = context.view_layer.objects.selected.keys()
-            if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            mode = objs[0].mode
+            if mode != sxglobals.prevMode:
+                sxglobals.prevMode = mode
                 refresh_actives(self, context)
-            return {'PASS_THROUGH'}
+                return {'PASS_THROUGH'}
+            else:
+                if objs[0].mode == 'EDIT':
+                    utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
+                    mesh = objs[0].data
+                    selection = [None] * len(mesh.vertices)
+                    mesh.vertices.foreach_get('select', selection)
+
+                    if selection != sxglobals.prevComponentSelection:
+                        sxglobals.prevComponentSelection = selection
+                        refresh_actives(self, context)
+                        utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
+                        return {'PASS_THROUGH'}
+                    else:
+                        utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
+                        return {'PASS_THROUGH'}
+                else:
+                    selection = context.view_layer.objects.selected.keys()
+
+                    if selection != sxglobals.prevSelection:
+                        sxglobals.prevSelection = context.view_layer.objects.selected.keys()
+                        if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
+                            refresh_actives(self, context)
+                        return {'PASS_THROUGH'}
+                    else:
+                        return {'PASS_THROUGH'}
         else:
             return {'PASS_THROUGH'}
 
-        # return {'RUNNING_MODAL'}
 
     def invoke(self, context, event):
-        # self.prevSelection = context.object
-        self.prevSelection = context.view_layer.objects.selected.keys()
+        sxglobals.prevSelection = context.view_layer.objects.selected.keys()
         context.window_manager.modal_handler_add(self)
         print('SX Tools: Starting selection monitor')
         return {'RUNNING_MODAL'}
@@ -7248,7 +7273,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            utils.mode_manager(objs, set_mode=True)
+            utils.mode_manager(objs, set_mode=True, mode_id='clearlayers')
 
             if event.shift:
                 layer = None
@@ -7258,7 +7283,7 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
 
             layers.clear_layers(objs, layer)
 
-            utils.mode_manager(objs, revert=True)
+            utils.mode_manager(objs, revert=True, mode_id='clearlayers')
             sxglobals.composite = True
             refresh_actives(self, context)
         return {'FINISHED'}
@@ -7697,7 +7722,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
         scene = bpy.context.scene.sxtools
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            utils.mode_manager(objs, set_mode=True)
+            utils.mode_manager(objs, set_mode=True, mode_id='revertobjects')
             tools.revert_objects(objs)
 
             bpy.ops.object.shade_flat()
@@ -7705,7 +7730,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
             sxglobals.composite = True
             refresh_actives(self, context)
 
-            utils.mode_manager(objs, revert=False)
+            utils.mode_manager(objs, revert=False, mode_id='revertobjects')
         return {'FINISHED'}
 
 
@@ -7784,39 +7809,6 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
                 sxglobals.composite = True
             refresh_actives(self, context)
         return {'FINISHED'}
-
-
-class SXTOOLS_OT_componentselectionmonitor(bpy.types.Operator):
-    bl_idname = 'sxtools.componentselectionmonitor'
-    bl_label = 'Component Selection Monitor'
-    bl_description = 'Refreshes the UI on component selection change'
-
-
-    def invoke(self, context, event):
-        context.view_layer.update()
-        # print('comp monitoring')
-        # print('sxg: ', sxglobals.prevSelection)
-        objs = selection_validator(self, context)
-        if len(objs) > 0:
-            if objs[0].mode == 'EDIT':
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                mesh = objs[0].data
-                selection = [None] * len(mesh.vertices)
-                mesh.vertices.foreach_get('select', selection)
-                # print('sel: ', selection)
-
-                if selection != sxglobals.prevSelection:
-                    # print('comp monitor: selection changed')
-                    sxglobals.prevSelection = selection
-                    refresh_actives(self, context)
-                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                    return {'PASS_THROUGH'}
-                else:
-                    # print('comp monitor: no change')
-                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                    return {'PASS_THROUGH'}
-        else:
-            return {'PASS_THROUGH'}
 
 
 class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
@@ -7994,8 +7986,6 @@ def register():
         addon_keymaps.append((km, kmi))
         kmi = km.keymap_items.new('SXTOOLS_OT_selectdown', 'DOWN_ARROW', 'PRESS', shift=True, ctrl=True)
         addon_keymaps.append((km, kmi))
-        # kmi = km.keymap_items.new('SXTOOLS_OT_componentselectionmonitor', 'LEFTMOUSE', 'PRESS', any=True)
-        # addon_keymaps.append((km, kmi))
         kmi = km.keymap_items.new('wm.call_menu_pie', 'COMMA', 'PRESS', shift=True)
         kmi.properties.name = SXTOOLS_MT_piemenu.bl_idname
         addon_keymaps.append((km, kmi))
@@ -8036,11 +8026,6 @@ if __name__ == '__main__':
 # Selection monitor:
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
-#
-# Component selection monitor (disabled):
-# - component selection monitor trailing by one click
-# - EDIT mode HSL sliders don't refresh on component selection change
-# - Layer Palette swatches not auto-updated after returning to object mode from component selection HSL slider tweak
 #
 # Performance:
 # - update_palette_layer does a blend pass
