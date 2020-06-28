@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 4, 1),
+    'version': (4, 5, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2061,16 +2061,22 @@ class SXTOOLS_layers(object):
     def clear_layers(self, objs, targetlayer=None):
         scene = bpy.context.scene.sxtools
 
-        def clear_layer(obj, layer):
+        def clear_layer(obj, layer, reset=False):
             default_color = layer.defaultColor
             if sxglobals.mode == 'OBJECT':
-                colors = generate.color_list(obj, color=default_color)
                 setattr(obj.sxlayers[layer.index], 'alpha', 1.0)
                 setattr(obj.sxlayers[layer.index], 'visibility', True)
-                if layer == obj.sxlayers['overlay']:
-                    setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
-                else:
-                    setattr(obj.sxlayers[layer.index], 'blendMode', 'ALPHA')
+                if reset:
+                    if layer == obj.sxlayers['overlay']:
+                        setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
+                        default_color = [0.5, 0.5, 0.5, 1.0]
+                    else:
+                        setattr(obj.sxlayers[layer.index], 'blendMode', 'ALPHA')
+                        if layer.index == 1 and obj.sxtools.category != 'TRANSPARENT':
+                            default_color = [0.5, 0.5, 0.5, 1.0]
+                        elif layer.layerType == 'COLOR':
+                            default_color = [0.0, 0.0, 0.0, 0.0]
+                colors = generate.color_list(obj, color=default_color)
                 layers.set_layer(obj, colors, layer)
             else:
                 colors = layers.get_layer(obj, layer)
@@ -2088,7 +2094,7 @@ class SXTOOLS_layers(object):
             scene.toolblend = 'ALPHA'
             for obj in objs:
                 for sxlayer in obj.sxlayers:
-                    clear_layer(obj, sxlayer)
+                    clear_layer(obj, sxlayer, reset=True)
                 obj.data.update()
         else:
             for obj in objs:
@@ -2422,9 +2428,6 @@ class SXTOOLS_tools(object):
 
             colors[(0+i*4):(4+i*4)] = [result_rgb[0], result_rgb[1], result_rgb[2], result_alpha]
         return colors
-
-
-
 
 
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
@@ -4040,7 +4043,6 @@ class SXTOOLS_export(object):
 # ------------------------------------------------------------------------
 def update_layers(self, context):
     if not sxglobals.refreshInProgress:
-
         if 'SXMaterial' not in bpy.data.materials.keys():
             setup.create_sxmaterial()
 
@@ -4058,6 +4060,13 @@ def update_layers(self, context):
                 setattr(obj.sxlayers[idx], 'alpha', alphaVal)
                 setattr(obj.sxlayers[idx], 'blendMode', blendVal)
                 setattr(obj.sxlayers[idx], 'visibility', visVal)
+
+                if blendVal == 'OVR':
+                    setattr(obj.sxlayers[idx], 'defaultColor', [0.5, 0.5, 0.5, 1.0])
+                elif (idx == 1) and (obj.sxtools.category != 'TRANSPARENT'):
+                    setattr(obj.sxlayers[idx], 'defaultColor', [0.5, 0.5, 0.5, 1.0])
+                else:
+                    setattr(obj.sxlayers[idx], 'defaultColor', [0.0, 0.0, 0.0, 0.0])
 
                 sxglobals.refreshInProgress = True
                 setattr(obj.sxtools, 'selectedlayer', idx)
@@ -4340,30 +4349,36 @@ def material_category_lister(self, context):
 
 
 def load_category(self, context):
-    objs = selection_validator(self, context)
-    if len(objs) > 0:
-        categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
-        for i in range(7):
-            layer = utils.find_layer_from_index(objs[0], i+1)
-            layer.name = categoryData[i]
+    if not sxglobals.refreshInProgress:
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            sxglobals.refreshInProgress = True
+            categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
+            for i in range(7):
+                layer = utils.find_layer_from_index(objs[0], i+1)
+                layer.name = categoryData[i]
 
-        for obj in objs:
-            if obj.sxtools.category != objs[0].sxtools.category:
-                obj.sxtools.category = objs[0].sxtools.category
-                for i in range(7):
-                    layer = utils.find_layer_from_index(obj, i+1)
-                    layer.name = categoryData[i]
+            for obj in objs:
+                if obj.sxtools.category != objs[0].sxtools.category:
+                    obj.sxtools.category = objs[0].sxtools.category
+                    for i in range(7):
+                        layer = utils.find_layer_from_index(obj, i+1)
+                        layer.name = categoryData[i]
 
-            obj.sxtools.staticvertexcolors = str(categoryData[7])
-            obj.sxtools.smoothness1 = categoryData[8]
-            obj.sxtools.smoothness2 = categoryData[9]
-            obj.sxtools.overlaystrength = categoryData[10]
+                obj.sxtools.staticvertexcolors = str(categoryData[7])
+                obj.sxtools.smoothness1 = categoryData[8]
+                obj.sxtools.smoothness2 = categoryData[9]
+                obj.sxtools.overlaystrength = categoryData[10]
+                obj.sxtools.selectedlayer = 1
 
-        bpy.data.materials['SXMaterial'].blend_method = categoryData[11]
-        if categoryData[11] == 'BLEND':
-            bpy.data.materials['SXMaterial'].use_backface_culling = True
-        else:
-            bpy.data.materials['SXMaterial'].use_backface_culling = False
+            bpy.data.materials['SXMaterial'].blend_method = categoryData[11]
+            if categoryData[11] == 'BLEND':
+                bpy.data.materials['SXMaterial'].use_backface_culling = True
+            else:
+                bpy.data.materials['SXMaterial'].use_backface_culling = False
+
+            sxglobals.refreshInProgress = False
+            update_layers(self, context)
 
 
 def load_ramp(self, context):
@@ -6090,7 +6105,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 if not scene.shift:
                     clr_text = 'Clear'
                 else:
-                    clr_text = 'Clear All'
+                    clr_text = 'Reset All'
                 row_misc1.operator('sxtools.clear', text=clr_text)
                 row_misc2 = self.layout.row(align=True)
                 row_misc2.operator('sxtools.mergedown')
@@ -8018,20 +8033,29 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - color to UV layer merge overwrites base layer in some cases
-# - component selection monitor trailing by one click
-# - selection monitor starts only after a layer change following a context loss
-# - EDIT mode HSL sliders don't refresh on component selection change
+# Selection monitor:
 # - Palette and Material tools should auto-refresh on selection
+# - selection monitor starts only after a layer change following a context loss
+#
+# Component selection monitor (disabled):
+# - component selection monitor trailing by one click
+# - EDIT mode HSL sliders don't refresh on component selection change
 # - Layer Palette swatches not auto-updated after returning to object mode from component selection HSL slider tweak
+#
+# Performance:
 # - update_palette_layer does a blend pass
+# - Limit UV4 clear workload (currently 4 passes)
+#
+# Issues:
 # - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
 # - Blend mode fills misbehave on gradient1 and gradient2
-# - Re-categorize filler tools
-# - Limit UV4 clear workload (currently 4 passes)
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
-# - Different defaultColor if overlay layer blend mode changed?
+#
+# Future:
+# - Separate reset layers and clear layers
+# - Re-categorize filler tools
+# - UI for creating magic processes
 # - Wrong palette after sxtools restart -> remember last palette?
 # - Run from direct github zip download
 #   - Split to multiple python files
