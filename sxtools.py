@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 5, 2),
+    'version': (4, 7, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -20,7 +20,7 @@ import sys
 import numpy as np
 from bpy.app.handlers import persistent
 from collections import Counter
-from mathutils import Vector
+from mathutils import Vector, geometry
 
 
 # ------------------------------------------------------------------------
@@ -564,6 +564,24 @@ class SXTOOLS_utils(object):
                 count += obj.modifiers['sxDecimate2'].face_count
 
         return str(count)
+
+
+    def sort_vertices(self, obj, axis):
+        vert_pos_list = []
+
+        mesh = obj.data
+        mat = obj.matrix_world
+        for vert in mesh.vertices:
+            vert_pos_list.append((mat @ vert.co, vert.index))
+
+        vert_pos_list.sort(key=lambda x: float(x[0][axis]))
+
+        vert_id_list = []
+        for vert in vert_pos_list:
+            vert_id_list.append(vert[1])
+
+        print(len(vert_pos_list), len(vert_id_list))
+        return vert_id_list
 
 
     def __del__(self):
@@ -1402,8 +1420,8 @@ class SXTOOLS_generate(object):
                 vert_dir_dict[vert_id] = 0.0
 
             for i in range(samples):
-                inclination = (scene.dirInclination + random.uniform(-cone, cone) - 90.0) * (2 * math.pi) / 360.0
-                angle = (scene.dirAngle + random.uniform(-cone, cone) + 90) * (2 * math.pi) / 360.0
+                inclination = math.radians(scene.dirInclination + random.uniform(-cone, cone) - 90.0)
+                angle = math.radians(scene.dirAngle + random.uniform(-cone, cone) + 90)
 
                 direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
 
@@ -2740,7 +2758,7 @@ class SXTOOLS_tools(object):
         hardmode = objs[0].sxtools.hardmode
         for obj in objs:
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
+            obj.data.auto_smooth_angle = math.radians(obj.sxtools.smoothangle)
 
         for obj in objs:
             if 'sxMirror' not in obj.modifiers.keys():
@@ -2799,7 +2817,7 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxDecimate'].show_expanded = False
                 obj.modifiers['sxDecimate'].decimate_type = 'DISSOLVE'
-                obj.modifiers['sxDecimate'].angle_limit = obj.sxtools.decimation * (math.pi/180.0)
+                obj.modifiers['sxDecimate'].angle_limit = math.radians(obj.sxtools.decimation)
                 obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
                 obj.modifiers['sxDecimate'].delimit = {'SHARP', 'UV'}
             if 'sxDecimate2' not in obj.modifiers.keys():
@@ -3026,6 +3044,511 @@ class SXTOOLS_tools(object):
             bmesh.update_edit_mesh(obj.data)
 
 
+    def sphere_ray_randomizer(self, count):
+        sphere_rays = [None] * count
+        for i in range(count):
+            u1 = random.random()
+            u2 = random.random()
+            r = math.sqrt(u1)
+            theta = 2*math.pi*u2
+
+            x = r * math.cos(theta)
+            y = r * math.sin(theta)
+
+            sphere_rays[i] = (x, y, math.sqrt(max(0, 1 - u1)) * random.choice([-1, 1]))
+
+        return sphere_rays
+
+
+    def create_corner_sphere_colliders(self, obj, sphere_radius, merge_radius, culling_threshold):
+
+        def sphere_hit(obj, vertPos, endPos):
+            sphere = self.sphere_ray_randomizer(100)
+            startPos = Vector(vertPos)
+            center_pos = (startPos + endPos) * 0.5
+            sphere_list = []
+
+            distances = []
+            for sample in sphere:
+                sample = Vector(sample) * 0.001
+                samplePos = sample + center_pos
+
+                hit, loc, normal, index = obj.ray_cast(samplePos, sample)
+
+                if hit:
+                    dist = (loc - center_pos).length
+                    distances.append(dist)
+
+            radius = max(min(distances), sphere_radius)
+            world_loc = obj.matrix_world.to_translation()
+            sphere_list.append([(center_pos + world_loc), radius])
+
+
+        def multi_sphere_hit(obj, vertPos, endPos):
+            sphere = self.sphere_ray_randomizer(100)
+            startPos = Vector(vertPos)
+            raylength = (endPos - startPos).length
+
+            radii_sum = min_radius
+            while radii_sum < raylength:
+                test_pos = (endPos - startPos) * (radii_sum / raylength) + startPos
+                distances = []
+                for sample in sphere:
+                    sample = Vector(sample) * 0.001
+                    samplePos = sample + test_pos
+
+                    hit, loc, normal, index = obj.ray_cast(samplePos, sample)
+
+                    if hit:
+                        dist = (loc - test_pos).length
+                        distances.append(dist)
+
+                if len(distances) == 0:
+                    distances = [min_radius, ]
+                radius = max(min(distances), min_radius)
+                world_loc = obj.matrix_world.to_translation()
+                sphere_list.append([(test_pos + world_loc), radius])
+                radii_sum += radius
+
+
+        def normal_caster(obj, vert_dict, hitfunction, raydistance=1.70141e+38):
+            bias = 0.0001
+            for vert_id in vert_dict.keys():
+                vertLoc = Vector(vert_dict[vert_id][0])
+                vertNormal = Vector(vert_dict[vert_id][1])
+
+                # Invert normal to cast inside object
+                invNormal = tuple([-1*x for x in vertNormal])
+                biasVec = tuple([bias*x for x in invNormal])
+
+                # offset ray origin with normal bias
+                vertPos = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
+                hit, loc, normal, index = obj.ray_cast(vertPos, invNormal, distance=raydistance)
+
+                if hit:
+                    sphere_hit(obj, vertPos, loc)
+
+
+        def ray_culler(collider_list):
+            test_list = collider_list[:]
+            # remove inbetween spheres:
+            for collider in collider_list:
+                for test_collider in collider_list:
+                    if test_collider != collider:
+                        if visibility_test(obj, collider, test_collider):
+                            # colliders can be connected, check for inbetweens
+                            for inbetween_collider in collider_list:
+                                if (inbetween_collider != collider) and (inbetween_collider != test_collider):
+                                    if visibility_test(obj, inbetween_collider, collider) and visibility_test(obj, inbetween_collider, test_collider):
+                                        sphere_test = geometry.intersect_line_sphere(collider, test_collider, inbetween_collider, sphere_radius)
+                                        if (sphere_test[0] is not None) and (sphere_test[1] is not None):
+                                            result = geometry.intersect_point_line(inbetween_collider, sphere_test[0], sphere_test[1])
+                                            dist = Vector((result[0][0] - inbetween_collider[0], result[0][1] - inbetween_collider[1], result[0][2] - inbetween_collider[2])).length
+                                            if dist < culling_threshold:
+                                                if inbetween_collider in test_list:
+                                                    test_list.remove(inbetween_collider)
+
+
+        def inside_test_hit(obj, vertPos, endPos):
+            print(vertPos, endPos)
+            sphere = self.sphere_ray_randomizer(100)
+            center_pos = (vertPos + endPos) * 0.5
+
+            for sample in sphere:
+                sample = Vector(sample) * 0.001
+                samplePos = sample + center_pos
+
+                hit, loc, normal, index = obj.ray_cast(samplePos, sample)
+
+                if not hit:
+                    return False
+            return True
+
+
+        def radius_test(obj, sphere_pos, sphere_radius, culling_threshold):
+            sphere = self.sphere_ray_randomizer(1000)
+            distances = []
+
+            for sample in sphere:
+                ray_dir = Vector((sample[0] - sphere_pos[0], sample[1] - sphere_pos[1], sample[2] - sphere_pos[2])).normalized()
+
+                hit, loc, normal, index = obj.ray_cast(sphere_pos, ray_dir)
+
+                if hit:
+                    dist = Vector((loc[0] - sphere_pos[0], loc[1] - sphere_pos[1], loc[2] - sphere_pos[2])).length
+                    distances.append(dist)
+
+            closest = min(distances)
+            if closest < sphere_radius * culling_threshold:
+                return False
+            else:
+                return True
+
+
+        def visibility_test(obj, start_pos, end_pos):
+            test_line = Vector((end_pos[0] - start_pos[0], end_pos[1] - start_pos[1], end_pos[2] - start_pos[2]))
+            hit, loc, normal, index = obj.ray_cast(start_pos, test_line)
+            if hit:
+                hit_loc = Vector((loc[0] - start_pos[0], loc[1] - start_pos[1], loc[2] - start_pos[2]))
+                if hit_loc.length > test_line.length:
+                    return True
+                else:
+                    return False
+            else:
+                return False
+
+
+        def sphere_overlap_test(pos_a, pos_b, radius):
+            difference = pos_a - pos_b
+            if difference.length <= radius:
+                return True
+            else:
+                return False
+
+
+        def find_parallel_edge(bm, vert_a_id, vert_b_id, tolerance):
+
+            def edge_vector(vert_a, vert_b):
+                vert_a_pos = vert_a.co
+                vert_b_pos = vert_b.co
+                return Vector((float(vert_b_pos[0] - vert_a_pos[0]), float(vert_b_pos[1] - vert_a_pos[1]), float(vert_b_pos[2] - vert_a_pos[2]))).normalized()
+
+            bmesh.types.BMVertSeq.ensure_lookup_table(bm.verts)
+            vert_a = bm.verts[vert_a_id]
+            vert_b = bm.verts[vert_b_id]
+            edge_vec1 = edge_vector(vert_a, vert_b)
+
+            for i, edge in enumerate(vert_b.link_edges):
+                other_vert = edge.other_vert(vert_b)
+                other_vert_id = other_vert.index
+
+                if (other_vert_id != vert_a_id):
+                    edge_vec2 = edge_vector(vert_b, other_vert)
+
+                    if (1.0 - edge_vec1.dot(edge_vec2)) < tolerance:
+                        return (vert_b_id, other_vert_id)
+                    else:
+                        continue
+
+            return None
+
+
+        def find_connected_spheres(obj, sphere_dict):
+            tolerance = bpy.context.scene.sxtools.angletolerance
+
+            mesh = obj.data
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+
+            connected_list = []
+
+            for vert in bm.verts:
+                for edge in vert.link_edges:
+                    other_vert = edge.other_vert(vert)
+                    edge_verts = []
+                    vert_id_a = vert.index
+                    vert_id_b = other_vert.index
+                    connected = [vert.index, other_vert.index]
+
+                    while edge_verts is not None:
+                        edge_verts = find_parallel_edge(bm, vert_id_a, vert_id_b, tolerance)
+                        if edge_verts is not None:
+                            vert_id_a = edge_verts[0]
+                            vert_id_b = edge_verts[1]
+                            connected.append(edge_verts[1])
+
+                    connected_list.append(connected)
+
+            return connected_list
+
+
+        # mode 0: constant sphere size, mode 1: dynamic sphere size (with min/max limits)
+        def create_spheres(obj, mode=0):
+            # mode = 1
+
+            mesh = obj.data
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+
+            invNormals = []
+            vertLocs = []
+            rayOrigins = []
+            sphere_dict = {}
+
+            for vert in bm.verts:
+                invNormal = -1.0 * vert.normal.normalized()
+                invNormals.append(invNormal)
+                vertLoc = vert.co
+                vertLocs.append(vertLoc)
+                rayOrigin = vertLoc + (invNormal * bias)
+                rayOrigins.append(rayOrigin)
+
+            # sphere distance from vertex is sphere_radius, unless object is thinner
+            for vert in bm.verts:
+                i = vert.index
+                hit, loc, normal, index = obj.ray_cast(rayOrigins[i], invNormals[i])
+
+                if hit:
+                    hit_loc = Vector((loc[0] - vertLocs[i][0], loc[1] - vertLocs[i][1], loc[2] - vertLocs[i][2]))
+                    if hit_loc.length < sphere_radius:
+                        mode = 0
+                        sphere_pos = vertLocs[i] + (hit_loc * 0.5)
+                    else:
+                        sphere_pos = vertLocs[i] + (sphere_radius * invNormals[i])
+
+                    if mode == 0:
+                        if radius_test(obj, sphere_pos, sphere_radius, culling_threshold):
+                            sphere_dict[i] = [sphere_pos, sphere_radius, [i, ], []]
+
+                    # start at min radius, inflate sphere by step
+                    elif mode == 1:
+                        sphere = self.sphere_ray_randomizer(1000)
+                        radius = 0.0
+                        closest = 0.0
+                        step_length = sphere_radius * 0.1
+
+                        j = 0
+                        while (closest >= radius) and ((invNormals[i] * (j * step_length + sphere_radius)).length < hit_loc.length * 0.5):
+                            radius = closest
+                            distances = []
+                            sphere_pos = sphere_pos + invNormals[i] * j * step_length
+                            for sample in sphere:
+                                ray_dir = Vector((sample[0] - sphere_pos[0], sample[1] - sphere_pos[1], sample[2] - sphere_pos[2])).normalized()
+
+                                hit, loc, normal, index = obj.ray_cast(sphere_pos, ray_dir)
+
+                                if hit:
+                                    dist = Vector((loc[0] - sphere_pos[0], loc[1] - sphere_pos[1], loc[2] - sphere_pos[2])).length
+                                    distances.append(dist)
+
+                            closest = min(distances)
+                            j += 1
+
+                        if radius < sphere_radius:
+                            radius = sphere_radius
+                        sphere_dict[i] = [sphere_pos, radius, [i, ], []]
+
+            return sphere_dict
+
+
+        bias = 0.0001
+        collider_list = []
+        vert_dict = generate.vertex_data_dict(obj)
+        mat = obj.matrix_world
+
+        if len(vert_dict.keys()) > 0:
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = False
+
+            sphere_dict = create_spheres(obj)
+
+            # remove inbetweens along straight edges
+            connection_list = find_connected_spheres(obj, sphere_dict)
+
+            culling_list = []
+            # TODO: dict may contain deleted refs
+            for conn_list in connection_list:
+                value_a = sphere_dict[conn_list[0]]
+                value_b = sphere_dict[conn_list[-1]]
+                value_a[3] = conn_list[-1]
+                value_b[3] = conn_list[0]
+                sphere_dict[conn_list[0]] = value_a
+                sphere_dict[conn_list[-1]] = value_b
+
+                for i in range(1, len(conn_list)-1):
+                    if conn_list[i] not in culling_list:
+                        culling_list.append(conn_list[i])
+
+            for sphere in culling_list:
+                if sphere in sphere_dict.keys():
+                    del sphere_dict[sphere]
+
+            # merge overlapping spheres
+            culling = True
+            while culling:
+                culling_list = []
+                for sphere in sphere_dict.keys():
+                    if sphere not in culling_list:
+                        sphere_vert_ids = sphere_dict[sphere][2]
+                        sphere_connection_ids = [sphere_dict[sphere][3], ]
+                        overlapping_spheres = [sphere, ]
+
+                        for test_sphere in sphere_dict.keys():
+                            if test_sphere != sphere:
+                                if sphere_overlap_test(sphere_dict[sphere][0], sphere_dict[test_sphere][0], merge_radius):
+                                    overlapping_spheres.append(test_sphere)
+
+                        # average position for merged sphere
+                        if len(overlapping_spheres) > 1:
+                            sumVec = Vector((0.0, 0.0, 0.0))
+                            radii = []
+                            for overlap_sphere in overlapping_spheres:
+                                overlap_pos = sphere_dict[overlap_sphere][0]
+                                radii.append(sphere_dict[sphere][1])
+                                overlap_conns = sphere_dict[overlap_sphere][3]
+
+                                sumVec += overlap_pos
+                                if (overlap_sphere != sphere) and (overlap_sphere not in culling_list):
+                                    culling_list.append(overlap_sphere)
+
+                                if overlap_sphere not in sphere_vert_ids:
+                                    sphere_vert_ids.append(overlap_sphere)
+                                if overlap_conns not in sphere_connection_ids:
+                                    sphere_connection_ids.append(overlap_conns)
+
+                            position = sumVec / len(overlapping_spheres)
+                            radius = max(radii)
+                            sphere_dict[sphere] = [position, radius, sphere_vert_ids, sphere_connection_ids]
+
+                if len(culling_list) == 0:
+                    culling = False
+                    break
+
+                for sphere in culling_list:
+                    del sphere_dict[sphere]
+
+
+            # remove colliders completely inside other colliders
+            # print('colliders: ', len(collider_list))
+            # test_list = collider_list[:]
+            # for collider in collider_list:
+            #     for test_collider in collider_list: 
+            #         difference = collider[0] - test_collider[0]
+            #         if (difference.length + test_collider[1]) < collider[1]:
+            #             if test_collider in test_list:
+            #                 test_list.remove(test_collider)
+            # collider_list = test_list
+            # print('optimized: ', len(collider_list))
+
+
+            #     for i, capsule_collider in enumerate(capsule_list):
+            #         if (i != 0) and (i != len(capsule_list) - 1):
+            #             if not inside_test_hit(obj, capsule_list[i - 1][2], capsule_list[i][2]):
+            #                 if capsule_collider in test_list:
+            #                     test_list.remove(capsule_collider)
+
+            #     collider_list = test_list
+            #     print('capsulized: ', len(collider_list))
+
+
+            for i, collider in enumerate(sphere_dict.values()):
+                collider_loc = mat @ collider[0]
+                bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=collider[1], calc_uvs=True, enter_editmode=False, align='WORLD', location=collider_loc, rotation=(0.0, 0.0, 0.0))
+                ob = bpy.context.active_object
+                ob.name = obj.name + '_collider_sphere_' + str(i)
+                ob['parent'] = obj.name
+                ob['radius'] = collider[1]
+
+            for modifier in obj.modifiers:
+                if modifier.type == 'SUBSURF':
+                    modifier.show_viewport = obj.sxtools.modifiervisibility
+
+
+    def create_capsule_collider(self, sphere_a, sphere_b):
+        capsule_pos = (sphere_a.location + sphere_b.location) * 0.5
+        capsule_length = (Vector(sphere_a.location) - Vector(sphere_b.location)).length
+        capsule_vec = Vector((sphere_b.location[0] - sphere_a.location[0], sphere_b.location[1] - sphere_a.location[1], sphere_b.location[2] - sphere_a.location[2]))
+        radius = min(sphere_a['radius'], sphere_b['radius'])
+        phi = math.atan2(capsule_vec[1], capsule_vec[0]) 
+        theta = math.acos(capsule_vec[2]/capsule_length) 
+
+        bpy.ops.mesh.primitive_cylinder_add(vertices=32, radius=radius, depth=capsule_length, end_fill_type='NGON', calc_uvs=True, enter_editmode=False, align='WORLD', location=capsule_pos, rotation=(0.0, theta, phi))
+        ob = bpy.context.active_object
+        ob.name = sphere_a['parent'] + '_collider_capsule_0'
+
+
+    def shrink_mesh(self, obj):
+
+        def shrink_ray(obj, steplength=0.01):
+            mesh = obj.data
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+
+            running = [True] * len(bm.verts)
+            start_positions = []
+            max_distances = [0.0] * len(bm.verts)
+            invNormals = []
+            biasVecs = []
+
+            for vert in bm.verts:
+                start_positions.append(Vector(vert.co[:]))
+                invNormal = -1.0 * vert.normal.normalized()
+                invNormals.append(invNormal)
+                biasVecs.append(invNormal * bias)
+
+            x = 0
+            while (True in running) and (x < 1000):
+                print(x)
+                for i, vert in enumerate(bm.verts):
+                    if running[i]:
+                        offset = None
+                        vertLoc = vert.co
+                        invNormal = invNormals[i]
+                        biasVec = biasVecs[i]
+                        rayOrigin = (vertLoc[0] + biasVec[0], vertLoc[1] + biasVec[1], vertLoc[2] + biasVec[2])
+
+                        hit, loc, normal, index = obj.ray_cast(rayOrigin, invNormal)
+
+                        if hit:
+                            # sanity check, verts should never move beyond the midway of the initial ray hit location
+                            if max_distances[i] == 0.0:
+                                distVec = Vector((loc[0] - vertLoc[0], loc[1] - vertLoc[1], loc[2] - vertLoc[2]))
+                                max_distances[i] = distVec.length * 0.5
+
+                            for edge in vert.link_edges:
+                                pos1 = rayOrigin
+                                pos2 = edge.other_vert(vert).co
+                                edgeVec = Vector((float(pos2[0] - pos1[0]), float(pos2[1] - pos1[1]), float(pos2[2] - pos1[2])))
+
+                                hit, loc, normal, index = obj.ray_cast(pos1, edgeVec)
+
+                                if hit:
+                                    # If True, vertex cannot move along normal, move along interpenetrating edge instead
+                                    if (loc - pos2).length > steplength:
+                                        print('self-colliding!')
+                                        # running[i] = False
+                                        offset = steplength * edgeVec.normalized()
+
+                            if offset is None:
+                                offset = steplength * invNormal
+
+                            # offset = steplength * invNormal
+                            print('offset: ', offset)
+                            newPos = Vector((vertLoc[0] + offset[0], vertLoc[1] + offset[1], vertLoc[2] + offset[2]))
+                            newLen = (newPos - start_positions[i]).length
+                            if newLen < max_distances[i]:
+                                print('moving')
+                                vert.co = newPos
+                            else:
+                                print('too far')
+                                running[i] = False
+
+                        else:
+                            print('no hit')
+                            running[i] = False
+
+                x += 1
+
+                bm.to_mesh(mesh)
+                mesh.update()
+
+
+        bias = 0.001
+
+        # if len(obj.modifiers.keys()) > 0:
+        #     for modifier in obj.modifiers:
+        #         if modifier.type == 'SUBSURF':
+        #             modifier.show_viewport = False
+
+        shrink_ray(obj)
+
+        # if len(obj.modifiers.keys()) > 0:
+        #     for modifier in obj.modifiers:
+        #         if modifier.type == 'SUBSURF':
+        #             modifier.show_viewport = obj.sxtools.modifiervisibility
+
+
     def __del__(self):
         print('SX Tools: Exiting tools')
 
@@ -3166,7 +3689,7 @@ class SXTOOLS_magic(object):
 
             # Make sure auto-smooth is on
             obj.data.use_auto_smooth = True
-            obj.data.auto_smooth_angle = obj.sxtools.smoothangle * (2*math.pi)/360.0
+            obj.data.auto_smooth_angle = math.radians(obj.sxtools.smoothangle)
             if '_mesh' not in obj.data.name:
                 obj.data.name = obj.name + '_mesh'
 
@@ -4635,7 +5158,7 @@ def update_decimate_modifier(self, context):
 
         for obj in objs:
             if 'sxDecimate' in obj.modifiers.keys():
-                obj.modifiers['sxDecimate'].angle_limit = decimation * (math.pi/180.0)
+                obj.modifiers['sxDecimate'].angle_limit = math.radians(decimation)
                 if obj.sxtools.decimation == 0:
                     obj.modifiers['sxDecimate'].show_viewport = False
                     obj.modifiers['sxDecimate2'].show_viewport = False
@@ -4674,7 +5197,7 @@ def update_smooth_angle(self, context):
     objs = selection_validator(self, context)
     if len(objs) > 0:
         smoothAngleDeg = objs[0].sxtools.smoothangle
-        smoothAngle = objs[0].sxtools.smoothangle * (2*math.pi)/360.0
+        smoothAngle = math.radians(objs[0].sxtools.smoothangle)
         for obj in objs:
             if obj.sxtools.smoothangle != smoothAngleDeg:
                 obj.sxtools.smoothangle = smoothAngleDeg
@@ -5753,6 +6276,35 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('NONMET', 'Non-Metallic', '')],
         default='MET')
 
+    colliderminradius: bpy.props.FloatProperty(
+        name='Collider Radius',
+        description='Radius for generated colliders',
+        min=0.0,
+        max=10.0,
+        default=0.1)
+
+    colliderthreshold: bpy.props.FloatProperty(
+        name='Culling Ratio',
+        description='Cull colliders that protrude outside the mesh beyond this ratio of their radius',
+        min=0.0,
+        max=1.0,
+        default=0.5)
+
+    angletolerance: bpy.props.FloatProperty(
+        name='Angle Tolerance',
+        description='Filter for colliders in straight lines',
+        min=0.0,
+        max=1.0,
+        precision=4,
+        default=0.01)
+
+    collidermergeradius: bpy.props.FloatProperty(
+        name='Collider Merge Radius',
+        description='Merge distance for generated colliders',
+        min=0.0,
+        max=1.0,
+        default=0.1)
+
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
     category: bpy.props.StringProperty(
@@ -5965,7 +6517,7 @@ class SXTOOLS_rampcolor(bpy.types.PropertyGroup):
 
 
 # ------------------------------------------------------------------------
-#    UI Panel and Operators
+#    UI Panel and Pie Menu
 # ------------------------------------------------------------------------
 class SXTOOLS_PT_panel(bpy.types.Panel):
 
@@ -6506,6 +7058,17 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_utils.operator('sxtools.setpivots', text=pivot_text)
                         col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
                         col_utils.operator('sxtools.zeroverts', text='Zero Vertices to Mirror Axis')
+                        col_utils.operator('sxtools.shrinkmesh', text='Shrink Mesh')
+                        col_utils.prop(scene, 'colliderminradius', text='Collider Radius', slider=True)
+                        col_utils.prop(scene, 'colliderthreshold', text='Culling Ratio', slider=True)
+                        col_utils.prop(scene, 'angletolerance', text='Angle Tolerance', slider=True)
+                        col_utils.prop(scene, 'collidermergeradius', text='Merge Radius', slider=True)
+                        if scene.shift:
+                            collider_text = 'Remove All Colliders'
+                        else:
+                            collider_text = 'Create Colliders'
+                        col_utils.operator('sxtools.colliders', text=collider_text)
+                        col_utils.operator('sxtools.capsulecollider', text='Create Capsule')
                         row_debug = box_export.row()
                         row_debug.prop(scene, 'expanddebug',
                             icon='TRIA_DOWN' if scene.expanddebug else 'TRIA_RIGHT',
@@ -6646,6 +7209,9 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
             pie.operator('sxtools.selmask', text='Select Mask')
 
 
+# ------------------------------------------------------------------------
+#    Operators
+# ------------------------------------------------------------------------
 class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
     bl_idname = 'sxtools.selectionmonitor'
     bl_label = 'Selection Monitor'
@@ -7398,6 +7964,93 @@ class SXTOOLS_OT_zeroverts(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_shrinkmesh(bpy.types.Operator):
+    bl_idname = 'sxtools.shrinkmesh'
+    bl_label = 'Shrink Mesh'
+    bl_description = 'Shrink the mesh to a connection map'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            for obj in objs:
+                tools.shrink_mesh(obj)
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_colliders(bpy.types.Operator):
+    bl_idname = 'sxtools.colliders'
+    bl_label = 'Create Sphere Colliders'
+    bl_description = 'Creates sphere colliders\ninside the selected mesh'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            then = time.time()
+            utils.mode_manager(objs, set_mode=True, mode_id='colliders')
+            viewlayer = context.view_layer
+            active = viewlayer.objects.active
+
+            if event.shift:
+                for ob in viewlayer.objects:
+                    if '_collider_' in ob.name:
+                        bpy.data.objects.remove(ob, do_unlink=True)
+            else:
+                if len(objs) > 0:
+                    for obj in objs:
+                        for ob in viewlayer.objects:
+                            if obj.name + '_collider_' in ob.name:
+                                bpy.data.objects.remove(ob, do_unlink=True)
+                        tools.create_corner_sphere_colliders(obj, context.scene.sxtools.colliderminradius, context.scene.sxtools.collidermergeradius, context.scene.sxtools.colliderthreshold)
+
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in objs:
+                obj.select_set(True)
+
+            viewlayer.objects.active = active
+            utils.mode_manager(objs, revert=True, mode_id='colliders')
+
+            now = time.time()
+            print('SX Tools: Collider generation duration: ', now-then, ' seconds')
+
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_capsulecollider(bpy.types.Operator):
+    bl_idname = 'sxtools.capsulecollider'
+    bl_label = 'Create Capsule Collider'
+    bl_description = 'Combines two sphere colliders\nwith a capsule'
+    bl_options = {'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        if len(objs) > 2:
+            utils.mode_manager(objs, set_mode=True, mode_id='capsulecollider')
+            viewlayer = context.view_layer
+            active = viewlayer.objects.active
+
+            spheres = []
+            while len(spheres) != 2:
+                for obj in objs:
+                    if 'sphere' in obj.name:
+                        spheres.append(obj)
+
+            tools.create_capsule_collider(spheres[0], spheres[1])
+
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in objs:
+                obj.select_set(True)
+
+            viewlayer.objects.active = active
+            utils.mode_manager(objs, revert=True, mode_id='colliders')
+
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_hidemodifiers(bpy.types.Operator):
     bl_idname = 'sxtools.hidemodifiers'
     bl_label = 'Hide Modifiers'
@@ -7939,6 +8592,9 @@ classes = (
     SXTOOLS_OT_mergeup,
     SXTOOLS_OT_mergedown,
     SXTOOLS_OT_pastelayer,
+    SXTOOLS_OT_shrinkmesh,
+    SXTOOLS_OT_colliders,
+    SXTOOLS_OT_capsulecollider,
     SXTOOLS_OT_zeroverts,
     SXTOOLS_OT_applymodifiers,
     SXTOOLS_OT_modifiers,
@@ -8038,6 +8694,8 @@ if __name__ == '__main__':
 # - "Selected layer. Double click to rename" ???
 #
 # Future:
+# - Apply scale and rotation to objs
+# - Update pie menu
 # - Separate reset layers and clear layers
 # - Re-categorize filler tools
 # - UI for creating magic processes
@@ -8051,3 +8709,13 @@ if __name__ == '__main__':
 # - Drive SXMaterial with custom props
 # - GPU alpha accumulation
 # - GPU debug mode
+#
+# Colliders:
+# - Collider: min/max size
+# - Culling threshold
+# - Type: box/capsule
+# - Rotation around axis
+# - Mirroring support?
+# - Occlusion data beneficial?
+# - Curvature beneficial?
+
