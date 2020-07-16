@@ -1,10 +1,12 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 7, 0),
+    'version': (4, 7, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
+    'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
+    'tracker_url': 'https://github.com/FrandSX/sxtools-blender/issues/new',
     'category': 'Development',
 }
 
@@ -6525,6 +6527,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
     bl_label = 'SX Tools'
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
+    bl_category = 'SX Tools'
 
 
     def draw(self, context):
