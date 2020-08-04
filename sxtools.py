@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 7, 1),
+    'version': (4, 7, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -22,7 +22,7 @@ import sys
 import numpy as np
 from bpy.app.handlers import persistent
 from collections import Counter
-from mathutils import Vector, geometry
+from mathutils import Vector
 
 
 # ------------------------------------------------------------------------
@@ -4098,7 +4098,6 @@ def update_layers(self, context):
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
-
                 sxglobals.refreshInProgress = False
 
             # setup.setup_geometry(objs)
@@ -6702,18 +6701,19 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
                 return {'PASS_THROUGH'}
             else:
                 if objs[0].mode == 'EDIT':
-                    utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
+                    objs[0].update_from_editmode()
                     mesh = objs[0].data
                     selection = [None] * len(mesh.vertices)
                     mesh.vertices.foreach_get('select', selection)
 
                     if selection != sxglobals.prevComponentSelection:
+                        utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
                         sxglobals.prevComponentSelection = selection
                         refresh_actives(self, context)
                         utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
                         return {'PASS_THROUGH'}
                     else:
-                        utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
+                        # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
                         return {'PASS_THROUGH'}
                 else:
                     selection = context.view_layer.objects.selected.keys()
@@ -8048,7 +8048,6 @@ if __name__ == '__main__':
 
 # TODO:
 # Selection monitor:
-# - Auto-select parent if collider selected?
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
 #
