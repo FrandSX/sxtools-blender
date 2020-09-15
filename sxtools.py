@@ -1,12 +1,12 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 7, 2),
+    'version': (4, 9, 0),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
-    'tracker_url': 'https://github.com/FrandSX/sxtools-blender/issues/new',
+    'tracker_url': 'https://github.com/FrandSX/sxtools-blender/issues',
     'category': 'Development',
 }
 
@@ -257,6 +257,20 @@ class SXTOOLS_files(object):
 
             selArray = bpy.context.view_layer.objects.selected
 
+            # Check for mesh colliders
+            if 'SXColliders' in bpy.data.collections.keys():
+                collider_array = []
+                colliders = bpy.data.collections['SXColliders'].objects
+                if group.name.endswith('_root'):
+                    collider_id = group.name[:-5]
+                else:
+                    collider_id = group.name
+
+                for collider in colliders:
+                    if collider_id in collider.name:
+                        collider_array.append(collider)
+                        collider['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
+
             # Only groups with meshes as children are exported
             objArray = []
             for sel in selArray:
@@ -288,6 +302,10 @@ class SXTOOLS_files(object):
                     print('Determining path: ', objArray[0].name, category)
                     path = scene.exportfolder + category
                     pathlib.Path(path).mkdir(exist_ok=True)
+
+                if len(collider_array) > 0:
+                    for collider in collider_array:
+                        collider.select_set(True)
 
                 if '/' in scene.exportfolder:
                     slash = '/'
@@ -584,6 +602,15 @@ class SXTOOLS_utils(object):
 
         print(len(vert_pos_list), len(vert_id_list))
         return vert_id_list
+
+
+    def operator_exists(self, idname):
+        from bpy.ops import op_as_string
+        try:
+            op_as_string(idname)
+            return True
+        except:
+            return False
 
 
     def __del__(self):
@@ -2851,34 +2878,34 @@ class SXTOOLS_tools(object):
                 if obj.modifiers['sxMirror'].show_viewport is False:
                     bpy.ops.object.modifier_remove(modifier='sxMirror')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
+                    bpy.ops.object.modifier_apply(modifier='sxMirror')
             if 'sxSubdivision' in obj.modifiers.keys():
                 if obj.modifiers['sxSubdivision'].levels == 0:
                     bpy.ops.object.modifier_remove(modifier='sxSubdivision')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxSubdivision')
+                    bpy.ops.object.modifier_apply(modifier='sxSubdivision')
             if 'sxBevel' in obj.modifiers.keys():
                 if obj.sxtools.bevelsegments == 0:
                     bpy.ops.object.modifier_remove(modifier='sxBevel')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxBevel')
+                    bpy.ops.object.modifier_apply(modifier='sxBevel')
             if 'sxWeld' in obj.modifiers.keys():
                 if obj.sxtools.weldthreshold == 0:
                     bpy.ops.object.modifier_remove(modifier='sxWeld')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeld')
+                    bpy.ops.object.modifier_apply(modifier='sxWeld')
             if 'sxDecimate' in obj.modifiers.keys():
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate')
+                    bpy.ops.object.modifier_apply(modifier='sxDecimate')
             if 'sxDecimate2' in obj.modifiers.keys():
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate2')
                 else:
-                    bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxDecimate2')
+                    bpy.ops.object.modifier_apply(modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxWeightedNormal')
+                bpy.ops.object.modifier_apply(modifier='sxWeightedNormal')
 
 
     def remove_modifiers(self, objs):
@@ -3859,7 +3886,7 @@ class SXTOOLS_export(object):
                     refLoc = obj.location
 
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                bpy.ops.object.modifier_apply(apply_as='DATA', modifier='sxMirror')
+                bpy.ops.object.modifier_apply(modifier='sxMirror')
 
                 bpy.ops.object.mode_set(mode='EDIT', toggle=False)
                 bpy.ops.mesh.select_all(action='SELECT')
@@ -4018,6 +4045,100 @@ class SXTOOLS_export(object):
         bpy.context.view_layer.objects.active = activeObj
 
         return newObjArray
+
+
+    def generate_mesh_colliders(self, objs):
+        org_objs = objs[:]
+        nameArray = []
+        new_objs = []
+        active_obj = bpy.context.view_layer.objects.active
+        scene = bpy.context.scene.sxtools
+
+        if 'ExportObjects' not in bpy.data.collections.keys():
+            exportObjects = bpy.data.collections.new('ExportObjects')
+        else:
+            exportObjects = bpy.data.collections['ExportObjects']
+
+        if 'SXColliders' not in bpy.data.collections.keys():
+            colliders = bpy.data.collections.new('SXColliders')
+        else:
+            colliders = bpy.data.collections['SXColliders']
+
+        if 'CollisionSourceObjects' not in bpy.data.collections.keys():
+            collisionSourceObjects = bpy.data.collections.new('CollisionSourceObjects')
+        else:
+            collisionSourceObjects = bpy.data.collections['CollisionSourceObjects']
+
+        if colliders.name not in bpy.context.scene.collection.children.keys():
+            bpy.context.scene.collection.children.link(colliders)
+
+        for obj in org_objs:
+            nameArray.append((obj.name[:], obj.data.name[:]))
+
+        for j, obj in enumerate(org_objs):
+            newObj = obj.copy()
+            newObj.data = obj.data.copy()
+
+            newObj.data.name = nameArray[j][1] + '_collision'
+            newObj.name = nameArray[j][0] + '_collision'
+
+            bpy.context.scene.collection.objects.link(newObj)
+            collisionSourceObjects.objects.link(newObj)
+
+            newObj.parent = bpy.context.view_layer.objects[obj.parent.name]
+
+            if newObj.sxtools.subdivisionlevel >= 1:
+                newObj.sxtools.subdivisionlevel = 1
+
+            new_objs.append(newObj)
+
+        tools.apply_modifiers(new_objs)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for new_obj in new_objs:
+            new_obj.select_set(True)
+        bpy.context.view_layer.objects.active = new_objs[0]
+
+        bpy.ops.object.vhacd('EXEC_DEFAULT', remove_doubles=scene.removedoubles, apply_transforms='NONE', resolution=scene.voxelresolution, depth=scene.clippingdepth, concavity=scene.maxconcavity, planeDownsampling=scene.planedownsampling, convexhullDownsampling=scene.hulldownsampling, alpha=scene.collalpha, beta=scene.collbeta, gamma=scene.collgamma, pca=False, mode='VOXEL', maxNumVerticesPerCH=scene.maxvertsperhull, minVolumePerCH=scene.minvolumeperhull)
+
+        for src_obj in collisionSourceObjects.objects:
+            bpy.data.objects.remove(src_obj, do_unlink=True)
+
+        bpy.ops.object.select_all(action='DESELECT')
+
+        # grab hulls generated by vhacd
+        for obj in bpy.context.view_layer.objects:
+            if ('_collision_hull' in obj.name) and (obj.name not in colliders.objects):
+                colliders.objects.link(obj)
+                obj.select_set(True)
+
+        # optimize hulls
+        for obj in colliders.objects:
+            obj.modifiers.new(type='DECIMATE', name='hullDecimate')
+            obj.modifiers['hullDecimate'].show_viewport = True
+            obj.modifiers['hullDecimate'].show_expanded = False
+            obj.modifiers['hullDecimate'].decimate_type = 'DISSOLVE'
+            obj.modifiers['hullDecimate'].angle_limit = math.radians(20.0)
+            obj.modifiers['hullDecimate'].use_dissolve_boundaries = True
+
+            obj.modifiers.new(type='WELD', name='hullWeld')
+            obj.modifiers['hullWeld'].show_viewport = True
+            obj.modifiers['hullWeld'].show_expanded = False
+            obj.modifiers['hullWeld'].merge_threshold = 0.05
+
+            tools.apply_modifiers([obj, ])
+
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.convex_hull()
+            bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in org_objs:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = active_obj
 
 
     def convert_to_linear(self, objs):
@@ -5143,6 +5264,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     lodmeshes: bpy.props.BoolProperty(
         name='Generate LOD Meshes',
+        description='NOTE: Subdivision and Bevel settings affect the end result',
         default=False,
         update=update_custom_props)
 
@@ -5714,6 +5836,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Debug',
         default=False)
 
+    expandcolliders: bpy.props.BoolProperty(
+        name='Expand Colliders',
+        default=False)
+
     exportmode: bpy.props.EnumProperty(
         name='Export Mode',
         description='Display magic processing, misc utils, or export settings',
@@ -5738,6 +5864,10 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default='',
         maxlen=1024,
         subtype='DIR_PATH')
+
+    exportcolliders: bpy.props.BoolProperty(
+        name='Export Mesh Colliders',
+        default=False)
 
     gpucomposite: bpy.props.BoolProperty(
         name='GPU Compositing',
@@ -5771,6 +5901,76 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('MET', 'Metallic', ''),
             ('NONMET', 'Non-Metallic', '')],
         default='MET')
+
+    removedoubles: bpy.props.BoolProperty(
+        name='Merge Overlapping Verts',
+        description='Collapse overlapping vertices in generated mesh',
+        default=True)
+
+    voxelresolution: bpy.props.IntProperty(
+        name='Voxel Resolution',
+        description='Maximum number of voxels generated during the voxelization stage',
+        min=10000,
+        max=64000000,
+        default=10000000)
+
+    clippingdepth: bpy.props.IntProperty(
+        name='Clipping Depth',
+        description='TBD',
+        min=1,
+        max=32,
+        default=32)
+
+    planedownsampling: bpy.props.IntProperty(
+        name='Plane Downsampling',
+        description='TBD',
+        min=1,
+        max=16,
+        default=16)
+
+    hulldownsampling: bpy.props.IntProperty(
+        name='Convex Hull Downsampling',
+        description='TBD',
+        min=1,
+        max=16,
+        default=16)
+
+    maxvertsperhull: bpy.props.IntProperty(
+        name='Maximum Vertices Per Convex Hull',
+        description='TBD',
+        min=4,
+        max=1024,
+        default=255)
+
+    maxconcavity: bpy.props.FloatProperty(
+        name='Maximum Concavity',
+        min=0.0,
+        max=1.0,
+        default=0.015)
+
+    minvolumeperhull: bpy.props.FloatProperty(
+        name='Minimum Volume Per Convex Hull',
+        min=0.0,
+        max=0.01,
+        default=0.0001)
+
+    collalpha: bpy.props.FloatProperty(
+        name='Symmetry Clipping Bias',
+        min=0.0,
+        max=1.0,
+        default=0.05)
+
+    collbeta: bpy.props.FloatProperty(
+        name='Axis Clipping Bias',
+        min=0.0,
+        max=1.0,
+        default=0.05)
+
+    collgamma: bpy.props.FloatProperty(
+        name='Maximum Merge Concavity',
+        min=0.0,
+        max=1.0,
+        default=0.015)
 
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
@@ -6500,8 +6700,31 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         split_export.label(text='Auto-pivot:')
                         split_export.prop(sxtools, 'pivotmode', text='')
                         col_export.prop(sxtools, 'lodmeshes', text='Generate LOD Meshes')
-                        col_export.label(text='Note: Check Subdivision and Bevel settings')
-                        # col_export.separator()
+                        if utils.operator_exists('object.vhacd'):
+                            col_export.prop(scene, 'exportcolliders', text='Generate Mesh Colliders (V-HACD)')
+                            if scene.exportcolliders:
+                                box_colliders = box_export.box()
+                                row_colliders = box_colliders.row()
+                                row_colliders.prop(scene, 'expandcolliders',
+                                    icon='TRIA_DOWN' if scene.expandcolliders else 'TRIA_RIGHT',
+                                    icon_only=True, emboss=False)
+                                row_colliders.label(text='V-HACD Settings')
+                                if scene.expandcolliders:
+                                    col_colliders = box_colliders.column(align=True)
+                                    col_colliders.prop(scene, 'removedoubles', text='Remove Doubles')
+                                    col_colliders.prop(scene, 'voxelresolution', text='Voxel Resolution', slider=True)
+                                    col_colliders.prop(scene, 'clippingdepth', text='Clipping Depth', slider=True)
+                                    col_colliders.prop(scene, 'maxconcavity', text='Maximum Concavity', slider=True)
+                                    col_colliders.prop(scene, 'planedownsampling', text='Plane Downsampling', slider=True)
+                                    col_colliders.prop(scene, 'hulldownsampling', text='Convex Hull Downsampling', slider=True)
+                                    col_colliders.prop(scene, 'planedownsampling', text='Plane Downsampling', slider=True)
+                                    col_colliders.prop(scene, 'collalpha', text='Symmetry Clipping Bias', slider=True)
+                                    col_colliders.prop(scene, 'collbeta', text='Axis Clipping Bias', slider=True)
+                                    col_colliders.prop(scene, 'collgamma', text='Max Merge Concavity', slider=True)
+                                    col_colliders.prop(scene, 'maxvertsperhull', text='Max Vertices Per Convex Hull', slider=True)
+                                    col_colliders.prop(scene, 'minvolumeperhull', text='Min Volume Per Convex Hull', slider=True)
+
+                        col_export.separator()
                         if prefs.materialtype != 'SMP':
                             row2_export = box_export.row(align=True)
                             row2_export.prop(sxtools, 'staticvertexcolors', text='')
@@ -6646,7 +6869,7 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
             pie = layout.menu_pie()
             fill_row = pie.row()
             fill_row.prop(scene, 'fillcolor', text='')
-            fill_row.operator('sxtools.applycolor', text='Apply Color')
+            fill_row.operator('sxtools.applytool', text='Apply Current Fill Tool')
 
             # grd_col = pie.column()
             # grd_col.prop(scene, 'rampmode', text='')
@@ -7904,6 +8127,8 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             check = validate.validate_objects(objs)
             if check:
                 magic.process_objects(objs)
+                if utils.operator_exists('object.vhacd') and scene.exportcolliders:
+                    export.generate_mesh_colliders(objs)
 
                 sxglobals.composite = True
                 scene.shadingmode = 'FULL'
@@ -8060,6 +8285,24 @@ if __name__ == '__main__':
 # - Blend mode fills misbehave on gradient1 and gradient2
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
+#
+# Colliders:
+# - Depend on V-HACD, test OpenCL vs. software
+#     10000000
+#     32
+#     0.015
+#     16
+#     16
+#     gamma 0.015
+#     255 verts
+# - Generate colliders from subdivision level 1
+# - Assign to mesh collider collection
+# - Decimate -> Planar -> 20-25 degrees?
+# - Weld -> 0.05 distance
+# - Apply modifiers (?)
+# - Convex hull on simplified
+# - Triangulate
+# - Export via FBX
 #
 # Future:
 # - Apply scale and rotation to objs
