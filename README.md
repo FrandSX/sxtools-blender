@@ -123,3 +123,8 @@ Algorithm by Stepan Jirka
 http://www.stepanjirka.com/maya-api-curvature-shader/
 
 Integrated into SX Tools under MIT license with permission from the author.
+
+### V-HACD For Blender 2.80
+Add-on by Alain Ducharme (original author), Andrew Palmer (Blender 2.80)
+
+https://github.com/andyp123/blender_vhacd
