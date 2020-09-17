@@ -128,3 +128,6 @@ Integrated into SX Tools under MIT license with permission from the author.
 Add-on by Alain Ducharme (original author), Andrew Palmer (Blender 2.80)
 
 https://github.com/andyp123/blender_vhacd
+
+SX Tools detects the presence of the V-HACD add-on and utilizes it for mesh collider generation.
+
