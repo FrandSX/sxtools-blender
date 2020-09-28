@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 9, 0),
+    'version': (4, 9, 1),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -258,8 +258,8 @@ class SXTOOLS_files(object):
             selArray = bpy.context.view_layer.objects.selected
 
             # Check for mesh colliders
+            collider_array = []
             if 'SXColliders' in bpy.data.collections.keys():
-                collider_array = []
                 colliders = bpy.data.collections['SXColliders'].objects
                 if group.name.endswith('_root'):
                     collider_id = group.name[:-5]
