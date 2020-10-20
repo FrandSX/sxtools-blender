@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 9, 1),
+    'version': (4, 9, 2),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3800,7 +3800,7 @@ class SXTOOLS_magic(object):
             colors = generate.luminance_remap_list(obj, values=values)
             colors1 = generate.color_list(obj, color=color, masklayer=utils.find_layer_from_index(obj, 4))
             colors2 = generate.color_list(obj, color=color, masklayer=utils.find_layer_from_index(obj, 5))
-            colors1 = tools.blend_values(colors1, colors2, 'ALPHA', 1.0)
+            colors1 = tools.blend_values(colors2, colors1, 'ALPHA', 1.0)
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             layers.set_layer(obj, colors, layer)
             # Construct layer1-7 smoothness base mask
