@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 9, 2),
+    'version': (4, 10, 5),
     'blender': (2, 82, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -611,6 +611,32 @@ class SXTOOLS_utils(object):
             return True
         except:
             return False
+
+
+    def find_safe_mesh_offset(self, obj):
+        bias = 0.0001
+
+        mesh = obj.data
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+
+        max_distances = []
+
+        for vert in bm.verts:
+            vert_loc = vert.co
+            inv_normal = -1.0 * vert.normal.normalized()
+            bias_vec = inv_normal * bias
+            ray_origin = (vert_loc[0] + bias_vec[0], vert_loc[1] + bias_vec[1], vert_loc[2] + bias_vec[2])
+
+            hit, loc, normal, index = obj.ray_cast(ray_origin, inv_normal)
+
+            if hit:
+                dist = Vector((loc[0] - vert_loc[0], loc[1] - vert_loc[1], loc[2] - vert_loc[2])).length
+                if dist > 0.0:
+                    max_distances.append(dist) 
+
+        bm.free
+        return min(max_distances)
 
 
     def __del__(self):
@@ -4099,6 +4125,13 @@ class SXTOOLS_export(object):
             new_obj.select_set(True)
         bpy.context.view_layer.objects.active = new_objs[0]
 
+        if obj.sxtools.collideroffset:
+            offset = -1.0 * obj.sxtools.collideroffsetfactor * utils.find_safe_mesh_offset(obj)
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.transform.shrink_fatten(value=offset)
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         bpy.ops.object.vhacd('EXEC_DEFAULT', remove_doubles=scene.removedoubles, apply_transforms='NONE', resolution=scene.voxelresolution, depth=scene.clippingdepth, concavity=scene.maxconcavity, planeDownsampling=scene.planedownsampling, convexhullDownsampling=scene.hulldownsampling, alpha=scene.collalpha, beta=scene.collbeta, gamma=scene.collgamma, pca=False, mode='VOXEL', maxNumVerticesPerCH=scene.maxvertsperhull, minVolumePerCH=scene.minvolumeperhull)
 
         for src_obj in collisionSourceObjects.objects:
@@ -4793,6 +4826,8 @@ def update_custom_props(self, context):
         ovr = objs[0].sxtools.overlaystrength
         lod = objs[0].sxtools.lodmeshes
         piv = objs[0].sxtools.pivotmode
+        off = objs[0].sxtools.collideroffset
+        fac = objs[0].sxtools.collideroffsetfactor
         for obj in objs:
             obj['staticVertexColors'] = int(stc)
             obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
@@ -4808,6 +4843,10 @@ def update_custom_props(self, context):
                 obj.sxtools.lodmeshes = lod
             if obj.sxtools.pivotmode != piv:
                 obj.sxtools.pivotmode = piv
+            if obj.sxtools.collideroffset != off:
+                obj.sxtools.collideroffset = off
+            if obj.sxtools.collideroffsetfactor != fac:
+                obj.sxtools.collideroffsetfactor = fac
 
 
 def update_smooth_angle(self, context):
@@ -5278,6 +5317,18 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('ROOT', 'Bbox Base', ''),
             ('ORG', 'Origin', '')],
         default='OFF',
+        update=update_custom_props)
+
+    collideroffset: bpy.props.BoolProperty(
+        name='Collision Mesh Auto-Offset',
+        default=False,
+        update=update_custom_props)
+
+    collideroffsetfactor: bpy.props.FloatProperty(
+        name='Auto-Offset Factor',
+        min=0.0,
+        max=1.0,
+        default=0.25,
         update=update_custom_props)
 
 
@@ -6704,6 +6755,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_export.prop(scene, 'exportcolliders', text='Generate Mesh Colliders (V-HACD)')
                             if scene.exportcolliders:
                                 box_colliders = box_export.box()
+                                col_collideroffset = box_colliders.column(align=True)
+                                col_collideroffset.prop(sxtools, 'collideroffset', text='Auto-Shrink Collision Mesh')
+                                col_collideroffset.prop(sxtools, 'collideroffsetfactor', text='Shrink Factor', slider=True)
                                 row_colliders = box_colliders.row()
                                 row_colliders.prop(scene, 'expandcolliders',
                                     icon='TRIA_DOWN' if scene.expandcolliders else 'TRIA_RIGHT',
