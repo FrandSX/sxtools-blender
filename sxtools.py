@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (4, 10, 5),
-    'blender': (2, 82, 0),
+    'version': (5, 0, 0),
+    'blender': (2, 91, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -1688,7 +1688,7 @@ class SXTOOLS_generate(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0], scnVertPos, sample, distance=dist)
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0].depsgraph, scnVertPos, sample, distance=dist)
 
                         if scnHit:
                             scnOccValue -= contribution
