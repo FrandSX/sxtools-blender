@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 2, 3),
+    'version': (5, 3, 0),
     'blender': (2, 91, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4251,12 +4251,21 @@ def update_layers(self, context):
             idx = objs[0].sxtools.selectedlayer
             alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
             blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
-            visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
+            # visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
+
+            vis_array = []
+            for layer in objs[0].sxlayers:
+                vis_array.append(layer.visibility)
 
             for obj in objs:
                 setattr(obj.sxlayers[idx], 'alpha', alphaVal)
                 setattr(obj.sxlayers[idx], 'blendMode', blendVal)
-                setattr(obj.sxlayers[idx], 'visibility', visVal)
+                # if obj.sxlayers[idx].visibility != visVal:
+                #     setattr(obj.sxlayers[idx], 'visibility', visVal)
+                sxglobals.refreshInProgress = True
+                for ref_vis, layer in zip(vis_array, obj.sxlayers):
+                    layer.visibility = ref_vis
+                sxglobals.refreshInProgress = False
 
                 if blendVal == 'OVR':
                     setattr(obj.sxlayers[idx], 'defaultColor', [0.5, 0.5, 0.5, 1.0])
@@ -4269,7 +4278,7 @@ def update_layers(self, context):
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+                # setattr(obj.sxtools, 'activeLayerVisibility', visVal)
                 sxglobals.refreshInProgress = False
 
             # setup.setup_geometry(objs)
@@ -4317,11 +4326,11 @@ def refresh_actives(self, context):
                         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
-                visVal = getattr(obj.sxlayers[idx], 'visibility')
+                # visVal = getattr(obj.sxlayers[idx], 'visibility')
 
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                setattr(obj.sxtools, 'activeLayerVisibility', visVal)
+                # setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_panel(objs, layer)
@@ -6152,7 +6161,8 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
 
     visibility: bpy.props.BoolProperty(
         name='Layer Visibility',
-        default=True)
+        default=True,
+        update=update_layers)
 
     alpha: bpy.props.FloatProperty(
         name='Layer Alpha',
@@ -6331,8 +6341,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_alpha.enabled = False
 
                 if scene.expandlayer:
-                    row_vis = box_layer.row(align=True)
-                    row_vis.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
+                    # row_vis = box_layer.row(align=True)
+                    # row_vis.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
                     row_blend = box_layer.row(align=True)
                     row_blend.label(text='Layer Blend Mode:')
                     row_blend.prop(sxtools, 'activeLayerBlendMode', text='')
@@ -6362,7 +6372,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                        (layer.name == 'emission')):
                         row_hue.enabled = False
                         row_sat.enabled = False
-                        row_vis.enabled = False
+                        # row_vis.enabled = False
                         row_blend.enabled = False
 
                     if ((layer.index == 8) or
@@ -6376,16 +6386,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                        (layer.name == 'transmission') or
                        (layer.name == 'emission') or
                        (scene.shadingmode != 'FULL')):
-                        row_vis.enabled = False
+                        # row_vis.enabled = False
                         row_blend.enabled = False
 
                 row_palette = self.layout.row(align=True)
                 for i in range(8):
                     row_palette.prop(scene, 'layerpalette' + str(i+1), text='')
 
-                layout.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
-                # layout.template_list('UI_UL_list', 'sxtools.layerlist', context.scene, 'sxlistitems', scene, 'listIndex', type='DEFAULT')
-                # layout.template_list('UI_UL_list', 'sxtools.layerList', mesh, 'vertex_colors', sxtools, 'selectedlayer', type='DEFAULT')
+                row_list = self.layout.row(align=True)
+                row_list.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
 
                 # Layer Copy Paste Merge ---------------------------------------
                 row_misc1 = self.layout.row(align=True)
@@ -6879,12 +6888,26 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
+        scene = context.scene.sxtools
+
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             if item.enabled:
-                if item.visibility:
-                    layout.label(text=item.name, icon='HIDE_OFF')
+                row_item = layout.row(align=True)
+
+                if ((item.name != 'occlusion') and
+                   (item.name != 'smoothness') and
+                   (item.name != 'metallic') and
+                   (item.name != 'transmission') and
+                   (item.name != 'emission') and
+                   (scene.shadingmode == 'FULL')):
+                    if item.visibility:
+                        row_item.prop(item, 'visibility', text='', icon='HIDE_OFF')
+                    else:
+                        row_item.prop(item, 'visibility', text='', icon='HIDE_ON')
                 else:
-                    layout.label(text=item.name, icon='HIDE_ON')
+                    row_item.label(icon='HIDE_OFF')
+
+                row_item.label(text=item.name)
             else:
                 layout.enabled = False
         elif self.layout_type in {'GRID'}:
@@ -6955,7 +6978,7 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
 
             layer_col = pie.column()
             layer_col.prop(sxtools, 'activeLayerBlendMode', text='')
-            layer_col.prop(sxtools, 'activeLayerVisibility', text='Visibility')
+            # layer_col.prop(sxtools, 'activeLayerVisibility', text='Visibility')
             layer_col.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
 
             pie.prop(scene, 'shadingmode', text='')
