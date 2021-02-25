@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 0, 0),
+    'version': (5, 2, 3),
     'blender': (2, 91, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -493,11 +493,15 @@ class SXTOOLS_utils(object):
                 return sxLayer
 
 
-    def find_colors_by_frequency(self, objs, layer, numcolors=None):
+    def find_colors_by_frequency(self, objs, layer, numcolors=None, obj_sel_override=False):
         colorArray = []
 
         for obj in objs:
-            values = generate.mask_list(obj, layers.get_layer(obj, layer), as_tuple=True)
+            if obj_sel_override:
+                values = layers.get_layer(obj, layer, as_tuple=True)
+            else:
+                values = generate.mask_list(obj, layers.get_layer(obj, layer), as_tuple=True)
+
             if values is not None:
                 colorArray.extend(values)
 
@@ -899,6 +903,8 @@ class SXTOOLS_setup(object):
         for i in range(5):
             pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
             pCol.name = 'PaletteColor' + str(i)
+            pCol.outputs[0].default_value = [1.0, 1.0, 1.0, 1.0]
+
             pCol.location = (-1400, -200*i)
 
         # Gradient1 and gradient2 source
@@ -1942,30 +1948,30 @@ class SXTOOLS_layers(object):
 
 
     # wrapper for low-level functions, always returns layerdata in RGBA
-    def get_layer(self, obj, sourcelayer, as_tuple=False, uv_as_alpha=False, apply_layer_alpha=False):
+    def get_layer(self, obj, sourcelayer, as_tuple=False, uv_as_alpha=False, apply_layer_alpha=False, gradient_with_palette=False):
         sourceType = sourcelayer.layerType
         sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         alpha = sourcelayer.alpha
 
         if sourceType == 'COLOR':
             values = self.get_colors(obj, sourcelayer.vertexColorLayer)
+
         elif sourceType == 'UV':
             uvs = self.get_uvs(obj, sourcelayer.uvLayer0, channel=sourcelayer.uvChannel0)
             count = len(uvs)  # len(obj.data.uv_layers[0].data)
             values = [None] * count * 4
+            dv = [1.0, 1.0, 1.0, 1.0]
 
-            if (sourcelayer.name == 'gradient1') or (sourcelayer.name == 'gradient2'):
+            if gradient_with_palette:
                 if sourcelayer.name == 'gradient1':
                     dv = sxmaterial.nodes['PaletteColor3'].outputs[0].default_value
-                else:
+                elif sourcelayer.name == 'gradient2':
                     dv = sxmaterial.nodes['PaletteColor4'].outputs[0].default_value
 
-                for i in range(count):
-                    values[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], uvs[i]]
-            elif uv_as_alpha:
+            if uv_as_alpha:
                 for i in range(count):
                     if uvs[i] > 0.0:
-                        values[(0+i*4):(4+i*4)] = [1.0, 1.0, 1.0, uvs[i]]
+                        values[(0+i*4):(4+i*4)] = [dv[0], dv[1], dv[2], uvs[i]]
                     else:
                         values[(0+i*4):(4+i*4)] = [0.0, 0.0, 0.0, uvs[i]]
             else:
@@ -1986,19 +1992,33 @@ class SXTOOLS_layers(object):
             for i in range(count):
                 rgba[i] = tuple(values[(0+i*4):(4+i*4)])
             return rgba
+
         else:
             return values
 
 
     # takes RGBA buffers, converts and writes to appropriate uv and vertex sets
     def set_layer(self, obj, colors, targetlayer):
+        def constant_alpha_test(values):
+            for value in values:
+                if value != 1.0:
+                    return False
+            return True
+
+
         targetType = targetlayer.layerType
 
         if targetType == 'COLOR':
             layers.set_colors(obj, targetlayer.vertexColorLayer, colors)
 
         elif targetType == 'UV':
-            target_uvs = layers.get_luminances(obj, sourcelayer=None, colors=colors, as_rgba=False)
+            if (targetlayer.name == 'gradient1') or (targetlayer.name == 'gradient2'):
+                target_uvs = colors[3::4]
+                if constant_alpha_test(target_uvs):
+                    target_uvs = layers.get_luminances(obj, sourcelayer=None, colors=colors, as_rgba=False)
+            else:
+                target_uvs = layers.get_luminances(obj, sourcelayer=None, colors=colors, as_rgba=False)
+
             layers.set_uvs(obj, targetlayer.uvLayer0, target_uvs, targetlayer.uvChannel0)
 
         elif targetType == 'UV4':
@@ -2237,7 +2257,7 @@ class SXTOOLS_layers(object):
                 if getattr(obj.sxlayers[layerIdx], 'visibility'):
                     blendmode = getattr(obj.sxlayers[layerIdx], 'blendMode')
                     layeralpha = getattr(obj.sxlayers[layerIdx], 'alpha')
-                    topcolors = self.get_layer(obj, obj.sxlayers[layerIdx], uv_as_alpha=uv_as_alpha)
+                    topcolors = self.get_layer(obj, obj.sxlayers[layerIdx], uv_as_alpha=uv_as_alpha, gradient_with_palette=True)
                     basecolors = tools.blend_values(topcolors, basecolors, blendmode, layeralpha)
 
             self.set_layer(obj, basecolors, resultLayer)
@@ -2384,17 +2404,22 @@ class SXTOOLS_layers(object):
             palettecolor = [color[0], color[1], color[2], 1.0]
             setattr(scene, 'layerpalette' + str(i + 1), palettecolor)
 
+        # Update SXMaterial color
+        if layer.index <= 5:
+            bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(layer.index - 1)].outputs[0].default_value = colors[0]
+
 
     def color_layers_to_values(self, objs):
         scene = bpy.context.scene.sxtools
 
         for i in range(5):
             layer = objs[0].sxlayers[i+1]
-            palettecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+            palettecolor = utils.find_colors_by_frequency(objs, layer, 1, True)[0]
             tabcolor = getattr(scene, 'newpalette' + str(i))
 
             if not utils.color_compare(palettecolor, tabcolor):
                 setattr(scene, 'newpalette' + str(i), palettecolor)
+                bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(i)].outputs[0].default_value = palettecolor
 
 
     def material_layers_to_values(self, objs):
@@ -2573,34 +2598,25 @@ class SXTOOLS_tools(object):
             for color in colors:
                 hsl = convert.rgb_to_hsl(color)
                 valueArray.append(hsl[hslmode])
-            layervalue = max(valueArray)
-            offset = newValue-layervalue
+            offset = newValue - max(valueArray)
         else:
             layervalue = 0.0
             offset = newValue
 
-        if (layervalue == 0.0) and (hslmode == 2):
-            for obj in objs:
-                colors = generate.color_list(obj, color=(offset, offset, offset, 1.0))
+        for obj in objs:
+            colors = layers.get_layer(obj, layer)
+            colors = generate.mask_list(obj, colors)
+            if colors is not None:
+                count = len(colors)//4
+                for i in range(count):
+                    color = colors[(0+i*4):(3+i*4)]
+                    hsl = convert.rgb_to_hsl(color)
+                    hsl[hslmode] += offset
+                    rgb = convert.hsl_to_rgb(hsl)
+                    colors[(0+i*4):(3+i*4)] = [rgb[0], rgb[1], rgb[2]]
                 target_colors = layers.get_layer(obj, layer)
                 colors = self.blend_values(colors, target_colors, 'ALPHA', 1.0)
                 layers.set_layer(obj, colors, layer)
-
-        elif (layervalue != 1.0) or (layervalue == 1.0 and offset < 0.0):
-            for obj in objs:
-                colors = layers.get_layer(obj, layer)
-                colors = generate.mask_list(obj, colors)
-                if colors is not None:
-                    count = len(colors)//4
-                    for i in range(count):
-                        color = colors[(0+i*4):(3+i*4)]
-                        hsl = convert.rgb_to_hsl(color)
-                        hsl[hslmode] += offset
-                        rgb = convert.hsl_to_rgb(hsl)
-                        colors[(0+i*4):(3+i*4)] = [rgb[0], rgb[1], rgb[2]]
-                    target_colors = layers.get_layer(obj, layer)
-                    colors = self.blend_values(colors, target_colors, 'ALPHA', 1.0)
-                    layers.set_layer(obj, colors, layer)
 
         utils.mode_manager(objs, revert=True, mode_id='apply_hsl')
 
@@ -3068,6 +3084,8 @@ class SXTOOLS_tools(object):
 
 
     def update_palette_layer(self, objs, layerindex, color, palettenodename):
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
         scene = bpy.context.scene.sxtools
         layer = utils.find_layer_from_index(objs[0], layerindex)
         modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
@@ -4279,6 +4297,10 @@ def refresh_actives(self, context):
             layer = utils.find_layer_from_index(objs[0], idx)
             vcols = layer.vertexColorLayer
 
+            # update Color Tool according to selected layer
+            if scene.toolmode == 'COL':
+                update_fillcolor(self, context)
+
             # update Palettes-tab color values
             if scene.toolmode == 'PAL':
                 layers.color_layers_to_values(objs)
@@ -4301,14 +4323,14 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
                 setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
+            # Refresh SX Tools UI to latest selection
+            layers.update_layer_panel(objs, layer)
+
             # Update VertexColor0 to reflect latest layer changes
             if not context.scene.sxtools.gpucomposite:
                 if mode != 'FULL':
                     sxglobals.composite = True
                 layers.composite_layers(objs)
-
-            # Refresh SX Tools UI to latest selection
-            layers.update_layer_panel(objs, layer)
 
             # Update SX Material to latest selection
             if objs[0].sxtools.category == 'TRANSPARENT':
@@ -4592,43 +4614,33 @@ def load_libraries(self, context):
         sxglobals.librariesLoaded = True
 
 
+def adjust_hsl(self, context, hslmode):
+    objs = selection_validator(self, context)
+    hslvalues = [context.scene.sxtools.huevalue, context.scene.sxtools.saturationvalue, context.scene.sxtools.lightnessvalue]
+
+    if len(objs) > 0:
+        idx = objs[0].sxtools.selectedlayer
+        layer = utils.find_layer_from_index(objs[0], idx)
+
+        tools.apply_hsl(objs, layer, hslmode, hslvalues[hslmode])
+
+        sxglobals.composite = True
+        refresh_actives(self, context)
+
+
 def adjust_hue(self, context):
     if not sxglobals.hslUpdate:
-        objs = selection_validator(self, context)
-        if len(objs) > 0:
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.find_layer_from_index(objs[0], idx)
-
-            tools.apply_hsl(objs, layer, 0, context.scene.sxtools.huevalue)
-
-            sxglobals.composite = True
-            refresh_actives(self, context)
+        adjust_hsl(self, context, 0)
 
 
 def adjust_saturation(self, context):
     if not sxglobals.hslUpdate:
-        objs = selection_validator(self, context)
-        if len(objs) > 0:
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.find_layer_from_index(objs[0], idx)
-
-            tools.apply_hsl(objs, layer, 1, context.scene.sxtools.saturationvalue)
-
-            sxglobals.composite = True
-            refresh_actives(self, context)
+        adjust_hsl(self, context, 1)
 
 
 def adjust_lightness(self, context):
     if not sxglobals.hslUpdate:
-        objs = selection_validator(self, context)
-        if len(objs) > 0:
-            idx = objs[0].sxtools.selectedlayer
-            layer = utils.find_layer_from_index(objs[0], idx)
-
-            tools.apply_hsl(objs, layer, 2, context.scene.sxtools.lightnessvalue)
-
-            sxglobals.composite = True
-            refresh_actives(self, context)
+        adjust_hsl(self, context, 2)
 
 
 def update_modifier_visibility(self, context):
@@ -4863,49 +4875,38 @@ def update_smooth_angle(self, context):
                 obj.data.auto_smooth_angle = smoothAngle
 
 
-def update_palette_layer1(self, context):
+def update_palette(self, context, layer_index):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    color = (scene.newpalette0[0], scene.newpalette0[1], scene.newpalette0[2], scene.newpalette0[3])
-    tools.update_palette_layer(objs, 1, color, 'PaletteColor0')
+    color = getattr(scene, 'newpalette'+str(layer_index - 1))
+    tools.update_palette_layer(objs, layer_index, color, 'PaletteColor' + str(layer_index - 1))
     sxglobals.composite = True
     refresh_actives(self, context)
+
+
+def update_palette_layer1(self, context):
+    update_palette(self, context, 1)
+    return
 
 
 def update_palette_layer2(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    color = (scene.newpalette1[0], scene.newpalette1[1], scene.newpalette1[2], scene.newpalette1[3])
-    tools.update_palette_layer(objs, 2, color, 'PaletteColor1')
-    sxglobals.composite = True
-    refresh_actives(self, context)
+    update_palette(self, context, 2)
+    return
 
 
 def update_palette_layer3(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    color = (scene.newpalette2[0], scene.newpalette2[1], scene.newpalette2[2], scene.newpalette2[3])
-    tools.update_palette_layer(objs, 3, color, 'PaletteColor2')
-    sxglobals.composite = True
-    refresh_actives(self, context)
+    update_palette(self, context, 3)
+    return
 
 
 def update_palette_layer4(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    color = (scene.newpalette3[0], scene.newpalette3[1], scene.newpalette3[2], scene.newpalette3[3])
-    tools.update_palette_layer(objs, 4, color, 'PaletteColor3')
-    sxglobals.composite = True
-    refresh_actives(self, context)
+    update_palette(self, context, 4)
+    return
 
 
 def update_palette_layer5(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    color = (scene.newpalette4[0], scene.newpalette4[1], scene.newpalette4[2], scene.newpalette4[3])
-    tools.update_palette_layer(objs, 5, color, 'PaletteColor4')
-    sxglobals.composite = True
-    refresh_actives(self, context)
+    update_palette(self, context, 5)
+    return
 
 
 def update_material_layer1(self, context):
@@ -4962,6 +4963,21 @@ def update_material_layer3(self, context):
         tools.apply_tool(objs, layer, color)
         sxglobals.composite = True
         refresh_actives(self, context)
+
+
+def update_fillcolor(self, context):
+    scene = context.scene.sxtools
+    objs = selection_validator(self, context)
+    layer = utils.find_layer_from_index(objs[0], objs[0].sxtools.selectedlayer)
+
+    if layer.layerType == 'UV':
+        color = scene.fillcolor[:]
+        hsl = convert.rgb_to_hsl(color)
+        hsl = [0.0, 0.0, hsl[2]]
+        rgb = convert.hsl_to_rgb(hsl)
+        new_color = (rgb[0], rgb[1], rgb[2], 1.0)
+        if color != new_color:
+            scene.fillcolor = new_color
 
 
 def message_box(message='', title='SX Tools', icon='INFO'):
@@ -5603,7 +5619,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         size=4,
         min=0.0,
         max=1.0,
-        default=(1.0, 1.0, 1.0, 1.0))
+        default=(1.0, 1.0, 1.0, 1.0),
+        update=update_fillcolor)
 
     fillalpha: bpy.props.BoolProperty(
         name='Overwrite Alpha',
@@ -6413,13 +6430,20 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Color Tool --------------------------------------------------------
                 if scene.toolmode == 'COL':
                     split1_fill = box_fill.split(factor=0.33)
-                    split1_fill.label(text='Fill Color')
-                    split1_fill.prop(scene, 'fillcolor', text='')
+                    if layer.layerType == 'UV':
+                        fill_text = 'Fill Value'
+                    else:
+                        fill_text = 'Fill Color'
+                    split1_fill.label(text=fill_text)
+                    split2_fill = split1_fill.split(factor=0.8)
+                    split2_fill.prop(scene, 'fillcolor', text='')
+                    split2_fill.operator('sxtools.layerinfo', text='', icon='INFO')
 
                     if scene.expandfill:
-                        row_fpalette = box_fill.row(align=True)
-                        for i in range(8):
-                            row_fpalette.prop(scene, 'fillpalette' + str(i+1), text='')
+                        if layer.layerType != 'UV':
+                            row_fpalette = box_fill.row(align=True)
+                            for i in range(8):
+                                row_fpalette.prop(scene, 'fillpalette' + str(i+1), text='')
                         col_fill = box_fill.column(align=True)
                         col_fill.separator()
                         row3_fill = box_fill.row()
@@ -8046,6 +8070,17 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_layerinfo(bpy.types.Operator):
+    bl_idname = 'sxtools.layerinfo'
+    bl_label = 'Special Layer Info'
+    bl_descriptions = 'Information about special layers'
+
+
+    def invoke(self, context, event):
+        message_box('SPECIAL LAYERS:\nGradient1, Gradient2\nGrayscale layers that receive color from Palette Color 4 and 5\n(i.e. the primary colors of Layer 4 and 5)\n\nOcclusion, Metallic, Smoothness, Transmission, Emission\nGrayscale layers, filled with the luminance of the selected color.')
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_checklist(bpy.types.Operator):
     bl_idname = 'sxtools.checklist'
     bl_label = 'Export Checklist'
@@ -8259,6 +8294,7 @@ classes = (
     SXTOOLS_OT_resetmaterial,
     SXTOOLS_OT_revertobjects,
     SXTOOLS_OT_loadlibraries,
+    SXTOOLS_OT_layerinfo,
     SXTOOLS_OT_checklist,
     SXTOOLS_OT_selectup,
     SXTOOLS_OT_selectdown,
