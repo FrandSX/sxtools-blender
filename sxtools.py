@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 3, 0),
-    'blender': (2, 91, 0),
+    'version': (5, 4, 0),
+    'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -897,7 +897,7 @@ class SXTOOLS_setup(object):
 
         # Gradient tool color ramp
         sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
-        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1400, 200)
+        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1400, -1200)
 
         # Palette colors
         for i in range(5):
@@ -912,11 +912,11 @@ class SXTOOLS_setup(object):
             grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
             grd.name = 'GradientUV'
             grd.uv_map = gradient1UVSet
-            grd.location = (-600, -600)
+            grd.location = (0, 650)
 
             grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             grdSep.name = 'GradientXYZ'
-            grdSep.location = (-300, -600)
+            grdSep.location = (200, 650)
 
             output = grd.outputs['UV']
             input = grdSep.inputs['Vector']
@@ -927,24 +927,24 @@ class SXTOOLS_setup(object):
             ovr1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
             ovr1.name = 'OverlayUV1'
             ovr1.uv_map = overlayUVSet1
-            ovr1.location = (-600, -800)
+            ovr1.location = (400, 650)
 
             ovr2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
             ovr2.name = 'OverlayUV2'
             ovr2.uv_map = overlayUVSet2
-            ovr2.location = (-600, -1000)
+            ovr2.location = (800, 650)
 
             ovrSep1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             ovrSep1.name = 'OverlayXYZ1'
-            ovrSep1.location = (-300, -800)
+            ovrSep1.location = (600, 650)
 
             ovrSep2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
             ovrSep2.name = 'OverlayXYZ2'
-            ovrSep2.location = (-300, -1000)
+            ovrSep2.location = (1000, 650)
 
             ovrRGB = sxmaterial.node_tree.nodes.new(type='ShaderNodeCombineRGB')
             ovrRGB.name = 'OverlayCombine'
-            ovrRGB.location = (0, -900)
+            ovrRGB.location = (1200, 650)
 
             output = ovr1.outputs['UV']
             input = ovrSep1.inputs['Vector']
@@ -966,13 +966,38 @@ class SXTOOLS_setup(object):
             input = ovrRGB.inputs['B']
             sxmaterial.node_tree.links.new(input, output)
 
+        # GPU visibility toggles
+        vis_names = ['occlusion_visibility', 'metallic_visibility', 'smoothness_visibility', 'transmission_visibility', 'emission_visibility']
+        for i in range(5):
+            visnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
+            visnode.name = 'VisToggle ' + str(i + 1)
+            visnode.attribute_name = vis_names[i]
+            visnode.attribute_type = 'OBJECT'
+            visnode.location = (i*200-400, -1200)
+
+            mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+            mixnode.name = 'VisMix ' + str(i + 1)
+            mixnode.inputs[0].default_value = 1
+            if (i == 0) or (i == 2):
+                mixnode.inputs[1].default_value = [1.0, 1.0, 1.0, 1.0]
+            else:
+                mixnode.inputs[1].default_value = [0.0, 0.0, 0.0, 1.0]
+            mixnode.blend_type = 'MIX'
+            mixnode.use_clamp = True
+            mixnode.location = (i*200-400, -1000)
+
+            # VisToggle to VisMix
+            output = sxmaterial.node_tree.nodes['VisToggle ' + str(i + 1)].outputs[2]
+            input = sxmaterial.node_tree.nodes['VisMix ' + str(i + 1)].inputs[0]
+            sxmaterial.node_tree.links.new(input, output)
+
         # Vertex color and alpha sources
         for i in range(numlayers + numgradients + numoverlays - 1):
             if i < numlayers:
                 colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
                 colornode.name = 'VertexColor' + str(i + 1)
                 colornode.layer_name = 'VertexColor' + str(i + 1)
-                colornode.location = (i*200-1400, 550)
+                colornode.location = (i*200-1400, 650)
 
             mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
             mixnode.name = 'Mix ' + str(i + 1)
@@ -980,14 +1005,14 @@ class SXTOOLS_setup(object):
             mixnode.inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
             mixnode.blend_type = 'MIX'
             mixnode.use_clamp = True
-            mixnode.location = (i*200-1200, 400)
+            mixnode.location = (i*200-1200, 500)
 
             mathnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
             mathnode.name = 'Opacity ' + str(i + 1)
             mathnode.operation = 'MULTIPLY'
             mathnode.use_clamp = True
             mathnode.inputs[0].default_value = 1
-            mathnode.location = (i*200-1200, 750)
+            mathnode.location = (i*200-1200, 850)
 
             # Vertex Colors, base layer connection
             if i == 0:
@@ -1123,8 +1148,13 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['OcclusionXYZ'].inputs['Vector']
             sxmaterial.node_tree.links.new(input, output)
 
-            # Occlusion to mixer
+            # Occlusion to VisMix
             output = sxmaterial.node_tree.nodes['OcclusionXYZ'].outputs['Y']
+            input = sxmaterial.node_tree.nodes['VisMix 1'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to mixer
+            output = sxmaterial.node_tree.nodes['VisMix 1'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Mix'].inputs['Color2']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -1140,10 +1170,16 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.links.new(input, output)
 
         if metallic:
-            # X to metallic
+            # X to VisMix
             output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
+            input = sxmaterial.node_tree.nodes['VisMix 2'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to metallic
+            output = sxmaterial.node_tree.nodes['VisMix 2'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
             sxmaterial.node_tree.links.new(input, output)
+
 
         if smoothness:
             # Invert smoothness to roughness (inverse used by Unity)
@@ -1151,8 +1187,13 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['Invert'].inputs['Color']
             sxmaterial.node_tree.links.new(input, output)
 
-            # Y to roughness
+            # Y to VisMix
             output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['VisMix 3'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to roughness
+            output = sxmaterial.node_tree.nodes['VisMix 3'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -1163,14 +1204,24 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.links.new(input, output)
 
         if (transmission or emission) and materialtransmission:
-            # X to transmission
+            # X to VisMix
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+            input = sxmaterial.node_tree.nodes['VisMix 4'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to transmission
+            output = sxmaterial.node_tree.nodes['VisMix 4'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
             sxmaterial.node_tree.links.new(input, output)
 
         if (transmission or emission) and materialsubsurface:
-            # X to subsurface
+            # X to VisMix
             output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+            input = sxmaterial.node_tree.nodes['VisMix 4'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to transmission
+            output = sxmaterial.node_tree.nodes['VisMix 4'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -1188,8 +1239,13 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
             sxmaterial.node_tree.links.new(input, output)
 
-            # Mix to emission
+            # Mix to VisMix
             output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+            input = sxmaterial.node_tree.nodes['VisMix 5'].inputs['Color2']
+            sxmaterial.node_tree.links.new(input, output)
+
+            # VisMix to emission
+            output = sxmaterial.node_tree.nodes['VisMix 5'].outputs['Color']
             input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -4240,6 +4296,8 @@ class SXTOOLS_export(object):
 # ------------------------------------------------------------------------
 def update_layers(self, context):
     if not sxglobals.refreshInProgress:
+        update_gpu_props(self, context)
+
         if 'SXMaterial' not in bpy.data.materials.keys():
             setup.create_sxmaterial()
 
@@ -4251,7 +4309,6 @@ def update_layers(self, context):
             idx = objs[0].sxtools.selectedlayer
             alphaVal = getattr(objs[0].sxtools, 'activeLayerAlpha')
             blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
-            # visVal = getattr(objs[0].sxtools, 'activeLayerVisibility')
 
             vis_array = []
             for layer in objs[0].sxlayers:
@@ -4260,8 +4317,6 @@ def update_layers(self, context):
             for obj in objs:
                 setattr(obj.sxlayers[idx], 'alpha', alphaVal)
                 setattr(obj.sxlayers[idx], 'blendMode', blendVal)
-                # if obj.sxlayers[idx].visibility != visVal:
-                #     setattr(obj.sxlayers[idx], 'visibility', visVal)
                 sxglobals.refreshInProgress = True
                 for ref_vis, layer in zip(vis_array, obj.sxlayers):
                     layer.visibility = ref_vis
@@ -4278,7 +4333,6 @@ def update_layers(self, context):
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                # setattr(obj.sxtools, 'activeLayerVisibility', visVal)
                 sxglobals.refreshInProgress = False
 
             # setup.setup_geometry(objs)
@@ -4326,11 +4380,9 @@ def refresh_actives(self, context):
                         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
-                # visVal = getattr(obj.sxlayers[idx], 'visibility')
 
                 setattr(obj.sxtools, 'activeLayerAlpha', alphaVal)
                 setattr(obj.sxtools, 'activeLayerBlendMode', blendVal)
-                # setattr(obj.sxtools, 'activeLayerVisibility', visVal)
 
             # Refresh SX Tools UI to latest selection
             layers.update_layer_panel(objs, layer)
@@ -4426,30 +4478,30 @@ def shading_mode(self, context):
 
                 if metallic:
                     # Reconnect metallic and roughness
-                    output = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs['X']
+                    output = sxmaterial.node_tree.nodes['VisMix 2'].outputs['Color']
                     input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Metallic']
                     sxmaterial.node_tree.links.new(input, output)
 
                 if smoothness:
-                    output = sxmaterial.node_tree.nodes['Invert'].outputs['Color']
+                    output = sxmaterial.node_tree.nodes['VisMix 3'].outputs['Color']
                     input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Roughness']
                     sxmaterial.node_tree.links.new(input, output)
 
                 if transmission:
                     if materialtransmission:
                         # Reconnect transmission
-                        output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                        output = sxmaterial.node_tree.nodes['VisMix 4'].outputs['Color']
                         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Transmission']
                         sxmaterial.node_tree.links.new(input, output)
 
                     if materialsubsurface:
-                        output = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs['X']
+                        output = sxmaterial.node_tree.nodes['VisMix 4'].outputs['Color']
                         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Subsurface']
                         sxmaterial.node_tree.links.new(input, output)
 
                 if emission:
                     # Reconnect emission
-                    output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+                    output = sxmaterial.node_tree.nodes['VisMix 5'].outputs['Color']
                     input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
                     sxmaterial.node_tree.links.new(input, output)
 
@@ -4481,17 +4533,17 @@ def shading_mode(self, context):
                     attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
                     sxmaterial.node_tree.links.remove(attrLink)
                     if metallic:
-                        attrLink = sxmaterial.node_tree.nodes['MetallicXYZ'].outputs[0].links[0]
+                        attrLink = sxmaterial.node_tree.nodes['VisMix 2'].outputs[0].links[0]
                         sxmaterial.node_tree.links.remove(attrLink)
                     if smoothness:
-                        attrLink = sxmaterial.node_tree.nodes['Invert'].outputs[0].links[0]
+                        attrLink = sxmaterial.node_tree.nodes['VisMix 3'].outputs[0].links[0]
                         sxmaterial.node_tree.links.remove(attrLink)
                     if transmission:
                         if materialtransmission and materialsubsurface:
-                            attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[1]
+                            attrLink = sxmaterial.node_tree.nodes['VisMix 4'].outputs[0].links[1]
                             sxmaterial.node_tree.links.remove(attrLink)
                         if materialtransmission or materialsubsurface:
-                            attrLink = sxmaterial.node_tree.nodes['EmissionXYZ'].outputs[0].links[0]
+                            attrLink = sxmaterial.node_tree.nodes['VisMix 4'].outputs[0].links[0]
                             sxmaterial.node_tree.links.remove(attrLink)
 
                 # Connect vertex color source to emission
@@ -4989,6 +5041,18 @@ def update_fillcolor(self, context):
             scene.fillcolor = new_color
 
 
+def update_gpu_props(self, context):
+    scene = context.scene.sxtools
+    mode = context.scene.sxtools.shadingmode
+    objs = selection_validator(self, context)
+
+    if (mode == 'FULL') and (len(self.name) > 0):
+        propname = self.name.split()[0] + '_visibility'
+        if 'layer' not in propname:
+            for obj in objs:
+                obj[propname] = self.visibility
+
+
 def message_box(message='', title='SX Tools', icon='INFO'):
     messageLines = message.splitlines()
 
@@ -5198,11 +5262,6 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('MUL', 'Multiply', ''),
             ('OVR', 'Overlay', '')],
         default='ALPHA',
-        update=update_layers)
-
-    activeLayerVisibility: bpy.props.BoolProperty(
-        name='Visibility',
-        default=True,
         update=update_layers)
 
     modifiervisibility: bpy.props.BoolProperty(
@@ -6341,8 +6400,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row_alpha.enabled = False
 
                 if scene.expandlayer:
-                    # row_vis = box_layer.row(align=True)
-                    # row_vis.prop(sxtools, 'activeLayerVisibility', text='Layer Visibility')
                     row_blend = box_layer.row(align=True)
                     row_blend.label(text='Layer Blend Mode:')
                     row_blend.prop(sxtools, 'activeLayerBlendMode', text='')
@@ -6894,12 +6951,7 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
             if item.enabled:
                 row_item = layout.row(align=True)
 
-                if ((item.name != 'occlusion') and
-                   (item.name != 'smoothness') and
-                   (item.name != 'metallic') and
-                   (item.name != 'transmission') and
-                   (item.name != 'emission') and
-                   (scene.shadingmode == 'FULL')):
+                if scene.shadingmode == 'FULL':
                     if item.visibility:
                         row_item.prop(item, 'visibility', text='', icon='HIDE_OFF')
                     else:
@@ -6978,7 +7030,6 @@ class SXTOOLS_MT_piemenu(bpy.types.Menu):
 
             layer_col = pie.column()
             layer_col.prop(sxtools, 'activeLayerBlendMode', text='')
-            # layer_col.prop(sxtools, 'activeLayerVisibility', text='Visibility')
             layer_col.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
 
             pie.prop(scene, 'shadingmode', text='')
@@ -8385,6 +8436,14 @@ if __name__ == '__main__':
 
 
 # TODO:
+# FEAT: DONE Drive SXMaterial with custom props
+# - GPU alpha accumulation
+# - GPU debug mode
+# BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
+# BUG: Blend mode fills misbehave on gradient1 and gradient2
+# FEAT: Strip redundant custom props prior to exporting
+# FEAT: Batch export registry
+#
 # Selection monitor:
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
@@ -8395,7 +8454,6 @@ if __name__ == '__main__':
 #
 # Issues:
 # - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
-# - Blend mode fills misbehave on gradient1 and gradient2
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 #
@@ -8430,6 +8488,3 @@ if __name__ == '__main__':
 # - Skinning support
 # - Submesh support
 # - Investigate running processes headless from command line
-# - Drive SXMaterial with custom props
-# - GPU alpha accumulation
-# - GPU debug mode
