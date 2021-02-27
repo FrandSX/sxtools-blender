@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 0),
+    'version': (5, 5, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4314,19 +4314,15 @@ def update_layers(self, context):
             blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
 
             vis_array = []
-            lock_array = []
             for layer in objs[0].sxlayers:
                 vis_array.append(layer.visibility)
-                lock_array.append(layer.locked)
 
             for obj in objs:
                 setattr(obj.sxlayers[idx], 'alpha', alphaVal)
                 setattr(obj.sxlayers[idx], 'blendMode', blendVal)
                 sxglobals.refreshInProgress = True
-                for ref_vis, layer in zip(vis_array, obj.sxlayers):
-                    layer.visibility = ref_vis
-                for ref_lock, layer in zip(lock_array, obj.sxlayers):
-                    layer.locked = ref_lock
+                for i, layer in enumerate(obj.sxlayers):
+                    layer.visibility = vis_array[i]
                 sxglobals.refreshInProgress = False
 
                 if blendVal == 'OVR':
@@ -5046,6 +5042,22 @@ def update_fillcolor(self, context):
         new_color = (rgb[0], rgb[1], rgb[2], 1.0)
         if color != new_color:
             scene.fillcolor = new_color
+
+
+def update_layer_locks(self, context):
+    if not sxglobals.refreshInProgress:
+        objs = selection_validator(self, context)
+
+        if len(objs) > 0:
+            lock_array = []
+            for layer in objs[0].sxlayers:
+                lock_array.append(layer.locked)
+
+            sxglobals.refreshInProgress = True
+            for obj in objs:
+                for i, layer in enumerate(obj.sxlayers):
+                    layer.locked = lock_array[i]
+            sxglobals.refreshInProgress = False
 
 
 def update_gpu_props(self, context):
@@ -6300,7 +6312,7 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
     locked: bpy.props.BoolProperty(
         name='Lock Layer Alpha',
         default=False,
-        update=update_layers)
+        update=update_layer_locks)
 
 
 class SXTOOLS_rampcolor(bpy.types.PropertyGroup):
