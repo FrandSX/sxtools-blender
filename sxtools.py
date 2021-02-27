@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 4, 0),
+    'version': (5, 5, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -56,26 +56,26 @@ class SXTOOLS_sxglobals(object):
         # defaultColor, defaultValue,
         # visibility, alpha, blendMode, vertexColorLayer,
         # uvLayer0, uvChannel0, uvLayer1, uvChannel1,
-        # uvLayer2, uvChannel2, uvLayer3, uvChannel3
+        # uvLayer2, uvChannel2, uvLayer3, uvChannel3, locked
         self.layerInitArray = [
-            ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer1', False, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer2', False, 2, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer3', False, 3, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer4', False, 4, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor4', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer5', False, 5, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor5', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer6', False, 6, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor6', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['layer7', False, 7, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor7', '', 'U', '', 'U', '', 'U', '', 'U'],
-            ['occlusion', False, 11, 'UV', [1.0, 1.0, 1.0, 1.0], 1.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'V', '', 'U', '', 'U', '', 'U'],
-            ['transmission', False, 14, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'U', '', 'U', '', 'U', '', 'U'],
-            ['emission', False, 15, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U'],
-            ['metallic', False, 12, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U'],
-            ['smoothness', False, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U'],
-            ['gradient1', False, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U'],
-            ['gradient2', False, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U'],
-            ['overlay', False, 10, 'UV4', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V'],
-            ['texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U'],
-            ['masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U']]
+            ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer1', False, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer2', False, 2, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer3', False, 3, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer4', False, 4, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor4', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer5', False, 5, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor5', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer6', False, 6, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor6', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer7', False, 7, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor7', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['occlusion', False, 11, 'UV', [1.0, 1.0, 1.0, 1.0], 1.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['transmission', False, 14, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['emission', False, 15, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['metallic', False, 12, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['smoothness', False, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['gradient1', False, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['gradient2', False, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['overlay', False, 10, 'UV4', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V', False],
+            ['texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U', False],
+            ['masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
  
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this
@@ -712,6 +712,7 @@ class SXTOOLS_setup(object):
                 item.uvChannel2 = values[15]
                 item.uvLayer3 = values[16]
                 item.uvChannel3 = values[17]
+                item.locked = values[18]
 
 
     def setup_geometry(self, objs):
@@ -2243,11 +2244,11 @@ class SXTOOLS_layers(object):
 
         if targetlayer is None:
             print('SX Tools: Clearing all layers')
-            scene.fillalpha = True
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
             for obj in objs:
                 for sxlayer in obj.sxlayers:
+                    sxlayer.locked = False
                     clear_layer(obj, sxlayer, reset=True)
                 obj.data.update()
         else:
@@ -2600,13 +2601,13 @@ class SXTOOLS_tools(object):
         blendmode = scene.toolblend
         rampmode = scene.rampmode
         if sxglobals.mode == 'EDIT':
-            scene.fillalpha = True
+            masklayer = None
             mergebbx = False
         else:
             mergebbx = scene.rampbbox
 
         for obj in objs:
-            if scene.fillalpha:
+            if not targetlayer.locked:
                 masklayer = None
             else:
                 if masklayer is None:
@@ -2856,8 +2857,8 @@ class SXTOOLS_tools(object):
 
         for obj in objs:
             for idx in range(1, 6):
-                scene.sxtools.fillalpha = False
                 layer = utils.find_layer_from_index(objs[0], idx)
+                layer.locked = True
                 palette_color = palette[idx - 1]  # convert.srgb_to_linear(palette[idx - 1])
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
@@ -2873,7 +2874,7 @@ class SXTOOLS_tools(object):
         scene = bpy.context.scene.sxtools
 
         for obj in objs:
-            scene.fillalpha = False
+            obj.sxlayers[targetlayer.index].locked = True
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
             self.apply_tool([obj, ], targetlayer, color=material.color0)
@@ -3148,7 +3149,8 @@ class SXTOOLS_tools(object):
 
         if color != modecolor:
             bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
-            scene.fillalpha = False
+            for obj in objs:
+                obj.sxlayers[layerindex].locked = True
             tools.apply_tool(objs, layer, color=color)
 
 
@@ -3281,7 +3283,7 @@ class SXTOOLS_magic(object):
         org_toolmode = scene.toolmode
         org_toolopacity = scene.toolopacity
         org_toolblend = scene.toolblend
-        org_fillalpha = scene.fillalpha
+        # org_fillalpha = scene.fillalpha
         org_rampmode = scene.rampmode
         org_ramplist = scene.ramplist
         org_dirangle = scene.dirAngle
@@ -3530,7 +3532,7 @@ class SXTOOLS_magic(object):
         scene.toolmode = org_toolmode
         scene.toolopacity = org_toolopacity
         scene.toolblend = org_toolblend
-        scene.fillalpha = org_fillalpha
+        # scene.fillalpha = org_fillalpha
         scene.rampmode = org_rampmode
         scene.ramplist = org_ramplist
         scene.dirAngle = org_dirangle
@@ -3556,7 +3558,7 @@ class SXTOOLS_magic(object):
         if scene.enableocclusion:
             layer = obj.sxlayers['occlusion']
             scene.toolmode = 'OCC'
-            scene.fillalpha = True
+            layer.locked = False
             scene.noisemono = True
             scene.occlusionblend = 0.5
             scene.occlusionrays = 200
@@ -3587,7 +3589,7 @@ class SXTOOLS_magic(object):
             color = (1.0, 1.0, 1.0, 1.0)
             masklayer = obj.sxlayers['emission']
             layer = obj.sxlayers['smoothness']
-            scene.fillalpha = True
+            layer.locked = False
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
 
@@ -3597,13 +3599,13 @@ class SXTOOLS_magic(object):
         obj = objs[0]
 
         # Apply occlusion masked by emission
-        layer = obj.sxlayers['occlusion']
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
         scene.occlusionbias = 0.01
-        scene.fillalpha = True
 
         for obj in objs:
+            layer = obj.sxlayers['occlusion']
+            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
@@ -3634,7 +3636,7 @@ class SXTOOLS_magic(object):
         color = (1.0, 1.0, 1.0, 1.0)
         mask = obj.sxlayers['emission']
         layer = obj.sxlayers['smoothness']
-        scene.fillalpha = True
+        layer.locked = False
         tools.apply_tool(objs, layer, masklayer=mask, color=color)
 
 
@@ -3644,13 +3646,13 @@ class SXTOOLS_magic(object):
         obj = objs[0]
 
         # Apply occlusion masked by emission
-        layer = obj.sxlayers['occlusion']
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
         scene.occlusionbias = 0.01
-        scene.fillalpha = True
 
         for obj in objs:
+            layer = obj.sxlayers['occlusion']
+            layer.locked = False
             colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
@@ -3728,12 +3730,12 @@ class SXTOOLS_magic(object):
             colors1 = generate.color_list(obj, color, obj.sxlayers['emission'])
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Write smoothness
-            scene.fillalpha = True
             layer = obj.sxlayers['smoothness']
+            layer.locked = False
             layers.set_layer(obj, colors, layer)
+            layer.locked = True
 
             # Apply PBR metal based on layer7
-            scene.fillalpha = False
             # noise = 0.01
             # mono = True
             scene.toolmode = 'COL'
@@ -3754,9 +3756,7 @@ class SXTOOLS_magic(object):
         obj = objs[0]
 
         # Apply occlusion
-        layer = obj.sxlayers['occlusion']
         scene.toolmode = 'OCC'
-        scene.fillalpha = True
         scene.noisemono = True
         scene.occlusionblend = 0.0
         scene.occlusionrays = 200
@@ -3765,9 +3765,12 @@ class SXTOOLS_magic(object):
         mask = utils.find_layer_from_index(obj, 7)
 
         for obj in objs:
+            layer = obj.sxlayers['occlusion']
+            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = generate.color_list(obj, color=color, masklayer=mask)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+
             layers.set_layer(obj, colors, layer)
 
         # Apply normalized curvature with luma remapping to overlay, clear windows
@@ -3836,12 +3839,12 @@ class SXTOOLS_magic(object):
             colors1 = generate.color_list(obj, color, obj.sxlayers['emission'])
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Write smoothness
-            scene.fillalpha = True
             layer = obj.sxlayers['smoothness']
+            layer.locked = False
             layers.set_layer(obj, colors, layer)
+            layer.locked = True
 
             # Apply PBR metal based on layer7
-            scene.fillalpha = False
             # noise = 0.01
             # mono = True
             scene.toolmode = 'COL'
@@ -3859,9 +3862,7 @@ class SXTOOLS_magic(object):
         obj = objs[0]
 
         # Apply occlusion
-        layer = obj.sxlayers['occlusion']
         scene.toolmode = 'OCC'
-        scene.fillalpha = True
         scene.noisemono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
@@ -3869,6 +3870,8 @@ class SXTOOLS_magic(object):
         color = (1.0, 1.0, 1.0, 1.0)
 
         for obj in objs:
+            layer = obj.sxlayers['occlusion']
+            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             layers.set_layer(obj, colors, layer)
 
@@ -3926,8 +3929,8 @@ class SXTOOLS_magic(object):
             colors1 = generate.luminance_remap_list(obj, values=values)
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             # Write smoothness
-            scene.fillalpha = True
             layer = obj.sxlayers['smoothness']
+            layer.locked = False
             layers.set_layer(obj, colors, layer)
 
 
@@ -4311,8 +4314,10 @@ def update_layers(self, context):
             blendVal = getattr(objs[0].sxtools, 'activeLayerBlendMode')
 
             vis_array = []
+            lock_array = []
             for layer in objs[0].sxlayers:
                 vis_array.append(layer.visibility)
+                lock_array.append(layer.locked)
 
             for obj in objs:
                 setattr(obj.sxlayers[idx], 'alpha', alphaVal)
@@ -4320,6 +4325,8 @@ def update_layers(self, context):
                 sxglobals.refreshInProgress = True
                 for ref_vis, layer in zip(vis_array, obj.sxlayers):
                     layer.visibility = ref_vis
+                for ref_lock, layer in zip(lock_array, obj.sxlayers):
+                    layer.locked = ref_lock
                 sxglobals.refreshInProgress = False
 
                 if blendVal == 'OVR':
@@ -5690,11 +5697,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         default=(1.0, 1.0, 1.0, 1.0),
         update=update_fillcolor)
 
-    fillalpha: bpy.props.BoolProperty(
-        name='Overwrite Alpha',
-        description='Check to flood fill the entire selection\nUncheck to retain current alpha mask',
-        default=True)
-
     noiseamplitude: bpy.props.FloatProperty(
         name='Amplitude',
         description='Random per-vertex noise amplitude',
@@ -6295,6 +6297,11 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
         name='Enabled',
         default=False)
 
+    locked: bpy.props.BoolProperty(
+        name='Lock Layer Alpha',
+        default=False,
+        update=update_layers)
+
 
 class SXTOOLS_rampcolor(bpy.types.PropertyGroup):
     # name: from PropertyGroup
@@ -6335,18 +6342,18 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
     def draw(self, context):
         objs = selection_validator(self, context)
         prefs = bpy.context.preferences.addons['sxtools'].preferences
+        layout = self.layout
 
         if (len(objs) > 0) and (len(objs[0].sxtools.category) > 0) and sxglobals.librariesLoaded:
             obj = objs[0]
 
-            layout = self.layout
             mode = obj.mode
             sxtools = obj.sxtools
             scene = context.scene.sxtools
             palettes = context.scene.sxpalettes
             
             if len(obj.sxlayers) == 0:
-                col = self.layout.column(align=True)
+                col = layout.column(align=True)
                 col.label(text='Set Scene Configuration:')
                 col.prop(prefs, 'materialtype', text='Preset')
                 if prefs.materialtype != 'SMP':
@@ -6362,7 +6369,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col.prop(scene, 'eraseuvs', text='Erase Existing UV Sets')
                 if 'SXMaterial' in bpy.data.materials.keys():
                     col.enabled = False
-                col2 = self.layout.column(align=True)
+                col2 = layout.column(align=True)
                 if (len(objs) == 1):
                     col2.operator('sxtools.scenesetup', text='Set Up Object')
                 else:
@@ -6380,81 +6387,64 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     row.label(text='Category:')
                     row.prop(sxtools, 'category', text='')
 
-                row_shading = self.layout.row(align=True)
+                row_shading = layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
 
                 # Layer Controls -----------------------------------------------
-                box_layer = self.layout.box()
+                box_layer = layout.box()
                 row_layer = box_layer.row()
                 row_layer.prop(scene, 'expandlayer',
                     icon='TRIA_DOWN' if scene.expandlayer else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
-                row_alpha = row_layer.row(align=True)
-                row_alpha.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
+                split_basics = row_layer.split(factor=0.3)
+                split_basics.prop(sxtools, 'activeLayerBlendMode', text='')
+                split_basics.prop(sxtools, 'activeLayerAlpha', slider=True, text='Layer Opacity')
 
                 if ((layer.name == 'occlusion') or
                    (layer.name == 'smoothness') or
                    (layer.name == 'metallic') or
                    (layer.name == 'transmission') or
                    (layer.name == 'emission')):
-                    row_alpha.enabled = False
+                    split_basics.enabled = False
 
                 if scene.expandlayer:
-                    row_blend = box_layer.row(align=True)
-                    row_blend.label(text='Layer Blend Mode:')
-                    row_blend.prop(sxtools, 'activeLayerBlendMode', text='')
-                    row_hue = box_layer.row(align=True)
                     if obj.mode == 'OBJECT':
                         hue_text = 'Layer Hue'
-                    else:
-                        hue_text = 'Selection Hue'
-                    row_hue.prop(scene, 'huevalue', slider=True, text=hue_text)
-                    row_sat = box_layer.row(align=True)
-                    if obj.mode == 'OBJECT':
                         saturation_text = 'Layer Saturation'
-                    else:
-                        saturation_text = 'Selection Saturation'
-                    row_sat.prop(scene, 'saturationvalue', slider=True, text=saturation_text)
-                    row_lightness = box_layer.row(align=True)
-                    if obj.mode == 'OBJECT':
                         lightness_text = 'Layer Lightness'
                     else:
+                        hue_text = 'Selection Hue'
+                        saturation_text = 'Selection Saturation'
                         lightness_text = 'Selection Lightness'
+
+                    col_hsl = box_layer.column(align=True)
+                    row_hue = col_hsl.row(align=True)
+                    row_hue.prop(scene, 'huevalue', slider=True, text=hue_text)
+                    row_sat = col_hsl.row(align=True)
+                    row_sat.prop(scene, 'saturationvalue', slider=True, text=saturation_text)
+                    row_lightness = col_hsl.row(align=True)
                     row_lightness.prop(scene, 'lightnessvalue', slider=True, text=lightness_text)
 
                     if ((layer.name == 'occlusion') or
                        (layer.name == 'smoothness') or
                        (layer.name == 'metallic') or
                        (layer.name == 'transmission') or
-                       (layer.name == 'emission')):
-                        row_hue.enabled = False
-                        row_sat.enabled = False
-                        # row_vis.enabled = False
-                        row_blend.enabled = False
-
-                    if ((layer.index == 8) or
-                        (layer.index == 9)):
-                        row_sat.enabled = False
-                        row_hue.enabled = False
-
-                    if ((layer.name == 'occlusion') or
-                       (layer.name == 'smoothness') or
-                       (layer.name == 'metallic') or
-                       (layer.name == 'transmission') or
                        (layer.name == 'emission') or
-                       (scene.shadingmode != 'FULL')):
-                        # row_vis.enabled = False
-                        row_blend.enabled = False
+                       (layer.index == 8) or
+                       (layer.index == 9)):
+                        row_hue.enabled = False
+                        row_sat.enabled = False
 
-                row_palette = self.layout.row(align=True)
+                row_palette = layout.row(align=True)
                 for i in range(8):
                     row_palette.prop(scene, 'layerpalette' + str(i+1), text='')
 
-                row_list = self.layout.row(align=True)
+                row_list = layout.row(align=True)
                 row_list.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
 
                 # Layer Copy Paste Merge ---------------------------------------
-                row_misc1 = self.layout.row(align=True)
+                col_misc = layout.column(align=True)
+                row_misc1 = col_misc.row(align=True)
                 row_misc1.operator('sxtools.mergeup')
                 if sxglobals.copyLayer is None:
                     copy_text = 'Copy'
@@ -6466,7 +6456,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 else:
                     clr_text = 'Reset All'
                 row_misc1.operator('sxtools.clear', text=clr_text)
-                row_misc2 = self.layout.row(align=True)
+                row_misc2 = col_misc.row(align=True)
                 row_misc2.operator('sxtools.mergedown')
                 if scene.alt:
                     paste_text = 'Merge Into'
@@ -6510,16 +6500,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_fpalette = box_fill.row(align=True)
                             for i in range(8):
                                 row_fpalette.prop(scene, 'fillpalette' + str(i+1), text='')
-                        col_fill = box_fill.column(align=True)
-                        col_fill.separator()
-                        row3_fill = box_fill.row()
-                        row3_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Occlusion Tool ---------------------------------------------------
                 elif scene.toolmode == 'OCC' or scene.toolmode == 'THK':
@@ -6533,15 +6517,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                             col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
 
-                        col_fill.separator()
-                        row3_fill = box_fill.row()
-                        row3_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
@@ -6551,15 +6529,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
                         col_fill.prop(scene, 'dirCone', slider=True, text='Spread')
 
-                        col_fill.separator()
-                        row3_fill = box_fill.row()
-                        row3_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Curvature Tool ---------------------------------------------------
                 elif scene.toolmode == 'CRV':
@@ -6567,15 +6539,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_fill = box_fill.column(align=True)
                         col_fill.prop(scene, 'curvaturenormalize', text='Normalize')
 
-                        col_fill.separator()
-                        row3_fill = box_fill.row()
-                        row3_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Noise Tool -------------------------------------------------------
                 elif scene.toolmode == 'NSE':
@@ -6585,16 +6551,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_nse.prop(scene, 'noiseoffset', slider=True)
                         col_nse.prop(scene, 'noisemono', text='Monochromatic')
 
-                        col_fill = box_fill.column(align=True)
-                        col_fill.separator()
-                        row3_fill = box_fill.row()
-                        row3_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Gradient Tool ---------------------------------------------------
                 elif scene.toolmode == 'GRD':
@@ -6611,15 +6570,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if mode == 'OBJECT':
                             box_fill.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
 
-                        box_fill.separator()
-                        row4_fill = box_fill.row()
-                        row4_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Luminance Remap Tool -----------------------------------------------
                 elif scene.toolmode == 'LUM':
@@ -6630,16 +6583,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row3_fill.operator('sxtools.delramp', text='', icon='REMOVE')
                         box_fill.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
 
-                        col_fill = box_fill.column(align=True)
-                        col_fill.separator()
-                        row4_fill = box_fill.row()
-                        row4_fill.prop(scene, 'toolopacity', slider=True)
-                        split3_fill = box_fill.split()
-                        if mode == 'OBJECT':
-                            split3_fill.prop(scene, 'fillalpha', text='Overwrite')
-                        else:
-                            split3_fill.label(text='')
+                        split3_fill = box_fill.split(factor=0.3)
                         split3_fill.prop(scene, 'toolblend', text='')
+                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Master Palettes -----------------------------------------------
                 elif scene.toolmode == 'PAL':
@@ -6932,8 +6878,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             split_export.enabled = False
 
         else:
-            layout = self.layout
-            col = self.layout.column()
+            col = layout.column()
             if sxglobals.librariesLoaded:
                 col.label(text='Select a mesh to continue')
             else:
@@ -6959,7 +6904,12 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
                 else:
                     row_item.label(icon='HIDE_OFF')
 
-                row_item.label(text=item.name)
+                if item.locked:
+                    row_item.prop(item, 'locked', text='', icon='LOCKED')
+                else:
+                    row_item.prop(item, 'locked', text='', icon='UNLOCKED')
+
+                row_item.label(text='  ' + item.name)
             else:
                 layout.enabled = False
         elif self.layout_type in {'GRID'}:
@@ -8436,6 +8386,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# BUG: Layer lock syncing should not cause a compositing pass
+# BUG: Layer lock states should revert to original after an operation that adjusts them
+# BUG: Fill operations in edit mode should override layer locks
 # FEAT: DONE Drive SXMaterial with custom props
 # - GPU alpha accumulation
 # - GPU debug mode
