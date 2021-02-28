@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 1),
+    'version': (5, 5, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -51,6 +51,7 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
+        self.layerLockArray = []
 
         # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
@@ -2221,6 +2222,7 @@ class SXTOOLS_layers(object):
             if sxglobals.mode == 'OBJECT':
                 setattr(obj.sxlayers[layer.index], 'alpha', 1.0)
                 setattr(obj.sxlayers[layer.index], 'visibility', True)
+                setattr(obj.sxlayers[layer.index], 'locked', False)
                 if reset:
                     if layer == obj.sxlayers['overlay']:
                         setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
@@ -2601,17 +2603,19 @@ class SXTOOLS_tools(object):
         blendmode = scene.toolblend
         rampmode = scene.rampmode
         if sxglobals.mode == 'EDIT':
-            masklayer = None
             mergebbx = False
         else:
             mergebbx = scene.rampbbox
 
         for obj in objs:
-            if not targetlayer.locked:
-                masklayer = None
-            else:
-                if masklayer is None:
-                    masklayer = targetlayer
+            if (masklayer is None) and (targetlayer.locked) and (sxglobals.mode == 'OBJECT'):
+                masklayer = targetlayer
+                # if (targetlayer.locked) or 
+                # if (not targetlayer.locked) or (sxglobals.mode == 'EDIT'):
+                #     masklayer = None
+                # else:
+                #     if masklayer is None:
+                #         masklayer = targetlayer
 
             # Get colorbuffer
             if color is not None:
@@ -2858,28 +2862,45 @@ class SXTOOLS_tools(object):
         for obj in objs:
             for idx in range(1, 6):
                 layer = utils.find_layer_from_index(objs[0], idx)
+                org_lock = layer.locked
                 layer.locked = True
                 palette_color = palette[idx - 1]  # convert.srgb_to_linear(palette[idx - 1])
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
                     layers.set_layer(obj, colors, layer)
+                layer.locked = org_lock
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_palette')
 
 
     def apply_material(self, objs, targetlayer, material):
+        utils.mode_manager(objs, set_mode=True, mode_id='apply_material')
+        if not sxglobals.refreshInProgress:
+            sxglobals.refreshInProgress = True
+
         material = bpy.context.scene.sxmaterials[material]
         scene = bpy.context.scene.sxtools
 
         for obj in objs:
+            org_lock = obj.sxlayers[targetlayer.index].locked
+            # org_lock2 = obj.sxlayers['metallic'].locked
+            # org_lock3 = obj.sxlayers['smoothness'].locked
             obj.sxlayers[targetlayer.index].locked = True
+            # obj.sxlayers['metallic'].locked = True
+            # obj.sxlayers['smoothness'].locked = True
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
             self.apply_tool([obj, ], targetlayer, color=material.color0)
             self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
             self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
+            obj.sxlayers[targetlayer.index].locked = org_lock
+            # obj.sxlayers['metallic'].locked = org_lock2
+            # obj.sxlayers['smoothness'].locked = org_lock3
+
+        sxglobals.refreshInProgress = False
+        utils.mode_manager(objs, revert=True, mode_id='apply_material')
 
 
     def add_modifiers(self, objs):
@@ -6916,10 +6937,15 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
                 else:
                     row_item.label(icon='HIDE_OFF')
 
-                if item.locked:
-                    row_item.prop(item, 'locked', text='', icon='LOCKED')
+                if sxglobals.mode == 'OBJECT':
+                    if (scene.toolmode == 'PAL') or (scene.toolmode == 'MAT'):
+                        row_item.label(text='', icon='LOCKED')
+                    elif item.locked:
+                        row_item.prop(item, 'locked', text='', icon='LOCKED')
+                    else:
+                        row_item.prop(item, 'locked', text='', icon='UNLOCKED')
                 else:
-                    row_item.prop(item, 'locked', text='', icon='UNLOCKED')
+                    row_item.label(text='', icon='UNLOCKED')
 
                 row_item.label(text='  ' + item.name)
             else:
@@ -8398,16 +8424,12 @@ if __name__ == '__main__':
 
 
 # TODO:
-# BUG: Layer lock syncing should not cause a compositing pass
+# BUG: Clear layer clears object
 # BUG: Layer lock states should revert to original after an operation that adjusts them
-# BUG: Fill operations in edit mode should override layer locks
-# FEAT: DONE Drive SXMaterial with custom props
 # - GPU alpha accumulation
 # - GPU debug mode
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
-# BUG: Blend mode fills misbehave on gradient1 and gradient2
 # FEAT: Strip redundant custom props prior to exporting
-# FEAT: Batch export registry
 #
 # Selection monitor:
 # - Palette and Material tools should auto-refresh on selection
@@ -8441,6 +8463,7 @@ if __name__ == '__main__':
 # - Export via FBX
 #
 # Future:
+# - Batch export registry
 # - Apply scale and rotation to objs
 # - Update pie menu
 # - Separate reset layers and clear layers
