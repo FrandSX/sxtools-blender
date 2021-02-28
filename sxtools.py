@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 5),
+    'version': (5, 5, 6),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -6911,29 +6911,23 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
+        hide_icon = {False:'HIDE_ON', True:'HIDE_OFF'}
+        lock_icon = {False:'UNLOCKED', True:'LOCKED'}
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             if item.enabled:
                 row_item = layout.row(align=True)
 
                 if scene.shadingmode == 'FULL':
-                    if item.visibility:
-                        row_item.prop(item, 'visibility', text='', icon='HIDE_OFF')
-                    else:
-                        row_item.prop(item, 'visibility', text='', icon='HIDE_ON')
+                    row_item.prop(item, 'visibility', text='', icon=hide_icon[item.visibility])
                 else:
-                    if item.index == objs[0].sxtools.selectedlayer:
-                        row_item.label(icon='HIDE_OFF')
-                    else:
-                        row_item.label(icon='HIDE_ON')
+                    row_item.label(icon=hide_icon[(item.index == objs[0].sxtools.selectedlayer)])
 
                 if sxglobals.mode == 'OBJECT':
                     if (scene.toolmode == 'PAL') or (scene.toolmode == 'MAT'):
                         row_item.label(text='', icon='LOCKED')
-                    elif item.locked:
-                        row_item.prop(item, 'locked', text='', icon='LOCKED')
                     else:
-                        row_item.prop(item, 'locked', text='', icon='UNLOCKED')
+                        row_item.prop(item, 'locked', text='', icon=lock_icon[item.locked])
                 else:
                     row_item.label(text='', icon='UNLOCKED')
 
@@ -6943,10 +6937,7 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
         elif self.layout_type in {'GRID'}:
             if item.enabled:
                 layout.alignment = 'CENTER'
-                if item.visibility:
-                    layout.label(text='', icon='HIDE_OFF')
-                else:
-                    layout.label(text='', icon='HIDE_ON')
+                layout.label(text='', icon=hide_icon[item.visibility])
             else:
                 layout.enabled = False
 
@@ -8414,8 +8405,7 @@ if __name__ == '__main__':
 
 
 # TODO:
-# BUG: Clear layer clears object
-# BUG: Layer lock states should revert to original after an operation that adjusts them
+# BUG: Magic processing sets unnecessary layer locks
 # - GPU alpha accumulation
 # - GPU debug mode
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
