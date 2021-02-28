@@ -8396,6 +8396,7 @@ if __name__ == '__main__':
 # FEAT: Strip redundant custom props prior to exporting
 #
 # Selection monitor:
+# - Lock list and visibility list sync after selection monitor activates
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
 #
