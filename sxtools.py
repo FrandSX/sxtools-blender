@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 7),
+    'version': (5, 5, 8),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8020,8 +8020,12 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
 
     def invoke(self, context, event):
         sxMatObjs = []
+        default_colors = [(1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0)]
         if 'SXMaterial' in bpy.data.materials.keys():
             sxMat = bpy.data.materials.get('SXMaterial')
+
+            for i in range(5):
+                default_colors[i] = sxMat.node_tree.nodes['PaletteColor' + str(i)].outputs[0].default_value
 
             for obj in context.scene.objects:
                 if obj.active_material == bpy.data.materials['SXMaterial']:
@@ -8034,6 +8038,10 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
         bpy.context.view_layer.update()
         setup.update_init_array()
         setup.create_sxmaterial()
+
+        sxMat = bpy.data.materials.get('SXMaterial')
+        for i in range(5):
+            sxMat.node_tree.nodes['PaletteColor' + str(i)].outputs[0].default_value = default_colors[i]
 
         for objName in sxMatObjs:
             context.scene.objects[objName].sxtools.shadingmode = 'FULL'
@@ -8390,8 +8398,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# - GPU alpha accumulation
-# - GPU debug mode
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
 # FEAT: Strip redundant custom props prior to exporting
 #
@@ -8403,6 +8409,9 @@ if __name__ == '__main__':
 # Performance:
 # - update_palette_layer does a blend pass
 # - Limit UV4 clear workload (currently 4 passes)
+# - Full GPU compositing of Layers 1-10
+# - GPU alpha accumulation
+# - GPU debug mode
 #
 # Issues:
 # - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
@@ -8434,7 +8443,6 @@ if __name__ == '__main__':
 # - Separate reset layers and clear layers
 # - Re-categorize filler tools
 # - UI for creating magic processes
-# - Wrong palette after sxtools restart -> remember last palette?
 # - Run from direct github zip download
 #   - Split to multiple python files
 #   - Default path to find libraries in the zip?
