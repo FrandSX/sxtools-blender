@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 8),
+    'version': (5, 5, 9),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -78,7 +78,8 @@ class SXTOOLS_sxglobals(object):
             ['masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
  
         # Brush tools may leave low alpha values that break
-        # palettemasks, alphaTolerance can be used to fix this
+        # palettemasks, alphaTolerance can be used to fix this.
+        # The default setting accepts only fully opaque values.
         self.alphaTolerance = 1.0
 
         # Keywords used by Smart Separate. Avoid using these in regular object names
@@ -4578,27 +4579,14 @@ def category_lister(self, context):
     return enumItems
 
 
-def palette_category_lister(self, context):
-    palettes = context.scene.sxpalettes
+def ext_category_lister(self, context, category):
+    items = getattr(context.scene, category)
     categories = []
-    for palette in palettes:
-        categoryEnum = palette.category.replace(" ", "").upper()
+    for item in items:
+        categoryEnum = item.category.replace(" ", "").upper()
         if categoryEnum not in sxglobals.presetLookup.keys():
-            sxglobals.presetLookup[categoryEnum] = palette.category
-        enumItem = (categoryEnum, palette.category, '')
-        categories.append(enumItem)
-    enumItems = list(set(categories))
-    return enumItems
-
-
-def material_category_lister(self, context):
-    materials = context.scene.sxmaterials
-    categories = []
-    for material in materials:
-        categoryEnum = material.category.replace(" ", "").upper()
-        if categoryEnum not in sxglobals.presetLookup.keys():
-            sxglobals.presetLookup[categoryEnum] = material.category
-        enumItem = (material.category.replace(" ", "").upper(), material.category, '')
+            sxglobals.presetLookup[categoryEnum] = item.category
+        enumItem = (categoryEnum, item.category, '')
         categories.append(enumItem)
     enumItems = list(set(categories))
     return enumItems
@@ -4671,32 +4659,18 @@ def load_libraries(self, context):
 
 
 def adjust_hsl(self, context, hslmode):
-    objs = selection_validator(self, context)
-    hslvalues = [context.scene.sxtools.huevalue, context.scene.sxtools.saturationvalue, context.scene.sxtools.lightnessvalue]
-
-    if len(objs) > 0:
-        idx = objs[0].sxtools.selectedlayer
-        layer = utils.find_layer_from_index(objs[0], idx)
-
-        tools.apply_hsl(objs, layer, hslmode, hslvalues[hslmode])
-
-        sxglobals.composite = True
-        refresh_actives(self, context)
-
-
-def adjust_hue(self, context):
     if not sxglobals.hslUpdate:
-        adjust_hsl(self, context, 0)
+        objs = selection_validator(self, context)
+        hslvalues = [context.scene.sxtools.huevalue, context.scene.sxtools.saturationvalue, context.scene.sxtools.lightnessvalue]
 
+        if len(objs) > 0:
+            idx = objs[0].sxtools.selectedlayer
+            layer = utils.find_layer_from_index(objs[0], idx)
 
-def adjust_saturation(self, context):
-    if not sxglobals.hslUpdate:
-        adjust_hsl(self, context, 1)
+            tools.apply_hsl(objs, layer, hslmode, hslvalues[hslmode])
 
-
-def adjust_lightness(self, context):
-    if not sxglobals.hslUpdate:
-        adjust_hsl(self, context, 2)
+            sxglobals.composite = True
+            refresh_actives(self, context)
 
 
 def update_modifier_visibility(self, context):
@@ -4931,38 +4905,13 @@ def update_smooth_angle(self, context):
                 obj.data.auto_smooth_angle = smoothAngle
 
 
-def update_palette(self, context, layer_index):
+def update_palette(self, context, index):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
-    color = getattr(scene, 'newpalette'+str(layer_index - 1))
-    tools.update_palette_layer(objs, layer_index, color, 'PaletteColor' + str(layer_index - 1))
+    color = getattr(scene, 'newpalette'+str(index))
+    tools.update_palette_layer(objs, index + 1, color, 'PaletteColor' + str(index))
     sxglobals.composite = True
     refresh_actives(self, context)
-
-
-def update_palette_layer1(self, context):
-    update_palette(self, context, 1)
-    return
-
-
-def update_palette_layer2(self, context):
-    update_palette(self, context, 2)
-    return
-
-
-def update_palette_layer3(self, context):
-    update_palette(self, context, 3)
-    return
-
-
-def update_palette_layer4(self, context):
-    update_palette(self, context, 4)
-    return
-
-
-def update_palette_layer5(self, context):
-    update_palette(self, context, 5)
-    return
 
 
 def update_material_layer1(self, context):
@@ -5075,24 +5024,9 @@ def message_box(message='', title='SX Tools', icon='INFO'):
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
-def expand_layer(self, context):
-    if context.scene.sxtools.expandlayer is False:
-        context.scene.sxtools.expandlayer = True
-
-
-def expand_fill(self, context):
-    if context.scene.sxtools.expandfill is False:
-        context.scene.sxtools.expandfill = True
-
-
-def expand_crease(self, context):
-    if context.scene.sxtools.expandcrease is False:
-        context.scene.sxtools.expandcrease = True
-
-
-def expand_export(self, context):
-    if context.scene.sxtools.expandexport is False:
-        context.scene.sxtools.expandexport = True
+def expand_element(self, context, element):
+    if not getattr(context.scene.sxtools, element):
+        setattr(context.scene.sxtools, element, True)
 
 
 def compositing_mode(self, context):
@@ -5567,7 +5501,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=0.0,
-        update=adjust_hue)
+        update=lambda self, context: adjust_hsl(self, context, 0))
 
     saturationvalue: bpy.props.FloatProperty(
         name='Saturation',
@@ -5575,7 +5509,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=0.0,
-        update=adjust_saturation)
+        update=lambda self, context: adjust_hsl(self, context, 1))
 
     lightnessvalue: bpy.props.FloatProperty(
         name='Lightness',
@@ -5583,7 +5517,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=0.0,
-        update=adjust_lightness)
+        update=lambda self, context: adjust_hsl(self, context, 2))
 
     toolmode: bpy.props.EnumProperty(
         name='Tool Mode',
@@ -5600,7 +5534,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('PAL', 'Palette', ''),
             ('MAT', 'Material', '')],
         default='COL',
-        update=expand_fill)
+        update=lambda self, context: expand_element(self, context, 'expandfill'))
 
     toolopacity: bpy.props.FloatProperty(
         name='Fill Opacity',
@@ -5824,12 +5758,12 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     palettecategories: bpy.props.EnumProperty(
         name='Category',
         description='Choose palette category',
-        items=palette_category_lister)
+        items=lambda self, context: ext_category_lister(self, context, 'sxpalettes'))
 
     materialcategories: bpy.props.EnumProperty(
         name='Category',
         description='Choose material category',
-        items=material_category_lister)
+        items=lambda self, context: ext_category_lister(self, context, 'sxmaterials'))
 
     materialalpha: bpy.props.BoolProperty(
         name='Overwrite Alpha',
@@ -5844,7 +5778,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('BEV', 'Bevel', ''),
             ('SDS', 'Modifiers', '')],
         default='CRS',
-        update=expand_crease)
+        update=lambda self, context: expand_element(self, context, 'expandcrease'))
 
     autocrease: bpy.props.BoolProperty(
         name='Auto Hard-Crease Bevel Edges',
@@ -5876,7 +5810,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_palette_layer1)
+        update=lambda self, context: update_palette(self, context, 0))
 
     newpalette1: bpy.props.FloatVectorProperty(
         name='New Palette Color 1',
@@ -5886,7 +5820,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_palette_layer2)
+        update=lambda self, context: update_palette(self, context, 1))
 
     newpalette2: bpy.props.FloatVectorProperty(
         name='New Palette Color 2',
@@ -5896,7 +5830,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_palette_layer3)
+        update=lambda self, context: update_palette(self, context, 2))
 
     newpalette3: bpy.props.FloatVectorProperty(
         name='New Palette Color 3',
@@ -5906,7 +5840,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_palette_layer4)
+        update=lambda self, context: update_palette(self, context, 3))
 
     newpalette4: bpy.props.FloatVectorProperty(
         name='New Palette Color 4',
@@ -5916,7 +5850,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_palette_layer5)
+        update=lambda self, context: update_palette(self, context, 4))
 
     expandmat: bpy.props.BoolProperty(
         name='Expand Add Material',
@@ -5990,7 +5924,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('UTILS', 'Utilities', ''),
             ('EXPORT', 'Export', '')],
         default='MAGIC',
-        update=expand_export)
+        update=lambda self, context: expand_element(self, context, 'expandexport'))
 
     exportquality: bpy.props.EnumProperty(
         name='Export Quality',
@@ -8398,6 +8332,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# - Generate VisToggle and VisMix nodes only when channels are enabled
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
 # FEAT: Strip redundant custom props prior to exporting
 #
