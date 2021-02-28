@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 6),
+    'version': (5, 5, 7),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2609,12 +2609,6 @@ class SXTOOLS_tools(object):
         for obj in objs:
             if (masklayer is None) and (targetlayer.locked) and (sxglobals.mode == 'OBJECT'):
                 masklayer = targetlayer
-                # if (targetlayer.locked) or 
-                # if (not targetlayer.locked) or (sxglobals.mode == 'EDIT'):
-                #     masklayer = None
-                # else:
-                #     if masklayer is None:
-                #         masklayer = targetlayer
 
             # Get colorbuffer
             if color is not None:
@@ -3289,7 +3283,6 @@ class SXTOOLS_magic(object):
         org_toolmode = scene.toolmode
         org_toolopacity = scene.toolopacity
         org_toolblend = scene.toolblend
-        # org_fillalpha = scene.fillalpha
         org_rampmode = scene.rampmode
         org_ramplist = scene.ramplist
         org_dirangle = scene.dirAngle
@@ -3300,6 +3293,10 @@ class SXTOOLS_magic(object):
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         scene.toolopacity = 1.0
         scene.toolblend = 'ALPHA'
+
+        for obj in objs:
+            for layer in obj.sxlayers:
+                layer.locked=False
 
         # Make sure export and source Collections exist
         if 'ExportObjects' not in bpy.data.collections.keys():
@@ -3538,7 +3535,6 @@ class SXTOOLS_magic(object):
         scene.toolmode = org_toolmode
         scene.toolopacity = org_toolopacity
         scene.toolblend = org_toolblend
-        # scene.fillalpha = org_fillalpha
         scene.rampmode = org_rampmode
         scene.ramplist = org_ramplist
         scene.dirAngle = org_dirangle
@@ -3564,7 +3560,6 @@ class SXTOOLS_magic(object):
         if scene.enableocclusion:
             layer = obj.sxlayers['occlusion']
             scene.toolmode = 'OCC'
-            layer.locked = False
             scene.noisemono = True
             scene.occlusionblend = 0.5
             scene.occlusionrays = 200
@@ -3575,7 +3570,6 @@ class SXTOOLS_magic(object):
         # Apply custom overlay
         if scene.numoverlays != 0:
             layer = obj.sxlayers['overlay']
-            layer.locked = False
             scene.toolmode = 'CRV'
             scene.curvaturenormalize = True
 
@@ -3596,7 +3590,6 @@ class SXTOOLS_magic(object):
             color = (1.0, 1.0, 1.0, 1.0)
             masklayer = obj.sxlayers['emission']
             layer = obj.sxlayers['smoothness']
-            # layer.locked = False
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
 
@@ -3612,7 +3605,6 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
@@ -3643,7 +3635,6 @@ class SXTOOLS_magic(object):
         color = (1.0, 1.0, 1.0, 1.0)
         mask = obj.sxlayers['emission']
         layer = obj.sxlayers['smoothness']
-        layer.locked = False
         tools.apply_tool(objs, layer, masklayer=mask, color=color)
 
 
@@ -3659,7 +3650,6 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            layer.locked = False
             colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
@@ -3738,9 +3728,8 @@ class SXTOOLS_magic(object):
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Write smoothness
             layer = obj.sxlayers['smoothness']
-            layer.locked = False
             layers.set_layer(obj, colors, layer)
-            layer.locked = True
+            # layer.locked = True
 
             # Apply PBR metal based on layer7
             # noise = 0.01
@@ -3773,7 +3762,6 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             colors1 = generate.color_list(obj, color=color, masklayer=mask)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
@@ -3847,9 +3835,8 @@ class SXTOOLS_magic(object):
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Write smoothness
             layer = obj.sxlayers['smoothness']
-            layer.locked = False
             layers.set_layer(obj, colors, layer)
-            layer.locked = True
+            # layer.locked = True
 
             # Apply PBR metal based on layer7
             # noise = 0.01
@@ -3878,7 +3865,6 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            layer.locked = False
             colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
             layers.set_layer(obj, colors, layer)
 
@@ -3937,7 +3923,6 @@ class SXTOOLS_magic(object):
             colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
             # Write smoothness
             layer = obj.sxlayers['smoothness']
-            layer.locked = False
             layers.set_layer(obj, colors, layer)
 
 
@@ -8405,7 +8390,6 @@ if __name__ == '__main__':
 
 
 # TODO:
-# BUG: Magic processing sets unnecessary layer locks
 # - GPU alpha accumulation
 # - GPU debug mode
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
