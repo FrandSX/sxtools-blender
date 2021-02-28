@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 3),
+    'version': (5, 5, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -51,7 +51,6 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
-        self.layerLockArray = []
 
         # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
@@ -2862,14 +2861,11 @@ class SXTOOLS_tools(object):
         for obj in objs:
             for idx in range(1, 6):
                 layer = utils.find_layer_from_index(objs[0], idx)
-                org_lock = layer.locked
-                layer.locked = True
                 palette_color = palette[idx - 1]  # convert.srgb_to_linear(palette[idx - 1])
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
                     layers.set_layer(obj, colors, layer)
-                layer.locked = org_lock
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_palette')
@@ -2884,20 +2880,11 @@ class SXTOOLS_tools(object):
         scene = bpy.context.scene.sxtools
 
         for obj in objs:
-            org_lock = obj.sxlayers[targetlayer.index].locked
-            # org_lock2 = obj.sxlayers['metallic'].locked
-            # org_lock3 = obj.sxlayers['smoothness'].locked
-            obj.sxlayers[targetlayer.index].locked = True
-            # obj.sxlayers['metallic'].locked = True
-            # obj.sxlayers['smoothness'].locked = True
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
-            self.apply_tool([obj, ], targetlayer, color=material.color0)
+            self.apply_tool([obj, ], targetlayer, masklayer=targetlayer, color=material.color0)
             self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
             self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
-            obj.sxlayers[targetlayer.index].locked = org_lock
-            # obj.sxlayers['metallic'].locked = org_lock2
-            # obj.sxlayers['smoothness'].locked = org_lock3
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_material')
@@ -3170,9 +3157,7 @@ class SXTOOLS_tools(object):
 
         if color != modecolor:
             bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
-            for obj in objs:
-                obj.sxlayers[layerindex].locked = True
-            tools.apply_tool(objs, layer, color=color)
+            tools.apply_tool(objs, layer, masklayer=layer, color=color)
 
 
     def zero_verts(self, objs):
@@ -3590,6 +3575,7 @@ class SXTOOLS_magic(object):
         # Apply custom overlay
         if scene.numoverlays != 0:
             layer = obj.sxlayers['overlay']
+            layer.locked = False
             scene.toolmode = 'CRV'
             scene.curvaturenormalize = True
 
@@ -3610,7 +3596,7 @@ class SXTOOLS_magic(object):
             color = (1.0, 1.0, 1.0, 1.0)
             masklayer = obj.sxlayers['emission']
             layer = obj.sxlayers['smoothness']
-            layer.locked = False
+            # layer.locked = False
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
 
@@ -6924,6 +6910,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 class SXTOOLS_UL_layerlist(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         scene = context.scene.sxtools
+        objs = selection_validator(self, context)
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             if item.enabled:
@@ -6935,7 +6922,10 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
                     else:
                         row_item.prop(item, 'visibility', text='', icon='HIDE_ON')
                 else:
-                    row_item.label(icon='HIDE_OFF')
+                    if item.index == objs[0].sxtools.selectedlayer:
+                        row_item.label(icon='HIDE_OFF')
+                    else:
+                        row_item.label(icon='HIDE_ON')
 
                 if sxglobals.mode == 'OBJECT':
                     if (scene.toolmode == 'PAL') or (scene.toolmode == 'MAT'):
