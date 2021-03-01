@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 10),
+    'version': (5, 5, 11),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2250,8 +2250,9 @@ class SXTOOLS_layers(object):
             scene.toolblend = 'ALPHA'
             for obj in objs:
                 for sxlayer in obj.sxlayers:
-                    sxlayer.locked = False
-                    clear_layer(obj, sxlayer, reset=True)
+                    if sxlayer.enabled:
+                        sxlayer.locked = False
+                        clear_layer(obj, sxlayer, reset=True)
                 obj.data.update()
         else:
             for obj in objs:
@@ -7325,6 +7326,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selection_validator(self, context)
         if len(objs) > 0:
+            sxglobals.refreshInProgress = True
             setup.update_init_array()
             setup.setup_layers(objs)
             setup.create_sxmaterial()
@@ -7333,6 +7335,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
             context.scene.display_settings.display_device = 'sRGB'
             context.scene.view_settings.view_transform = 'Standard'
 
+            sxglobals.refreshInProgress = False
             refresh_actives(self, context)
         return {'FINISHED'}
 
