@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 11),
+    'version': (5, 5, 14),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2878,7 +2878,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
-            self.apply_tool([obj, ], targetlayer, masklayer=targetlayer, color=material.color0)
+            self.apply_tool([obj, ], targetlayer, color=material.color0)
             self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
             self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
 
@@ -5051,10 +5051,11 @@ def load_post_handler(dummy):
         if (len(obj.sxtools.keys()) > 0):
             if obj.sxtools.hardmode == '':
                 obj.sxtools.hardmode = 'SHARP'
-        if (len(obj.sxtools.sxlayers) > 7):
-             bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
-        else:
-             bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
+        if 'sxlayers' in obj.sxtools.keys():
+            if (len(obj.sxtools.sxlayers) > 7):
+                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
+            else:
+                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
@@ -5742,11 +5743,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Category',
         description='Choose material category',
         items=lambda self, context: ext_category_lister(self, context, 'sxmaterials'))
-
-    materialalpha: bpy.props.BoolProperty(
-        name='Overwrite Alpha',
-        description='Check to flood fill entire selection\nUncheck to retain current alpha mask',
-        default=True)
 
     creasemode: bpy.props.EnumProperty(
         name='Edge Weight Mode',
@@ -6565,10 +6561,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                             mat_button = split2_mat.operator('sxtools.delmaterial', text='Delete')
                                             mat_button.label = name
 
-                                col_matcolor = box_fill.column(align=True)
-                                if mode == 'OBJECT':
-                                    col_matcolor.prop(scene, 'materialalpha')
-
                 if (scene.toolmode != 'PAL') and (scene.toolmode != 'MAT') and scene.expandfill:
                     split3_fill = box_fill.split(factor=0.3)
                     split3_fill.prop(scene, 'toolblend', text='')
@@ -6798,7 +6790,7 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
                     row_item.label(icon=hide_icon[(item.index == objs[0].sxtools.selectedlayer)])
 
                 if sxglobals.mode == 'OBJECT':
-                    if (scene.toolmode == 'PAL') or (scene.toolmode == 'MAT'):
+                    if scene.toolmode == 'PAL':
                         row_item.label(text='', icon='LOCKED')
                     else:
                         row_item.prop(item, 'locked', text='', icon=lock_icon[item.locked])
@@ -8289,6 +8281,9 @@ if __name__ == '__main__':
 
 
 # TODO:
+# BUG: update_material_layer functions generate errors
+# BUG: Material tool layer filling rules need re-working
+# BUG: Material tool should not force layer locking
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material
 # - Generate VisToggle and VisMix nodes only when channels are enabled
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
