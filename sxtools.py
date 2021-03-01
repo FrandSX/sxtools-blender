@@ -5051,6 +5051,10 @@ def load_post_handler(dummy):
         if (len(obj.sxtools.keys()) > 0):
             if obj.sxtools.hardmode == '':
                 obj.sxtools.hardmode = 'SHARP'
+        if (len(obj.sxtools.sxlayers) > 7):
+             bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
+        else:
+             bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
@@ -8285,6 +8289,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material
 # - Generate VisToggle and VisMix nodes only when channels are enabled
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
 # FEAT: Strip redundant custom props prior to exporting
