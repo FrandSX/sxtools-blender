@@ -6439,10 +6439,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             for i in range(8):
                                 row_fpalette.prop(scene, 'fillpalette' + str(i+1), text='')
 
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
-
                 # Occlusion Tool ---------------------------------------------------
                 elif scene.toolmode == 'OCC' or scene.toolmode == 'THK':
                     if scene.expandfill:
@@ -6455,10 +6451,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                             col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
 
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
-
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
                     if scene.expandfill:
@@ -6467,19 +6459,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_fill.prop(scene, 'dirAngle', slider=True, text='Angle')
                         col_fill.prop(scene, 'dirCone', slider=True, text='Spread')
 
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
-
                 # Curvature Tool ---------------------------------------------------
                 elif scene.toolmode == 'CRV':
                     if scene.expandfill:
                         col_fill = box_fill.column(align=True)
                         col_fill.prop(scene, 'curvaturenormalize', text='Normalize')
-
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Noise Tool -------------------------------------------------------
                 elif scene.toolmode == 'NSE':
@@ -6488,10 +6472,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_nse.prop(scene, 'noiseamplitude', slider=True)
                         col_nse.prop(scene, 'noiseoffset', slider=True)
                         col_nse.prop(scene, 'noisemono', text='Monochromatic')
-
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Gradient Tool ---------------------------------------------------
                 elif scene.toolmode == 'GRD':
@@ -6508,10 +6488,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if mode == 'OBJECT':
                             box_fill.prop(scene, 'rampbbox', text='Use Combined Bounding Box')
 
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
-
                 # Luminance Remap Tool -----------------------------------------------
                 elif scene.toolmode == 'LUM':
                     if scene.expandfill:
@@ -6520,10 +6496,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row3_fill.operator('sxtools.addramp', text='', icon='ADD')
                         row3_fill.operator('sxtools.delramp', text='', icon='REMOVE')
                         box_fill.template_color_ramp(bpy.data.materials['SXMaterial'].node_tree.nodes['ColorRamp'], 'color_ramp', expand=True)
-
-                        split3_fill = box_fill.split(factor=0.3)
-                        split3_fill.prop(scene, 'toolblend', text='')
-                        split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Master Palettes -----------------------------------------------
                 elif scene.toolmode == 'PAL':
@@ -6618,6 +6590,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 col_matcolor = box_fill.column(align=True)
                                 if mode == 'OBJECT':
                                     col_matcolor.prop(scene, 'materialalpha')
+
+                if (scene.toolmode != 'PAL') and (scene.toolmode != 'MAT') and scene.expandfill:
+                    split3_fill = box_fill.split(factor=0.3)
+                    split3_fill.prop(scene, 'toolblend', text='')
+                    split3_fill.prop(scene, 'toolopacity', slider=True)
 
                 # Crease and Bevel Sets, Modifier Settings --------------------------------
                 box_crease = layout.box()
