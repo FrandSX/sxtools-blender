@@ -4559,18 +4559,8 @@ def selection_validator(self, context):
     return selObjs
 
 
-def ramp_lister(self, context):
-    items = sxglobals.rampDict.keys()
-    enumItems = []
-    for item in items:
-        sxglobals.presetLookup[item.replace(" ", "_").upper()] = item
-        enumItem = (item.replace(" ", "_").upper(), item, '')
-        enumItems.append(enumItem)
-    return enumItems
-
-
-def category_lister(self, context):
-    items = sxglobals.categoryDict.keys()
+def dict_lister(self, context, data_dict):
+    items = data_dict.keys()
     enumItems = []
     for item in items:
         sxglobals.presetLookup[item.replace(" ", "_").upper()] = item
@@ -5182,7 +5172,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     category: bpy.props.EnumProperty(
         name='Category Presets',
         description='Select object category\nRenames layers to match',
-        items=category_lister,
+        items=lambda self, context: dict_lister(self, context, sxglobals.categoryDict),
         update=load_category)
 
     selectedlayer: bpy.props.IntProperty(
@@ -5688,7 +5678,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     ramplist: bpy.props.EnumProperty(
         name='Ramp Presets',
         description='Load stored ramp presets',
-        items=ramp_lister,
+        items=lambda self, context: dict_lister(self, context, sxglobals.rampDict),
         update=load_ramp)
 
     mergemode: bpy.props.EnumProperty(
