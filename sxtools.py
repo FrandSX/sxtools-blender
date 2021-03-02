@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 14),
+    'version': (5, 5, 15),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -494,14 +494,14 @@ class SXTOOLS_utils(object):
                 return sxLayer
 
 
-    def find_colors_by_frequency(self, objs, layer, numcolors=None, obj_sel_override=False):
+    def find_colors_by_frequency(self, objs, layer, numcolors=None, masklayer=None, obj_sel_override=False):
         colorArray = []
 
         for obj in objs:
             if obj_sel_override:
                 values = layers.get_layer(obj, layer, as_tuple=True)
             else:
-                values = generate.mask_list(obj, layers.get_layer(obj, layer), as_tuple=True)
+                values = generate.mask_list(obj, layers.get_layer(obj, layer), masklayer=masklayer, as_tuple=True)
 
             if values is not None:
                 colorArray.extend(values)
@@ -509,7 +509,6 @@ class SXTOOLS_utils(object):
         # colors = list(filter(lambda a: a != (0.0, 0.0, 0.0, 0.0), colorArray))
         colors = list(filter(lambda a: a[3] != 0.0, colorArray))
         sortList = [color for color, count in Counter(colors).most_common(numcolors)]
-
 
         if numcolors is not None:
             while len(sortList) < numcolors:
@@ -2474,7 +2473,7 @@ class SXTOOLS_layers(object):
 
         for i in range(5):
             layer = objs[0].sxlayers[i+1]
-            palettecolor = utils.find_colors_by_frequency(objs, layer, 1, True)[0]
+            palettecolor = utils.find_colors_by_frequency(objs, layer, 1, obj_sel_override=True)[0]
             tabcolor = getattr(scene, 'newpalette' + str(i))
 
             if not utils.color_compare(palettecolor, tabcolor):
@@ -2484,12 +2483,18 @@ class SXTOOLS_layers(object):
 
     def material_layers_to_values(self, objs):
         scene = bpy.context.scene.sxtools
-        layers = [7, 12, 13]
+        layers = [objs[0].sxtools.selectedlayer, 12, 13]
 
         for i, idx in enumerate(layers):
             layer = objs[0].sxlayers[idx]
-            palettecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+            masklayer = utils.find_layer_from_index(objs[0], layers[0])
+            layercolors = utils.find_colors_by_frequency(objs, layer, 8, masklayer=masklayer)
             tabcolor = getattr(scene, 'newmaterial' + str(i))
+
+            if tabcolor in layercolors:
+                palettecolor = tabcolor
+            else:
+                palettecolor = layercolors[0]
 
             if not utils.color_compare(palettecolor, tabcolor):
                 setattr(scene, 'newmaterial' + str(i), palettecolor)
@@ -2879,8 +2884,17 @@ class SXTOOLS_tools(object):
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
             self.apply_tool([obj, ], targetlayer, color=material.color0)
-            self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
-            self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
+
+            if sxglobals.mode == 'EDIT':
+                self.apply_tool([obj, ], obj.sxlayers['metallic'], color=material.color1)
+                self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=material.color2)
+            else:
+                self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
+                self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
+
+        setattr(scene, 'newmaterial0', material.color0)
+        setattr(scene, 'newmaterial1', material.color1)
+        setattr(scene, 'newmaterial2', material.color2)
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_material')
@@ -3142,18 +3156,6 @@ class SXTOOLS_tools(object):
         layers.clear_layers(objs, objs[0].sxlayers['metallic'])
         layers.clear_layers(objs, objs[0].sxlayers['smoothness'])
         layers.clear_layers(objs, objs[0].sxlayers['transmission'])
-
-
-    def update_palette_layer(self, objs, layerindex, color, palettenodename):
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-
-        scene = bpy.context.scene.sxtools
-        layer = utils.find_layer_from_index(objs[0], layerindex)
-        modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
-
-        if color != modecolor:
-            bpy.data.materials['SXMaterial'].node_tree.nodes[palettenodename].outputs[0].default_value = color
-            tools.apply_tool(objs, layer, masklayer=layer, color=color)
 
 
     def zero_verts(self, objs):
@@ -4907,68 +4909,77 @@ def update_smooth_angle(self, context):
                 obj.data.auto_smooth_angle = smoothAngle
 
 
-def update_palette(self, context, index):
+def update_palette_layer(self, context, index):
     scene = context.scene.sxtools
     objs = selection_validator(self, context)
+    layer = utils.find_layer_from_index(objs[0], index + 1)
     color = getattr(scene, 'newpalette'+str(index))
-    tools.update_palette_layer(objs, index + 1, color, 'PaletteColor' + str(index))
+
+    if objs[0].mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+
+    if color != modecolor:
+        bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor' + str(index)].outputs[0].default_value = color
+
+        
+        for obj in objs:
+            colors = generate.color_list(obj, color, masklayer=layer)
+
+            if colors is not None:
+                layers.set_layer(obj, colors, layer)
+
     sxglobals.composite = True
     refresh_actives(self, context)
 
 
-def update_material_layer1(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 7)
-    color = (scene.newmaterial0[0], scene.newmaterial0[1], scene.newmaterial0[2], scene.newmaterial0[3])
-    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+def update_material_layer(self, context, index):
+    if not sxglobals.refreshInProgress:
+        sxglobals.refreshInProgress = True
 
-    if scene.enablelimit:
-        hsl = convert.rgb_to_hsl(color)
-        if scene.limitmode == 'MET':
-            minl = float(170.0/255.0)
-            if hsl[2] < minl:
-                rgb = convert.hsl_to_rgb((hsl[0], hsl[1], minl))
-                color = (rgb[0], rgb[1], rgb[2], 1.0)
-        else:
-            minl = float(50.0/255.0)
-            maxl = float(240.0/255.0)
-            if hsl[2] > maxl:
-                rgb = convert.hsl_to_rgb((hsl[0], hsl[1], maxl))
-                color = (rgb[0], rgb[1], rgb[2], 1.0)
-            elif hsl[2] < minl:
-                rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
-                color = (rgb[0], rgb[1], rgb[2], 1.0)
+        utils.mode_manager(objs, set_mode=True, mode_id='update_material_layer')
+        scene = context.scene.sxtools
+        objs = selection_validator(self, context)
+        layer = utils.find_layer_from_index(objs[0], objs[0].sxtools.selectedlayer)
+        layer_ids = [objs[0].sxtools.selectedlayer, 'metallic', 'smoothness']
+        pbr_values = [scene.newmaterial0, scene.newmaterial1, scene.newmaterial2]
+        modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
+        scene.toolopacity = 1.0
+        scene.toolblend = 'ALPHA'
 
-    if color != modecolor:
-        tools.apply_tool(objs, layer, color)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+        if scene.enablelimit:
+            hsl = convert.rgb_to_hsl(pbr_values[index])
+            if scene.limitmode == 'MET':
+                minl = float(170.0/255.0)
+                if hsl[2] < minl:
+                    rgb = convert.hsl_to_rgb((hsl[0], hsl[1], minl))
+                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+            else:
+                minl = float(50.0/255.0)
+                maxl = float(240.0/255.0)
+                if hsl[2] > maxl:
+                    rgb = convert.hsl_to_rgb((hsl[0], hsl[1], maxl))
+                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+                elif hsl[2] < minl:
+                    rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
+                    color = (rgb[0], rgb[1], rgb[2], 1.0)
 
+        for obj in objs:
+            if not utils.color_compare(modecolor, pbr_values[index]):
+                if sxglobals.mode == 'EDIT':
+                    self.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], color=pbr_values[index])
+                else:
+                    self.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], masklayer=obj.sxlayers[layer_ids[0]], color=pbr_values[index])
 
-def update_material_layer2(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 12)
-    color = (scene.newmaterial1[0], scene.newmaterial1[1], scene.newmaterial1[2], scene.newmaterial1[3])
-    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
+                setattr(scene, 'newmaterial' + str(index), color)
 
-    if color != modecolor:
-        tools.apply_tool(objs, layer, color)
-        sxglobals.composite = True
-        refresh_actives(self, context)
+        if index == 0:
+            sxglobals.composite = True
 
+        sxglobals.refreshInProgress = False
+        utils.mode_manager(objs, revert=True, mode_id='update_material_layer')
 
-def update_material_layer3(self, context):
-    scene = context.scene.sxtools
-    objs = selection_validator(self, context)
-    layer = utils.find_layer_from_index(objs[0], 13)
-    color = (scene.newmaterial2[0], scene.newmaterial2[1], scene.newmaterial2[2], scene.newmaterial2[3])
-    modecolor = utils.find_colors_by_frequency(objs, layer, 1)[0]
-
-    if color != modecolor:
-        tools.apply_tool(objs, layer, color)
-        sxglobals.composite = True
         refresh_actives(self, context)
 
 
@@ -5784,7 +5795,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=lambda self, context: update_palette(self, context, 0))
+        update=lambda self, context: update_palette_layer(self, context, 0))
 
     newpalette1: bpy.props.FloatVectorProperty(
         name='New Palette Color 1',
@@ -5794,7 +5805,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=lambda self, context: update_palette(self, context, 1))
+        update=lambda self, context: update_palette_layer(self, context, 1))
 
     newpalette2: bpy.props.FloatVectorProperty(
         name='New Palette Color 2',
@@ -5804,7 +5815,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=lambda self, context: update_palette(self, context, 2))
+        update=lambda self, context: update_palette_layer(self, context, 2))
 
     newpalette3: bpy.props.FloatVectorProperty(
         name='New Palette Color 3',
@@ -5814,7 +5825,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=lambda self, context: update_palette(self, context, 3))
+        update=lambda self, context: update_palette_layer(self, context, 3))
 
     newpalette4: bpy.props.FloatVectorProperty(
         name='New Palette Color 4',
@@ -5824,7 +5835,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=lambda self, context: update_palette(self, context, 4))
+        update=lambda self, context: update_palette_layer(self, context, 4))
 
     expandmat: bpy.props.BoolProperty(
         name='Expand Add Material',
@@ -5844,7 +5855,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_material_layer1)
+        update=lambda self, context: update_material_layer(self, context, 0))
 
     newmaterial1: bpy.props.FloatVectorProperty(
         name='Metallic',
@@ -5854,7 +5865,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_material_layer2)
+        update=lambda self, context: update_material_layer(self, context, 1))
 
     newmaterial2: bpy.props.FloatVectorProperty(
         name='Smoothness',
@@ -5864,7 +5875,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.0, 0.0, 0.0, 1.0),
-        update=update_material_layer3)
+        update=lambda self, context: update_material_layer(self, context, 2))
 
     expandcrease: bpy.props.BoolProperty(
         name='Expand Crease',
@@ -6517,6 +6528,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if prefs.materialtype == 'SMP':
                         if scene.expandfill:
                             box_fill.label(text='Disabled in Simple mode')
+                    elif sxtools.selectedlayer > 7:
+                        if scene.expandfill:
+                            box_fill.label(text='Select Layer 1-7 to apply PBR materials')
                     else:
                         materials = context.scene.sxmaterials
 
@@ -8281,10 +8295,8 @@ if __name__ == '__main__':
 
 
 # TODO:
-# BUG: update_material_layer functions generate errors
-# BUG: Material tool layer filling rules need re-working
-# BUG: Material tool should not force layer locking
-# BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material
+# BUG: Browsing layers with the Material tool overrides them with wrong colors
+# BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
 # BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
 # FEAT: Strip redundant custom props prior to exporting
