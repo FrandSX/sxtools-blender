@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 16),
+    'version': (5, 5, 17),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -348,7 +348,6 @@ class SXTOOLS_utils(object):
 
 
     def mode_manager(self, objs, set_mode=False, revert=False, mode_id=None):
-        print('mode manager called')
         if set_mode:
             if sxglobals.modeID == None:
                 sxglobals.modeID = mode_id
@@ -497,7 +496,6 @@ class SXTOOLS_utils(object):
 
 
     def find_colors_by_frequency(self, objs, layer, numcolors=None, masklayer=None, obj_sel_override=False):
-        print('find colors by freq')
         colorArray = []
 
         for obj in objs:
@@ -2491,7 +2489,10 @@ class SXTOOLS_layers(object):
 
         for i, idx in enumerate(layers):
             layer = objs[0].sxlayers[idx]
-            masklayer = utils.find_layer_from_index(objs[0], layers[0])
+            if sxglobals.mode == 'EDIT':
+                masklayer = None
+            else:
+                masklayer = utils.find_layer_from_index(objs[0], layers[0])
             layercolors = utils.find_colors_by_frequency(objs, layer, 8, masklayer=masklayer)
             tabcolor = getattr(scene, 'newmaterial' + str(i))
 
@@ -4350,7 +4351,6 @@ def refresh_actives(self, context):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
-        print('refreshing actives!')
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
         mode = context.scene.sxtools.shadingmode
@@ -4974,6 +4974,7 @@ def update_material_layer(self, context, index):
 
         for obj in objs:
             if not utils.color_compare(modecolor, pbr_values[index]):
+                print('changing materialcolor')
                 if sxglobals.mode == 'EDIT':
                     tools.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], color=pbr_values[index])
                 else:
@@ -6925,7 +6926,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         if len(objs) > 0:
             mode = objs[0].mode
             if mode != sxglobals.prevMode:
-                print('selectionmonitor: mode change')
+                # print('selectionmonitor: mode change')
                 sxglobals.prevMode = mode
                 refresh_actives(self, context)
                 return {'PASS_THROUGH'}
@@ -6938,7 +6939,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
                 # print('selectionmonitor: componentselection ', selection)
 
                 if selection != sxglobals.prevComponentSelection:
-                    print('selectionmonitor: component selection changed')
+                    # print('selectionmonitor: component selection changed')
                     sxglobals.prevComponentSelection = selection
                     refresh_actives(self, context)
                     return {'PASS_THROUGH'}
@@ -8306,7 +8307,6 @@ if __name__ == '__main__':
 # BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
-# BUG: Material channels visibility needs two clicks to work (initial Fac wrong? custom prop missing?)
 # FEAT: Strip redundant custom props prior to exporting
 #
 # Selection monitor:
