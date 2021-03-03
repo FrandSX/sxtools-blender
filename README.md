@@ -99,7 +99,7 @@ UV7 | Currently not in use
 Vertex colors are exported from the Composite/VertexColor0 layer. Material properties are assigned according to the list above.
 Note that emission is only an 8-bit mask for base vertex color, not a full RGBA-channel.
 
-(c) 2017-2020 Jani Kahrama / Secret Exit Ltd.
+(c) 2017-2021 Jani Kahrama / Secret Exit Ltd.
 
 
 # Acknowledgments
