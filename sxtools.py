@@ -8316,7 +8316,6 @@ if __name__ == '__main__':
 # - selection monitor starts only after a layer change following a context loss
 #
 # Performance:
-# - update_palette_layer does a blend pass
 # - Limit UV4 clear workload (currently 4 passes)
 # - Full GPU compositing of Layers 1-10
 # - GPU alpha accumulation
