@@ -33,6 +33,7 @@ class SXTOOLS_sxglobals(object):
         self.librariesLoaded = False
         self.refreshInProgress = False
         self.hslUpdate = False
+        self.matUpdate = False
         self.modalStatus = False
         self.composite = False
         self.copyLayer = None
@@ -347,6 +348,7 @@ class SXTOOLS_utils(object):
 
 
     def mode_manager(self, objs, set_mode=False, revert=False, mode_id=None):
+        print('mode manager called')
         if set_mode:
             if sxglobals.modeID == None:
                 sxglobals.modeID = mode_id
@@ -4345,7 +4347,6 @@ def update_layers(self, context):
 
 
 def refresh_actives(self, context):
-    print('refresh actives called')
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
@@ -4562,7 +4563,6 @@ def selection_validator(self, context):
     for obj in context.view_layer.objects.selected:
         if obj.type == 'MESH' and obj.hide_viewport is False:
             selObjs.append(obj)
-
     return selObjs
 
 
@@ -4938,8 +4938,8 @@ def update_palette_layer(self, context, index):
 
 
 def update_material_layer(self, context, index):
-    if not sxglobals.refreshInProgress:
-        sxglobals.refreshInProgress = True
+    if not sxglobals.matUpdate:
+        sxglobals.matUpdate = True
 
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
@@ -4981,13 +4981,12 @@ def update_material_layer(self, context, index):
 
                 setattr(scene, 'newmaterial' + str(index), pbr_values[index])
 
+        utils.mode_manager(objs, revert=True, mode_id='update_material_layer')
+        sxglobals.matUpdate = False
+
         if index == 0:
             sxglobals.composite = True
-
-        sxglobals.refreshInProgress = False
-        utils.mode_manager(objs, revert=True, mode_id='update_material_layer')
-
-        refresh_actives(self, context)
+    refresh_actives(self, context)
 
 
 def update_fillcolor(self, context):
@@ -6917,59 +6916,53 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
             sxglobals.modalStatus = False
             return {'CANCELLED'}
 
-        if (event.type == 'LEFTMOUSE') and (event.value == 'RELEASE'):
-            print('selectionmonitor: click detected')
+        if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
+            sxglobals.librariesLoaded = False
+            load_libraries(self, context)
+            return {'PASS_THROUGH'}
 
-            if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
-                sxglobals.librariesLoaded = False
+        objs = selection_validator(self, context)
+        if len(objs) > 0:
+            mode = objs[0].mode
+            if mode != sxglobals.prevMode:
+                print('selectionmonitor: mode change')
+                sxglobals.prevMode = mode
+                refresh_actives(self, context)
+                return {'PASS_THROUGH'}
 
-            if not sxglobals.librariesLoaded:
-                load_libraries(self, context)
+            if (objs[0].mode == 'EDIT'):
+                objs[0].update_from_editmode()
+                mesh = objs[0].data
+                selection = [None] * len(mesh.vertices)
+                mesh.vertices.foreach_get('select', selection)
+                # print('selectionmonitor: componentselection ', selection)
 
-            objs = selection_validator(self, context)
-            if len(objs) > 0:
-                mode = objs[0].mode
-                if mode != sxglobals.prevMode:
-                    print('selectionmonitor: mode change')
-                    sxglobals.prevMode = mode
+                if selection != sxglobals.prevComponentSelection:
+                    print('selectionmonitor: component selection changed')
+                    sxglobals.prevComponentSelection = selection
                     refresh_actives(self, context)
                     return {'PASS_THROUGH'}
                 else:
-                    if (objs[0].mode == 'EDIT'):
-                        print('checking clickeroo')
-                        objs[0].update_from_editmode()
-                        mesh = objs[0].data
-                        selection = [None] * len(mesh.vertices)
-                        mesh.vertices.foreach_get('select', selection)
+                    return {'PASS_THROUGH'}
+            else:
+                selection = context.view_layer.objects.selected.keys()
+                # print('selectionmonitor: selection ', selection)
 
-                        if selection != sxglobals.prevComponentSelection:
-                            print('selectionmonitor: component selection changed')
-                            # utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
-                            sxglobals.prevComponentSelection = selection
-                            refresh_actives(self, context)
-                            # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
-                            return {'PASS_THROUGH'}
-                        else:
-                            # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
-                            return {'PASS_THROUGH'}
-                    else:
-                        selection = context.view_layer.objects.selected.keys()
+                if selection != sxglobals.prevSelection:
+                    # print('selectionmonitor: object selection changed')
+                    sxglobals.prevSelection = selection[:]
+                    if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
+                        refresh_actives(self, context)
+                    return {'PASS_THROUGH'}
+                else:
+                    return {'PASS_THROUGH'}
 
-                        if selection != sxglobals.prevSelection:
-                            print('selectionmonitor: object selection changed')
-                            sxglobals.prevSelection = context.view_layer.objects.selected.keys()
-                            if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
-                                refresh_actives(self, context)
-                            # return {'PASS_THROUGH'}
-                            return {'RUNNING_MODAL'}
-                        else:
-                            return {'PASS_THROUGH'}
-        else:
-            return {'PASS_THROUGH'}
+        return {'PASS_THROUGH'}
 
 
     def invoke(self, context, event):
-        sxglobals.prevSelection = context.view_layer.objects.selected.keys()
+        # bpy.app.timers.register(lambda: 0.01 if 'PASS_THROUGH' in self.modal(context, event) else None)
+        sxglobals.prevSelection = context.view_layer.objects.selected.keys()[:]
         context.window_manager.modal_handler_add(self)
         print('SX Tools: Starting selection monitor')
         return {'RUNNING_MODAL'}
