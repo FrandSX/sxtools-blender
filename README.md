@@ -1,5 +1,5 @@
 # sxtools-blender
-NOTE: This readme is partially out of date. Please visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6)
+NOTE: Please visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6) This readme is partially out of date.
 
 ## For Game Developers
 SX Tools is a lightweight content pipeline for vertex-colored assets that drive PBR (Physically Based Rendering) materials in a game. This tool ships with baseline shader networks for Unreal and Unity.
@@ -28,7 +28,7 @@ The artist can therefore apply per-vertex occlusion/metallic/smoothness/transmis
 - Quick-crease tools
 - Modifier automations
 - Material channel editing via UV channel values (subsurface scattering, occlusion, metallic, roughness)
-- Exporting vertex-colors to Unity via UV channels to drive the standard PBR material
+- FBX-exporting multi-layer vertex-colors to game engines via UV channels to drive the standard PBR material
 
 ## Installation:
 - Download the zip file, uncompress it, then install and enable sxtools.py through the Blender add-on interface
@@ -57,13 +57,11 @@ Now would be a good time to visit the new [Documentation Site](https://www.notio
 
 ![Step Three](/images/sxtools-03.png)
 
-7) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the gradient tool.
+7) The default view of SX Tools is now active. Think of your favorite 2D paint tool. Click on layers, apply colors to objects or components, get familiar with the available tools.
 
 ![Step Four](/images/sxtools-04.png)
 
 8) After some familiarization, you'll be able to create rapid color variants of your game assets in no time.
-
-NOTE: Relative paths may cause issues with export paths in SX Tool. Setting "Save&Load -> Relative Paths" to disabled is recommended.
 
 
 ## Exporting to Game Engines
