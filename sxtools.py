@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 17),
+    'version': (5, 5, 18),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2483,7 +2483,6 @@ class SXTOOLS_layers(object):
 
 
     def material_layers_to_values(self, objs):
-        print('material layers to values')
         scene = bpy.context.scene.sxtools
         layers = [objs[0].sxtools.selectedlayer, 12, 13]
 
@@ -4972,15 +4971,13 @@ def update_material_layer(self, context, index):
         else:
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
 
-        for obj in objs:
-            if not utils.color_compare(modecolor, pbr_values[index]):
-                print('changing materialcolor')
-                if sxglobals.mode == 'EDIT':
-                    tools.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], color=pbr_values[index])
-                else:
-                    tools.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], masklayer=obj.sxlayers[layer_ids[0]], color=pbr_values[index])
+        if not utils.color_compare(modecolor, pbr_values[index]):
+            if sxglobals.mode == 'EDIT':
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], color=pbr_values[index])
+            else:
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], masklayer=objs[0].sxlayers[layer_ids[0]], color=pbr_values[index])
 
-                setattr(scene, 'newmaterial' + str(index), pbr_values[index])
+            setattr(scene, 'newmaterial' + str(index), pbr_values[index])
 
         utils.mode_manager(objs, revert=True, mode_id='update_material_layer')
         sxglobals.matUpdate = False
