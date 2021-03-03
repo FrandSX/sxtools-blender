@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 15),
+    'version': (5, 5, 16),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -495,6 +495,7 @@ class SXTOOLS_utils(object):
 
 
     def find_colors_by_frequency(self, objs, layer, numcolors=None, masklayer=None, obj_sel_override=False):
+        print('find colors by freq')
         colorArray = []
 
         for obj in objs:
@@ -2482,6 +2483,7 @@ class SXTOOLS_layers(object):
 
 
     def material_layers_to_values(self, objs):
+        print('material layers to values')
         scene = bpy.context.scene.sxtools
         layers = [objs[0].sxtools.selectedlayer, 12, 13]
 
@@ -4343,9 +4345,11 @@ def update_layers(self, context):
 
 
 def refresh_actives(self, context):
+    print('refresh actives called')
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
+        print('refreshing actives!')
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
         mode = context.scene.sxtools.shadingmode
@@ -4923,7 +4927,6 @@ def update_palette_layer(self, context, index):
     if color != modecolor:
         bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor' + str(index)].outputs[0].default_value = color
 
-        
         for obj in objs:
             colors = generate.color_list(obj, color, masklayer=layer)
 
@@ -4938,13 +4941,12 @@ def update_material_layer(self, context, index):
     if not sxglobals.refreshInProgress:
         sxglobals.refreshInProgress = True
 
-        utils.mode_manager(objs, set_mode=True, mode_id='update_material_layer')
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
+        utils.mode_manager(objs, set_mode=True, mode_id='update_material_layer')
         layer = utils.find_layer_from_index(objs[0], objs[0].sxtools.selectedlayer)
         layer_ids = [objs[0].sxtools.selectedlayer, 'metallic', 'smoothness']
         pbr_values = [scene.newmaterial0, scene.newmaterial1, scene.newmaterial2]
-        modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
         scene.toolopacity = 1.0
         scene.toolblend = 'ALPHA'
 
@@ -4965,14 +4967,19 @@ def update_material_layer(self, context, index):
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
                     color = (rgb[0], rgb[1], rgb[2], 1.0)
 
+        if sxglobals.mode == 'EDIT':
+            modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1)[0]
+        else:
+            modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
+
         for obj in objs:
             if not utils.color_compare(modecolor, pbr_values[index]):
                 if sxglobals.mode == 'EDIT':
-                    self.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], color=pbr_values[index])
+                    tools.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], color=pbr_values[index])
                 else:
-                    self.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], masklayer=obj.sxlayers[layer_ids[0]], color=pbr_values[index])
+                    tools.apply_tool([obj, ], obj.sxlayers[layer_ids[index]], masklayer=obj.sxlayers[layer_ids[0]], color=pbr_values[index])
 
-                setattr(scene, 'newmaterial' + str(index), color)
+                setattr(scene, 'newmaterial' + str(index), pbr_values[index])
 
         if index == 0:
             sxglobals.composite = True
@@ -6910,45 +6917,53 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
             sxglobals.modalStatus = False
             return {'CANCELLED'}
 
-        if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
-            sxglobals.librariesLoaded = False
+        if (event.type == 'LEFTMOUSE') and (event.value == 'RELEASE'):
+            print('selectionmonitor: click detected')
 
-        if not sxglobals.librariesLoaded:
-            load_libraries(self, context)
+            if (len(sxglobals.masterPaletteArray) == 0) or (len(sxglobals.materialArray) == 0) or (len(sxglobals.rampDict) == 0) or (len(sxglobals.categoryDict) == 0):
+                sxglobals.librariesLoaded = False
 
-        objs = selection_validator(self, context)
-        if len(objs) > 0:
-            mode = objs[0].mode
-            if mode != sxglobals.prevMode:
-                sxglobals.prevMode = mode
-                refresh_actives(self, context)
-                return {'PASS_THROUGH'}
-            else:
-                if objs[0].mode == 'EDIT':
-                    objs[0].update_from_editmode()
-                    mesh = objs[0].data
-                    selection = [None] * len(mesh.vertices)
-                    mesh.vertices.foreach_get('select', selection)
+            if not sxglobals.librariesLoaded:
+                load_libraries(self, context)
 
-                    if selection != sxglobals.prevComponentSelection:
-                        utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
-                        sxglobals.prevComponentSelection = selection
-                        refresh_actives(self, context)
-                        utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
-                        return {'PASS_THROUGH'}
-                    else:
-                        # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
-                        return {'PASS_THROUGH'}
+            objs = selection_validator(self, context)
+            if len(objs) > 0:
+                mode = objs[0].mode
+                if mode != sxglobals.prevMode:
+                    print('selectionmonitor: mode change')
+                    sxglobals.prevMode = mode
+                    refresh_actives(self, context)
+                    return {'PASS_THROUGH'}
                 else:
-                    selection = context.view_layer.objects.selected.keys()
+                    if (objs[0].mode == 'EDIT'):
+                        print('checking clickeroo')
+                        objs[0].update_from_editmode()
+                        mesh = objs[0].data
+                        selection = [None] * len(mesh.vertices)
+                        mesh.vertices.foreach_get('select', selection)
 
-                    if selection != sxglobals.prevSelection:
-                        sxglobals.prevSelection = context.view_layer.objects.selected.keys()
-                        if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
+                        if selection != sxglobals.prevComponentSelection:
+                            print('selectionmonitor: component selection changed')
+                            # utils.mode_manager(objs, set_mode=True, mode_id='selectionmonitor')
+                            sxglobals.prevComponentSelection = selection
                             refresh_actives(self, context)
-                        return {'PASS_THROUGH'}
+                            # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
+                            return {'PASS_THROUGH'}
+                        else:
+                            # utils.mode_manager(objs, revert=True, mode_id='selectionmonitor')
+                            return {'PASS_THROUGH'}
                     else:
-                        return {'PASS_THROUGH'}
+                        selection = context.view_layer.objects.selected.keys()
+
+                        if selection != sxglobals.prevSelection:
+                            print('selectionmonitor: object selection changed')
+                            sxglobals.prevSelection = context.view_layer.objects.selected.keys()
+                            if (selection is not None) and (len(selection) > 0) and (len(context.view_layer.objects[selection[0]].sxlayers) > 0):
+                                refresh_actives(self, context)
+                            # return {'PASS_THROUGH'}
+                            return {'RUNNING_MODAL'}
+                        else:
+                            return {'PASS_THROUGH'}
         else:
             return {'PASS_THROUGH'}
 
@@ -8302,6 +8317,7 @@ if __name__ == '__main__':
 # FEAT: Strip redundant custom props prior to exporting
 #
 # Selection monitor:
+# - Selection changes are noticed only after mouse pointer moves (not at the click)
 # - Lock list and visibility list sync after selection monitor activates
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
