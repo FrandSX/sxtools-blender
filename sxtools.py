@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 5, 18),
+    'version': (5, 6, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1773,7 +1773,7 @@ class SXTOOLS_generate(object):
             return None
 
 
-    def mask_list(self, obj, colors, masklayer=None, as_tuple=False):
+    def mask_list(self, obj, colors, masklayer=None, as_tuple=False, override_mask=False):
         count = len(colors)//4
 
         if (masklayer is None) and (sxglobals.mode == 'OBJECT'):
@@ -1801,10 +1801,17 @@ class SXTOOLS_generate(object):
                 return rgba
             else:
                 color_list = [None, None, None, None] * count
-                for i in range(count):
-                    color = colors[(0+i*4):(4+i*4)]
-                    color[3] *= mask[i]
-                    color_list[(0+i*4):(4+i*4)] = color
+                if override_mask:
+                    for i in range(count):
+                        color = colors[(0+i*4):(4+i*4)]
+                        color[3] = mask[i]
+                        color_list[(0+i*4):(4+i*4)] = color
+                else:
+                    for i in range(count):
+                        color = colors[(0+i*4):(4+i*4)]
+                        color[3] *= mask[i]
+                        color_list[(0+i*4):(4+i*4)] = color
+
                 return color_list
 
 
@@ -2431,6 +2438,11 @@ class SXTOOLS_layers(object):
                 layer2_colors = layers.get_layer(obj, targetLayer)
                 layers.set_layer(obj, layer1_colors, targetLayer)
                 layers.set_layer(obj, layer2_colors, sourceLayer)
+        elif fillMode == 'mask':
+            for obj in objs:
+                colors = layers.get_layer(obj, targetLayer)
+                sourcevalues = generate.mask_list(obj, colors, sourceLayer, override_mask=True)
+                layers.set_layer(obj, sourcevalues, targetLayer)
         else:
             for obj in objs:
                 sourcevalues = layers.get_layer(obj, sourceLayer)
@@ -6370,34 +6382,29 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_list.template_list('SXTOOLS_UL_layerlist', 'sxtools.layerlist', obj, 'sxlayers', sxtools, 'selectedlayer', type='DEFAULT')
 
                 # Layer Copy Paste Merge ---------------------------------------
+                copy_text = 'Copy'
+                clr_text = 'Clear'
+                paste_text = 'Paste'
+                sel_text = 'Select Mask'
+
+                if scene.shift:
+                    clr_text = 'Reset All'
+                    paste_text = 'Swap'
+                    sel_text = 'Select Inverse'
+                elif scene.alt:
+                    paste_text = 'Merge Into'
+                elif scene.ctrl:
+                    sel_text = 'Select Color'
+                    paste_text = 'Paste Alpha'
+
                 col_misc = layout.column(align=True)
                 row_misc1 = col_misc.row(align=True)
                 row_misc1.operator('sxtools.mergeup')
-                if sxglobals.copyLayer is None:
-                    copy_text = 'Copy'
-                else:
-                    copy_text = 'Copy'
                 row_misc1.operator('sxtools.copylayer', text=copy_text)
-                if not scene.shift:
-                    clr_text = 'Clear'
-                else:
-                    clr_text = 'Reset All'
                 row_misc1.operator('sxtools.clear', text=clr_text)
                 row_misc2 = col_misc.row(align=True)
                 row_misc2.operator('sxtools.mergedown')
-                if scene.alt:
-                    paste_text = 'Merge Into'
-                elif scene.shift:
-                    paste_text = 'Swap'
-                else:
-                    paste_text = 'Paste'
                 row_misc2.operator('sxtools.pastelayer', text=paste_text)
-                if not scene.shift and not scene.ctrl:
-                    sel_text = 'Select Mask'
-                elif not scene.shift and scene.ctrl:
-                    sel_text = 'Select Color'
-                else:
-                    sel_text = 'Select Inverse'
                 row_misc2.operator('sxtools.selmask', text=sel_text)
 
                 # Fill Tools --------------------------------------------------------
@@ -7504,6 +7511,8 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 
             elif event.shift:
                 mode = 'swap'
+            elif event.ctrl:
+                mode = 'mask'
             else:
                 mode = False
 
