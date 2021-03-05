@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 0),
+    'version': (5, 6, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -657,8 +657,9 @@ class SXTOOLS_setup(object):
 
 
     def start_modal(self):
-        bpy.ops.sxtools.selectionmonitor('INVOKE_DEFAULT')
-        bpy.ops.sxtools.keymonitor('INVOKE_DEFAULT')
+        # if not bpy.app.background:
+        bpy.ops.sxtools.selectionmonitor('EXEC_DEFAULT')
+        bpy.ops.sxtools.keymonitor('EXEC_DEFAULT')
         sxglobals.modalStatus = True
 
 
@@ -5022,7 +5023,8 @@ def message_box(message='', title='SX Tools', icon='INFO'):
         for line in messageLines:
             self.layout.label(text=line)
 
-    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+    if not bpy.app.background:
+        bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
 def expand_element(self, context, element):
@@ -5087,7 +5089,7 @@ def load_post_handler(dummy):
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
             if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
-                bpy.ops.sxtools.resetmaterial('INVOKE_DEFAULT')
+                # bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
                 print('SX Tools: Updated SXMaterial')
                 break
 
@@ -6965,6 +6967,10 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
 
+    def execute(self, context):
+        return self.invoke(context, None) 
+
+
     def invoke(self, context, event):
         # bpy.app.timers.register(lambda: 0.01 if 'PASS_THROUGH' in self.modal(context, event) else None)
         sxglobals.prevSelection = context.view_layer.objects.selected.keys()[:]
@@ -7016,6 +7022,10 @@ class SXTOOLS_OT_keymonitor(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
+    def execute(self, context):
+        return self.invoke(context, None) 
+
+
     def invoke(self, context, event):
         context.window_manager.modal_handler_add(self)
         print('SX Tools: Starting key monitor')
@@ -7050,6 +7060,10 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
     bl_label = 'Remove Ramp Preset'
     bl_description = 'Delete ramp preset from Gradient Library'
     bl_options = {'UNDO'}
+
+
+    def execute(self, context):
+        return self.invoke(context, None) 
 
 
     def invoke(self, context, event):
@@ -7798,12 +7812,16 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_description = 'Saves FBX files of multi-part objects\nAll EMPTY-type groups at root based on selection are exported\nShift-click to export all SX Tools objects in the scene'
 
 
+    def execute(self, context):
+        return self.invoke(context, None) 
+
+
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
         viewlayer = context.view_layer
         selected = None
 
-        if event.shift:
+        if (event is not None) and (event.shift):
             setup.create_sxcollection()
             selected = bpy.data.collections['SXObjects'].all_objects
             if context.scene.sxtools.exportquality == 'LO':
@@ -7930,6 +7948,10 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
     bl_options = {'UNDO'}
 
 
+    def execute(self, context):
+        return self.invoke(context, None) 
+
+
     def invoke(self, context, event):
         sxMatObjs = []
         default_colors = [(1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0)]
@@ -8011,6 +8033,10 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
     bl_idname = 'sxtools.loadlibraries'
     bl_label = 'Load Libraries'
     bl_description = 'Loads SX Tools libraries of\npalettes, materials, gradients and categories'
+
+
+    def execute(self, context):
+        return self.invoke(context, None) 
 
 
     def invoke(self, context, event):
@@ -8102,6 +8128,10 @@ class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
     bl_options = {'UNDO'}
 
 
+    def execute(self, context):
+        return self.invoke(context, None) 
+
+
     def invoke(self, context, event):
         setup.create_sxcollection()
 
@@ -8154,6 +8184,10 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
         else:
             modeString += 'Batch process:\nCalculates material channels according to category'
         return modeString
+
+
+    def execute(self, context):
+        return self.invoke(context, None) 
 
 
     def invoke(self, context, event):
@@ -8254,6 +8288,7 @@ addon_keymaps = []
 
 
 def register():
+    print('registering sxtools')
     from bpy.utils import register_class
     for cls in classes:
         register_class(cls)
