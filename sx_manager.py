@@ -1,6 +1,7 @@
 import subprocess
 import multiprocessing # from multiprocessing import Process
 import pathlib
+import time
 from multiprocessing import Pool
 import os
 from os import listdir
@@ -24,11 +25,11 @@ def sx_process(sourcefile):
     subprocess.run(batch_args)
 
 if __name__ == '__main__':
-    # p = Process(target=sx_process, args=('bob',))
-    # p.start()
-    # p.join()
+    then = time.time()
 
     with Pool(processes=num_cores) as pool:
         pool.map(sx_process, source_files)
 
-    print("SX Batch Export Finished!")
+    now = time.time()
+    print('SX Batch Export: ', now-then, ' seconds')
+    print('Objects exported: ', len(source_files))

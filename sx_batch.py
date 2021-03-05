@@ -26,3 +26,6 @@ bpy.ops.sxtools.macro('EXEC_DEFAULT')
 
 # export scene
 bpy.ops.sxtools.exportfiles('EXEC_DEFAULT')
+
+# exit
+bpy.ops.wm.quit_blender('EXEC_DEFAULT')
