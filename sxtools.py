@@ -5086,12 +5086,13 @@ def load_post_handler(dummy):
             else:
                  bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
-    for obj in bpy.data.objects:
-        if (len(obj.sxtools.keys()) > 0):
-            if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
-                # bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
-                print('SX Tools: Updated SXMaterial')
-                break
+    if not bpy.app.background:
+        for obj in bpy.data.objects:
+            if (len(obj.sxtools.keys()) > 0):
+                if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
+                    bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
+                    print('SX Tools: Updated SXMaterial')
+                    break
 
     setup.start_modal()
 
@@ -8288,7 +8289,6 @@ addon_keymaps = []
 
 
 def register():
-    print('registering sxtools')
     from bpy.utils import register_class
     for cls in classes:
         register_class(cls)
