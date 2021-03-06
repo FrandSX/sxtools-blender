@@ -4,6 +4,7 @@ import codecs
 import multiprocessing
 import pathlib
 import time
+import json
 from multiprocessing import Pool
 import os
 from os import listdir
@@ -13,16 +14,10 @@ num_cores = multiprocessing.cpu_count()
 
 blender_path = '/Applications/Blender.app/Contents/MacOS/Blender' # r'C:\Program Files\Blender Foundation\Blender 2.92\blender'
 batch_path = '/Users/frand/Documents/sxtools-blender/sx_batch.py' # r'E:\work\sxtools-blender\sx_batch.py'
+asset_path = '/Users/frand/Documents/sxtools-blender/sx_assets.json'
 export_path = '/Users/frand/Desktop/exports/' # r'D:\exports\\'
-source_path = '/Users/frand/Desktop/cages' # r'D:\cages'
-source_files = [str(source_path + os.sep + f) for f in listdir(source_path) if isfile(join(source_path, f))]
-# print(source_files)
-
-asset_dict = {}
-# category
-# - name
-#   - filename
-#   - tags?
+# source_path = '/Users/frand/Desktop/cages' # r'D:\cages'
+# 
 
 
 def get_args():
@@ -30,33 +25,28 @@ def get_args():
 
     # get all script args
     _, all_arguments = parser.parse_known_args()
-    double_dash_index = all_arguments.index('--')
-    script_args = all_arguments[double_dash_index + 1: ]
+    script_args = all_arguments[ : ]
 
     # add parser rules
+    parser.add_argument('-d', '--folder', help='Asset Folder')
     parser.add_argument('-c', '--category', help='Asset Category')
     parser.add_argument('-n', '--name', help='Asset by Name')
     parser.add_argument('-f', '--filename', help='Asset by Filename')
     parser.add_argument('-t', '--tag', help='Asset by Tag')
+    parser.add_argument('-e', '--exportpath', help='Export path')
     parsed_script_args, _ = parser.parse_known_args(script_args)
     return parsed_script_args
 
 
-# Step 1: Load Assets
-def load_asset_data(self):
-    file_path = source_path + 'sx_assets.json'
-
-    if len(source_path) > 0:
+def load_asset_data():
+    if len(asset_path) > 0:
         try:
-            with open(file_path, 'r') as input:
+            with open(asset_path, 'r') as input:
                 temp_dict = {}
                 temp_dict = json.load(input)
-                asset_dict.clear()
-                asset_dict = temp_dict
-
                 input.close()
-            print('SX Tools: Asset Registry loaded from ' + file_path)
-            return True
+            print('SX Tools: Asset Registry loaded from ' + asset_path)
+            return temp_dict
         except ValueError:
             print('SX Tools Error: Invalid Asset Registry file.')
             return False
@@ -68,14 +58,6 @@ def load_asset_data(self):
         return False
 
 
-# Step 2: Prepare source files according to args
-args = get_args()
-
-
-
-
-
-# Step 3: Launch batch export
 def sx_process(sourcefile):
     # -d for debug
     batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", batch_path, "--", "-x", export_path]
@@ -86,6 +68,45 @@ def sx_process(sourcefile):
 
 
 if __name__ == '__main__':
+    # Step 1: Load Assets
+    asset_dict = load_asset_data()
+
+    # Step 2: Prepare source files according to args
+    args = get_args()
+    folder = str(args.folder)
+    category = str(args.category)
+    name = str(args.name)
+    filename = str(args.filename)
+    tag = str(args.tag)
+    # print('args: ', args)
+
+    source_files = []
+    if args.folder is not None:
+        source_files = [str(folder + os.sep + f) for f in listdir(folder) if isfile(join(folder, f))]
+    elif args.category is not None:
+        if category in asset_dict.keys():
+            for value in asset_dict[category].values():
+                source_files.append(value[0])
+    elif args.name is not None:
+        for category in asset_dict.keys():
+            if name in asset_dict[category].keys():
+                source_files.append(asset_dict[category][name][0])
+    elif args.filename is not None:
+        for category in asset_dict.keys():
+            for name, values in asset_dict[category].items():
+                for value in values:
+                    if filename in value:
+                        source_files.append(asset_dict[category][name][0])
+    else:
+        for category in asset_dict.keys():
+            for value in asset_dict[category].values():
+                source_files.append(value[0])
+
+    print('Source files: ')
+    for file in source_files:
+        print(file)
+
+    # Step 3: Launch batch export
     then = time.time()
     print('SX Batch: Spawning', num_cores, 'workers')
 
