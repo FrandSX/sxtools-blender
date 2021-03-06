@@ -1,3 +1,4 @@
+import argparse
 import subprocess
 import codecs
 import multiprocessing
@@ -18,8 +19,30 @@ source_files = [str(source_path + os.sep + f) for f in listdir(source_path) if i
 # print(source_files)
 
 asset_dict = {}
+# category
+# - name
+#   - filename
+#   - tags?
 
 
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    # get all script args
+    _, all_arguments = parser.parse_known_args()
+    double_dash_index = all_arguments.index('--')
+    script_args = all_arguments[double_dash_index + 1: ]
+
+    # add parser rules
+    parser.add_argument('-c', '--category', help='Asset Category')
+    parser.add_argument('-n', '--name', help='Asset by Name')
+    parser.add_argument('-f', '--filename', help='Asset by Filename')
+    parser.add_argument('-t', '--tag', help='Asset by Tag')
+    parsed_script_args, _ = parser.parse_known_args(script_args)
+    return parsed_script_args
+
+
+# Step 1: Load Assets
 def load_asset_data(self):
     file_path = source_path + 'sx_assets.json'
 
@@ -45,6 +68,14 @@ def load_asset_data(self):
         return False
 
 
+# Step 2: Prepare source files according to args
+args = get_args()
+
+
+
+
+
+# Step 3: Launch batch export
 def sx_process(sourcefile):
     # -d for debug
     batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", batch_path, "--", "-x", export_path]
