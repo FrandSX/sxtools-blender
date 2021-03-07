@@ -93,6 +93,12 @@ if __name__ == '__main__':
                 for value in values:
                     if filename in value:
                         source_files.append(asset_dict[category][name][0])
+    elif args.tag is not None:
+        for category in asset_dict.keys():
+            for name, values in asset_dict[category].items():
+                for value in values:
+                    if tag in value:
+                        source_files.append(asset_dict[category][name][0])
     else:
         for category in asset_dict.keys():
             for value in asset_dict[category].values():
