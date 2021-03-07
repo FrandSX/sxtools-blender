@@ -5,19 +5,23 @@ import multiprocessing
 import pathlib
 import time
 import json
+import platform
 from multiprocessing import Pool
 import os
 from os import listdir
 from os.path import isfile, join
 
-num_cores = multiprocessing.cpu_count()
 
-blender_path = '/Applications/Blender.app/Contents/MacOS/Blender' # r'C:\Program Files\Blender Foundation\Blender 2.92\blender'
-batch_path = '/Users/frand/Documents/sxtools-blender/sx_batch.py' # r'E:\work\sxtools-blender\sx_batch.py'
-asset_path = '/Users/frand/Documents/sxtools-blender/sx_assets.json'
+platform = platform.system()
+if platform == 'Windows':
+    blender_path = r'C:\Program Files\Blender Foundation\Blender 2.92\blender'
+elif platform == 'Darwin':
+    blender_path = '/Applications/Blender.app/Contents/MacOS/Blender'
+elif platform == 'Linux':
+    blender_path = ''
 export_path = '/Users/frand/Desktop/exports/' # r'D:\exports\\'
-# source_path = '/Users/frand/Desktop/cages' # r'D:\cages'
-# 
+script_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_batch.py')
+asset_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_assets.json')
 
 
 def get_args():
@@ -30,7 +34,6 @@ def get_args():
     parser.add_argument('-e', '--exportpath', help='Export path')
     parser.add_argument('-l', '--listonly', action='store_true', help='Do not export, only list objects that match the other arguments')
     all_arguments, ignored = parser.parse_known_args()
-    # print('all_args: ', all_arguments)
     return all_arguments
 
 
@@ -56,7 +59,7 @@ def load_asset_data():
 
 def sx_process(sourcefile):
     # -d for debug
-    batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", batch_path, "--", "-x", export_path]
+    batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", script_path, "--", "-x", export_path]
 
     # subprocess.run(batch_args)
     with codecs.open(os.devnull, 'wb', encoding='utf8') as devnull:
@@ -75,6 +78,9 @@ if __name__ == '__main__':
     name = str(args.name)
     filename = str(args.filename)
     tag = str(args.tag)
+
+    if args.exportpath is not None:
+        export_path = str(args.exportpath)
 
     source_files = []
     if args.folder is not None:
@@ -110,6 +116,8 @@ if __name__ == '__main__':
 
     # Step 3: Launch batch export
     if not args.listonly:
+        num_cores = multiprocessing.cpu_count()
+
         then = time.time()
         print('SX Batch: Spawning', num_cores, 'workers')
 
