@@ -22,20 +22,16 @@ export_path = '/Users/frand/Desktop/exports/' # r'D:\exports\\'
 
 def get_args():
     parser = argparse.ArgumentParser()
-
-    # get all script args
-    _, all_arguments = parser.parse_known_args()
-    script_args = all_arguments[ : ]
-
-    # add parser rules
-    parser.add_argument('-d', '--folder', help='Asset Folder')
-    parser.add_argument('-c', '--category', help='Asset Category')
-    parser.add_argument('-n', '--name', help='Asset by Name')
-    parser.add_argument('-f', '--filename', help='Asset by Filename')
-    parser.add_argument('-t', '--tag', help='Asset by Tag')
+    parser.add_argument('-d', '--folder', help='Export all objects from folder (bypasses the Asset Library')
+    parser.add_argument('-c', '--category', help='Export all objects in a category (Default, Paletted...')
+    parser.add_argument('-n', '--name', help='Export an object by name')
+    parser.add_argument('-f', '--filename', help='Export an object by filename')
+    parser.add_argument('-t', '--tag', help='Export all tagged objects')
     parser.add_argument('-e', '--exportpath', help='Export path')
-    parsed_script_args, _ = parser.parse_known_args(script_args)
-    return parsed_script_args
+    parser.add_argument('-l', '--listonly', action='store_true', help='Do not export, only list objects that match the other arguments')
+    all_arguments, ignored = parser.parse_known_args()
+    # print('all_args: ', all_arguments)
+    return all_arguments
 
 
 def load_asset_data():
@@ -73,12 +69,12 @@ if __name__ == '__main__':
 
     # Step 2: Prepare source files according to args
     args = get_args()
+
     folder = str(args.folder)
     category = str(args.category)
     name = str(args.name)
     filename = str(args.filename)
     tag = str(args.tag)
-    # print('args: ', args)
 
     source_files = []
     if args.folder is not None:
@@ -107,13 +103,14 @@ if __name__ == '__main__':
         print(file)
 
     # Step 3: Launch batch export
-    then = time.time()
-    print('SX Batch: Spawning', num_cores, 'workers')
+    if not args.listonly:
+        then = time.time()
+        print('SX Batch: Spawning', num_cores, 'workers')
 
-    with Pool(processes=num_cores) as pool:
-        pool.map(sx_process, source_files)
+        with Pool(processes=num_cores) as pool:
+            pool.map(sx_process, source_files)
 
-    now = time.time()
-    print('SX Batch Export Finished!')
-    print('Duration: ', now-then, ' seconds')
-    print('Objects exported: ', len(source_files))
+        now = time.time()
+        print('SX Batch Export Finished!')
+        print('Duration: ', now-then, ' seconds')
+        print('Objects exported: ', len(source_files))
