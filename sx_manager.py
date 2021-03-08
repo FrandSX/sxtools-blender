@@ -19,7 +19,7 @@ elif platform == 'Darwin':
     blender_path = '/Applications/Blender.app/Contents/MacOS/Blender'
 elif platform == 'Linux':
     blender_path = ''
-export_path = '/Users/frand/Desktop/exports/' # r'D:\exports\\'
+
 script_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_batch.py')
 asset_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_assets.json')
 
@@ -35,6 +35,20 @@ def get_args():
     parser.add_argument('-l', '--listonly', action='store_true', help='Do not export, only list objects that match the other arguments')
     all_arguments, ignored = parser.parse_known_args()
     return all_arguments
+
+
+def update_export_path():
+    export_path = r'D:\exports\\' # '/Users/frand/Desktop/exports/'
+
+    args = get_args()
+    if args.exportpath is not None:
+        export_string = str(args.exportpath)
+        if not export_string.endswith('/'):
+            return export_string + ('/')
+        else:
+            return export_string
+    else:
+        return export_path
 
 
 def load_asset_data():
@@ -58,6 +72,7 @@ def load_asset_data():
 
 
 def sx_process(sourcefile):
+    export_path = update_export_path()
     # -d for debug
     batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", script_path, "--", "-x", export_path]
 
@@ -78,9 +93,6 @@ if __name__ == '__main__':
     name = str(args.name)
     filename = str(args.filename)
     tag = str(args.tag)
-
-    if args.exportpath is not None:
-        export_path = str(args.exportpath)
 
     source_files = []
     if args.folder is not None:

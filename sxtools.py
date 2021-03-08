@@ -8345,6 +8345,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# BUG: Edit mode autoreverts in older scenes (double input monitors?)
 # BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
