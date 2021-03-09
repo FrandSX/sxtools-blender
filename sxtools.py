@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 4),
+    'version': (5, 6, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5089,9 +5089,14 @@ def load_post_handler(dummy):
         if (len(obj.sxtools.keys()) > 0):
             if obj.sxtools.hardmode == '':
                 obj.sxtools.hardmode = 'SHARP'
-        if 'sxlayers' in obj.sxtools.keys():
-            if (len(obj.sxtools.sxlayers) > 7):
+        if 'sxlayers' in obj.keys():
+            if (len(obj.sxlayers) > 7):
                  bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
+                 obj['occlusion_visibility'] = True
+                 obj['metallic_visibility'] = True
+                 obj['smoothness_visibility'] = True
+                 obj['transmission_visibility'] = True
+                 obj['emission_visibility'] = True
             else:
                  bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
@@ -8354,7 +8359,6 @@ if __name__ == '__main__':
 
 # TODO:
 # BUG: Error after setting up multiple objects
-# BUG: Channel visibility refreshes after two clicks
 # BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
