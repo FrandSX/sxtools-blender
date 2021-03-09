@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 3),
+    'version': (5, 6, 4),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8355,7 +8355,6 @@ if __name__ == '__main__':
 # TODO:
 # BUG: Error after setting up multiple objects
 # BUG: Channel visibility refreshes after two clicks
-# BUG: Edit mode autoreverts in older scenes (double input monitors?)
 # BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
