@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 2),
+    'version': (5, 6, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -6940,7 +6940,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         if len(objs) > 0:
             mode = objs[0].mode
             if mode != sxglobals.prevMode:
-                # print('selectionmonitor: mode change')
+                print('selectionmonitor: mode change')
                 sxglobals.prevMode = mode
                 refresh_actives(self, context)
                 return {'PASS_THROUGH'}
@@ -6953,7 +6953,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
                 # print('selectionmonitor: componentselection ', selection)
 
                 if selection != sxglobals.prevComponentSelection:
-                    # print('selectionmonitor: component selection changed')
+                    print('selectionmonitor: component selection changed')
                     sxglobals.prevComponentSelection = selection
                     refresh_actives(self, context)
                     return {'PASS_THROUGH'}
@@ -7962,28 +7962,26 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
 
     def invoke(self, context, event):
         sxMatObjs = []
-        default_colors = [(1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0)]
+        sxMats = []
         if 'SXMaterial' in bpy.data.materials.keys():
-            sxMat = bpy.data.materials.get('SXMaterial')
+            for mat in bpy.data.materials.keys():
+                if 'SXMaterial' in mat:
+                    sxMats.append(mat)
 
-            for i in range(5):
-                default_colors[i] = sxMat.node_tree.nodes['PaletteColor' + str(i)].outputs[0].default_value
+            for mat in sxMats:
+                sxMat = bpy.data.materials.get(mat)
 
-            for obj in context.scene.objects:
-                if obj.active_material == bpy.data.materials['SXMaterial']:
-                    sxMatObjs.append(obj.name)
-                    obj.data.materials.clear()
+                for obj in context.scene.objects:
+                    if obj.active_material == bpy.data.materials[mat]:
+                        sxMatObjs.append(obj.name)
+                        obj.data.materials.clear()
 
-            sxMat.user_clear()
-            bpy.data.materials.remove(sxMat)
+                sxMat.user_clear()
+                bpy.data.materials.remove(sxMat)
 
         bpy.context.view_layer.update()
         setup.update_init_array()
         setup.create_sxmaterial()
-
-        sxMat = bpy.data.materials.get('SXMaterial')
-        for i in range(5):
-            sxMat.node_tree.nodes['PaletteColor' + str(i)].outputs[0].default_value = default_colors[i]
 
         for objName in sxMatObjs:
             context.scene.objects[objName].sxtools.shadingmode = 'FULL'
