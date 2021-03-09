@@ -3317,8 +3317,9 @@ class SXTOOLS_magic(object):
         org_dirinclination = scene.dirInclination
         org_dircone = scene.dirCone
 
-        sxglobals.mode = 'OBJECT'
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        utils.mode_manager(objs, set_mode=True, mode_id='process_objects')
+        # sxglobals.mode = 'OBJECT'
+        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         scene.toolopacity = 1.0
         scene.toolblend = 'ALPHA'
 
@@ -3576,6 +3577,7 @@ class SXTOOLS_magic(object):
         now = time.time()
         print('SX Tools: Modifier stack duration: ', now-then, ' seconds')
 
+        utils.mode_manager(objs, revert=True, mode_id='process_objects')
         sxglobals.refreshInProgress = False
 
 
@@ -6942,6 +6944,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
             if mode != sxglobals.prevMode:
                 print('selectionmonitor: mode change')
                 sxglobals.prevMode = mode
+                sxglobals.mode = mode
                 refresh_actives(self, context)
                 return {'PASS_THROUGH'}
 
@@ -8031,7 +8034,7 @@ class SXTOOLS_OT_revertobjects(bpy.types.Operator):
             sxglobals.composite = True
             refresh_actives(self, context)
 
-            utils.mode_manager(objs, revert=False, mode_id='revertobjects')
+            utils.mode_manager(objs, revert=True, mode_id='revertobjects')
         return {'FINISHED'}
 
 
