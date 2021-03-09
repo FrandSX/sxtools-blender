@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 1),
+    'version': (5, 6, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -59,24 +59,24 @@ class SXTOOLS_sxglobals(object):
         # uvLayer0, uvChannel0, uvLayer1, uvChannel1,
         # uvLayer2, uvChannel2, uvLayer3, uvChannel3, locked
         self.layerInitArray = [
-            ['composite', False, 0, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer1', False, 1, 'COLOR', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer2', False, 2, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer3', False, 3, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer4', False, 4, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor4', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer5', False, 5, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor5', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer6', False, 6, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor6', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['layer7', False, 7, 'COLOR', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', 'VertexColor7', '', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['occlusion', False, 11, 'UV', [1.0, 1.0, 1.0, 1.0], 1.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'V', '', 'U', '', 'U', '', 'U', False],
-            ['transmission', False, 14, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['emission', False, 15, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U', False],
-            ['metallic', False, 12, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['smoothness', False, 13, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U', False],
-            ['gradient1', False, 8, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U', False],
-            ['gradient2', False, 9, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U', False],
-            ['overlay', False, 10, 'UV4', [0.5, 0.5, 0.5, 1.0], 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V', False],
-            ['texture', False, 16, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U', False],
-            ['masks', False, 17, 'UV', [0.0, 0.0, 0.0, 0.0], 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
+            ['composite', False, 0, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor0', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer1', False, 1, 'COLOR', (0.5, 0.5, 0.5, 1.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor1', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer2', False, 2, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor2', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer3', False, 3, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor3', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer4', False, 4, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor4', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer5', False, 5, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor5', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer6', False, 6, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor6', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['layer7', False, 7, 'COLOR', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', 'VertexColor7', '', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['occlusion', False, 11, 'UV', (1.0, 1.0, 1.0, 1.0), 1.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['transmission', False, 14, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['emission', False, 15, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet2', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['metallic', False, 12, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['smoothness', False, 13, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet3', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['gradient1', False, 8, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'U', '', 'U', '', 'U', '', 'U', False],
+            ['gradient2', False, 9, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet4', 'V', '', 'U', '', 'U', '', 'U', False],
+            ['overlay', False, 10, 'UV4', (0.5, 0.5, 0.5, 1.0), 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V', False],
+            ['texture', False, 16, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U', False],
+            ['masks', False, 17, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
  
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this.
@@ -404,6 +404,13 @@ class SXTOOLS_utils(object):
 
         return sxLayerArray
 
+
+    def find_default_color(self, obj, layer):
+        idx = layer.index
+
+        for value_array in sxglobals.layerInitArray:
+            if value_array[2] == idx:
+                return value_array[4]
 
     def find_default_values(self, obj, mode):
         sxLayerArray = []
@@ -2226,7 +2233,7 @@ class SXTOOLS_layers(object):
         scene = bpy.context.scene.sxtools
 
         def clear_layer(obj, layer, reset=False):
-            default_color = layer.defaultColor
+            default_color = layer.defaultColor[:]
             if sxglobals.mode == 'OBJECT':
                 setattr(obj.sxlayers[layer.index], 'alpha', 1.0)
                 setattr(obj.sxlayers[layer.index], 'visibility', True)
@@ -2234,13 +2241,13 @@ class SXTOOLS_layers(object):
                 if reset:
                     if layer == obj.sxlayers['overlay']:
                         setattr(obj.sxlayers[layer.index], 'blendMode', 'OVR')
-                        default_color = [0.5, 0.5, 0.5, 1.0]
+                        default_color = (0.5, 0.5, 0.5, 1.0)
                     else:
                         setattr(obj.sxlayers[layer.index], 'blendMode', 'ALPHA')
                         if layer.index == 1 and obj.sxtools.category != 'TRANSPARENT':
-                            default_color = [0.5, 0.5, 0.5, 1.0]
+                            default_color = (0.5, 0.5, 0.5, 1.0)
                         elif layer.layerType == 'COLOR':
-                            default_color = [0.0, 0.0, 0.0, 0.0]
+                            default_color = (0.0, 0.0, 0.0, 0.0)
                 colors = generate.color_list(obj, color=default_color)
                 layers.set_layer(obj, colors, layer)
             else:
@@ -4339,11 +4346,11 @@ def update_layers(self, context):
                 sxglobals.refreshInProgress = False
 
                 if blendVal == 'OVR':
-                    setattr(obj.sxlayers[idx], 'defaultColor', [0.5, 0.5, 0.5, 1.0])
+                    setattr(obj.sxlayers[idx], 'defaultColor', (0.5, 0.5, 0.5, 1.0))
                 elif (idx == 1) and (obj.sxtools.category != 'TRANSPARENT'):
-                    setattr(obj.sxlayers[idx], 'defaultColor', [0.5, 0.5, 0.5, 1.0])
+                    setattr(obj.sxlayers[idx], 'defaultColor', (0.5, 0.5, 0.5, 1.0))
                 else:
-                    setattr(obj.sxlayers[idx], 'defaultColor', [0.0, 0.0, 0.0, 0.0])
+                    setattr(obj.sxlayers[idx], 'defaultColor', utils.find_default_color(obj, obj.sxlayers[idx]))
 
                 sxglobals.refreshInProgress = True
                 setattr(obj.sxtools, 'selectedlayer', idx)
@@ -7995,8 +8002,8 @@ class SXTOOLS_OT_resetoverlay(bpy.types.Operator):
     def invoke(self, context, event):
         objs = selection_validator(self, context)
         for obj in objs:
-            obj.sxlayers['occlusion'].defaultColor = [1.0, 1.0, 1.0, 1.0]
-            obj.sxlayers['overlay'].defaultColor = [0.5, 0.5, 0.5, 1.0]
+            obj.sxlayers['occlusion'].defaultColor = (1.0, 1.0, 1.0, 1.0)
+            obj.sxlayers['overlay'].defaultColor = (0.5, 0.5, 0.5, 1.0)
 
         layers.clear_layers(objs, objs[0].sxlayers['overlay'])
         layers.clear_layers(objs, objs[0].sxlayers['occlusion'])
@@ -8345,6 +8352,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# BUG: Error after setting up multiple objects
+# BUG: Channel visibility refreshes after two clicks
 # BUG: Edit mode autoreverts in older scenes (double input monitors?)
 # BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
