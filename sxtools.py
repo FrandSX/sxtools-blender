@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 8),
+    'version': (5, 6, 9),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3091,7 +3091,18 @@ class SXTOOLS_tools(object):
             viewlayer.objects.active = obj
             obj.select_set(True)
 
-            if mode == 1:
+            if mode == 0:
+                pivot_loc = obj.matrix_world.to_translation()
+                xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ])
+                if not (xmin < pivot_loc[0] < xmax):
+                    pivot_loc[0] *= -1.0
+                if not (ymin < pivot_loc[1] < ymax):
+                    pivot_loc[1] *= -1.0
+                if not (zmin < pivot_loc[2] < zmax):
+                    pivot_loc[2] *= -1.0
+                bpy.context.scene.cursor.location = pivot_loc
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+            elif mode == 1:
                 bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
                 if force:
                     # pivot_loc = obj.location.copy()
@@ -8376,7 +8387,6 @@ if __name__ == '__main__':
 # - GPU debug mode
 #
 # Issues:
-# - Possible to corrupt mesh coloring by clicking on single objects while Palette tool is active
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 #
@@ -8399,7 +8409,6 @@ if __name__ == '__main__':
 # - Export via FBX
 #
 # Future:
-# - Batch export registry
 # - Apply scale and rotation to objs
 # - Update pie menu
 # - Separate reset layers and clear layers
@@ -8410,4 +8419,3 @@ if __name__ == '__main__':
 #   - Default path to find libraries in the zip?
 # - Skinning support
 # - Submesh support
-# - Investigate running processes headless from command line
