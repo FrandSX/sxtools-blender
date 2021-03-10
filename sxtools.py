@@ -616,15 +616,6 @@ class SXTOOLS_utils(object):
         return vert_id_list
 
 
-    def operator_exists(self, idname):
-        from bpy.ops import op_as_string
-        try:
-            op_as_string(idname)
-            return True
-        except:
-            return False
-
-
     def find_safe_mesh_offset(self, obj):
         bias = 0.0001
 
@@ -6719,7 +6710,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         split_export.label(text='Auto-pivot:')
                         split_export.prop(sxtools, 'pivotmode', text='')
                         col_export.prop(sxtools, 'lodmeshes', text='Generate LOD Meshes')
-                        if utils.operator_exists('object.vhacd'):
+                        if hasattr(bpy.types, bpy.ops.object.vhacd.idname()):
                             col_export.prop(scene, 'exportcolliders', text='Generate Mesh Colliders (V-HACD)')
                             if scene.exportcolliders:
                                 box_colliders = box_export.box()
@@ -8220,7 +8211,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             check = validate.validate_objects(objs)
             if check:
                 magic.process_objects(objs)
-                if utils.operator_exists('object.vhacd') and scene.exportcolliders:
+                if hasattr(bpy.types, bpy.ops.object.vhacd.idname()) and scene.exportcolliders:
                     export.generate_mesh_colliders(objs)
 
                 sxglobals.composite = True
