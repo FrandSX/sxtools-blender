@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 5),
+    'version': (5, 6, 8),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2497,7 +2497,7 @@ class SXTOOLS_layers(object):
             palettecolor = utils.find_colors_by_frequency(objs, layer, 1, obj_sel_override=True)[0]
             tabcolor = getattr(scene, 'newpalette' + str(i))
 
-            if not utils.color_compare(palettecolor, tabcolor):
+            if not utils.color_compare(palettecolor, tabcolor) and not utils.color_compare(palettecolor, (0.0, 0.0, 0.0, 1.0)):
                 setattr(scene, 'newpalette' + str(i), palettecolor)
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(i)].outputs[0].default_value = palettecolor
 
@@ -3371,7 +3371,8 @@ class SXTOOLS_magic(object):
 
             for obj in objs:
                 if obj.sxtools.smartseparate:
-                    sepObjs.append(obj)
+                    if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                        sepObjs.append(obj)
             partObjs = export.smart_separate(sepObjs)
             for obj in partObjs:
                 if obj not in objs:
@@ -4871,6 +4872,7 @@ def update_custom_props(self, context):
         piv = objs[0].sxtools.pivotmode
         off = objs[0].sxtools.collideroffset
         fac = objs[0].sxtools.collideroffsetfactor
+        sep = objs[0].sxtools.smartseparate
         for obj in objs:
             obj['staticVertexColors'] = int(stc)
             obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
@@ -4890,6 +4892,8 @@ def update_custom_props(self, context):
                 obj.sxtools.collideroffset = off
             if obj.sxtools.collideroffsetfactor != fac:
                 obj.sxtools.collideroffsetfactor = fac
+            if obj.sxtools.smartseparate != sep:
+                obj.sxtools.smartseparate = sep
 
 
 def update_gpu_props(self, context):
@@ -5261,7 +5265,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
 
     smartseparate: bpy.props.BoolProperty(
         name='Smart Separate',
-        default=False)
+        default=False,
+        update=update_custom_props)
 
     mirrorobject: bpy.props.StringProperty(
         name='Mirror Object',
@@ -6788,8 +6793,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 elif scene.exportmode == 'EXPORT':
                     if scene.expandexport:
                         col2_export = box_export.column(align=True)
-                        if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
-                            col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
+                        col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
                         col2_export.label(text='Export Folder:')
                         col2_export.prop(scene, 'exportfolder', text='')
                         split_export = box_export.split(factor=0.1)
@@ -8161,7 +8165,11 @@ class SXTOOLS_OT_smart_separate(bpy.types.Operator):
 
     def invoke(self, context, event):
         objs = selection_validator(self, context)
-        export.smart_separate(objs)
+        sep_objs = []
+        for obj in objs:
+            if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                sep_objs.append(obj)
+        export.smart_separate(sep_objs)
 
         return {'FINISHED'}
 
@@ -8358,8 +8366,8 @@ if __name__ == '__main__':
 
 
 # TODO:
+# FEAT: Handle setting pivots on smart mirror objs when pivot mode is "No Change"
 # BUG: Error after setting up multiple objects
-# BUG: Browsing layers with the Material tool overrides them with wrong colors
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
 # FEAT: Strip redundant custom props prior to exporting
