@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 6, 9),
+    'version': (5, 7, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2932,8 +2932,8 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxMirror'].use_axis[0] = obj.sxtools.xmirror
                 obj.modifiers['sxMirror'].use_axis[1] = obj.sxtools.ymirror
                 obj.modifiers['sxMirror'].use_axis[2] = obj.sxtools.zmirror
-                if obj.sxtools.mirrorobject != '':
-                    obj.modifiers['sxMirror'].mirror_object = bpy.context.view_layer.objects[obj.sxtools.mirrorobject]
+                if obj.sxtools.mirrorobject != None:
+                    obj.modifiers['sxMirror'].mirror_object = obj.sxtools.mirrorobject
                 else:
                     obj.modifiers['sxMirror'].mirror_object = None
                 obj.modifiers['sxMirror'].use_clip = True
@@ -3040,13 +3040,28 @@ class SXTOOLS_tools(object):
                 bpy.ops.object.modifier_apply(modifier='sxWeightedNormal')
 
 
-    def remove_modifiers(self, objs):
+    def remove_modifiers(self, objs, reset=False):
         modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
             for modifier in modifiers:
                 if modifier in obj.modifiers.keys():
                     bpy.ops.object.modifier_remove(modifier=modifier)
+
+            if reset:
+                obj.sxtools.xmirror = False
+                obj.sxtools.ymirror = False
+                obj.sxtools.zmirror = False
+                obj.sxtools.mirrorobject = None
+                obj.sxtools.autocrease = True
+                obj.sxtools.hardmode = 'SHARP'
+                obj.sxtools.beveltype = 'WIDTH'
+                obj.sxtools.bevelsegments = 2
+                obj.sxtools.bevelwidth = 0.05
+                obj.sxtools.subdivisionlevel = 1
+                obj.sxtools.smoothangle = 180.0
+                obj.sxtools.weldthreshold = 0.0
+                obj.sxtools.decimation = 0.0                
 
 
     def group_objects(self, objs):
@@ -4756,8 +4771,8 @@ def update_modifiers(self, context, modifier):
                     obj.modifiers['sxMirror'].use_axis[1] = ymirror
                     obj.modifiers['sxMirror'].use_axis[2] = zmirror
 
-                    if mirrorobj != '':
-                        obj.modifiers['sxMirror'].mirror_object = context.view_layer.objects[mirrorobj]
+                    if mirrorobj != None:
+                        obj.modifiers['sxMirror'].mirror_object = mirrorobj
                     else:
                         obj.modifiers['sxMirror'].mirror_object = None
 
@@ -5270,9 +5285,9 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=False,
         update=update_custom_props)
 
-    mirrorobject: bpy.props.StringProperty(
+    mirrorobject: bpy.props.PointerProperty(
         name='Mirror Object',
-        default='',
+        type=bpy.types.Object,
         update=lambda self, context: update_modifiers(self, context, 'mirror'))
 
     hardmode: bpy.props.EnumProperty(
@@ -6685,7 +6700,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         modifiers = '\t'.join(obj.modifiers.keys())
                         if 'sx' in modifiers:
                             if scene.shift:
-                                col4_sds.operator('sxtools.removemodifiers', text='Remove Modifiers')
+                                col4_sds.operator('sxtools.removemodifiers', text='Clear Modifiers')
                             else:
                                 if obj.sxtools.modifiervisibility:
                                     hide_text = 'Hide Modifiers'
@@ -6754,14 +6769,16 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row2_export.prop(sxtools, 'staticvertexcolors', text='')
                             row2_export.prop(scene, 'exportquality', text='')
                         col2_export = box_export.column(align=True)
-                        col2_export.operator('sxtools.macro', text='Magic Button')
+                        if scene.shift:
+                            col2_export.operator('sxtools.revertobjects', text='Revert to Control Cages')
+                        else:
+                            col2_export.operator('sxtools.macro', text='Magic Button')
                         if ('ExportObjects' in bpy.data.collections.keys()) and (len(bpy.data.collections['ExportObjects'].objects) > 0):
                             col2_export.operator('sxtools.removeexports', text='Remove LODs and Parts')
 
                 elif scene.exportmode == 'UTILS':
                     if scene.expandexport:
                         col_utils = box_export.column(align=False)
-                        col_utils.operator('sxtools.revertobjects', text='Revert to Control Cages')
                         if scene.shift:
                             pivot_text = 'Set Pivots to Bbox Center'
                         elif scene.ctrl:
@@ -7751,14 +7768,14 @@ class SXTOOLS_OT_applymodifiers(bpy.types.Operator):
 class SXTOOLS_OT_removemodifiers(bpy.types.Operator):
     bl_idname = 'sxtools.removemodifiers'
     bl_label = 'Remove Modifiers'
-    bl_description = 'Remove SX Tools modifiers from selected objects'
+    bl_description = 'Remove SX Tools modifiers from selected objects\nand clear their settings'
     bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
         objs = selection_validator(self, context)
         if len(objs) > 0:
-            tools.remove_modifiers(objs)
+            tools.remove_modifiers(objs, reset=True)
 
             if objs[0].mode == 'OBJECT':
                 bpy.ops.object.shade_flat()
@@ -8368,7 +8385,9 @@ if __name__ == '__main__':
 
 
 # TODO:
-# FEAT: Handle setting pivots on smart mirror objs when pivot mode is "No Change"
+# BUG: Modifying per-edge bevel values affects non-selected edges
+# BUG: Adding a new object into scene -> setup object -> object is black until refresh
+# FEAT: Pivot to center of mass for convex submeshes
 # BUG: Error after setting up multiple objects
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # - Generate VisToggle and VisMix nodes only when channels are enabled
