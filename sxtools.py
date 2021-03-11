@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 7, 2),
+    'version': (5, 7, 4),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -804,45 +804,32 @@ class SXTOOLS_setup(object):
 
 
     def create_simple_sxmaterial(self):
-        scene = bpy.context.scene.sxtools
-        numlayers = scene.numlayers
-        numgradients = scene.numalphas
-        numoverlays = scene.numoverlays
-
         for values in sxglobals.layerInitArray:
             if values[0] == 'composite':
                 compositeUVSet = values[9]
-                composite = values[1]
 
         sxmaterial = bpy.data.materials.new(name='SXMaterial')
         sxmaterial.use_nodes = True
 
         sxmaterial.node_tree.nodes.remove(sxmaterial.node_tree.nodes['Principled BSDF'])
 
-        sxmaterial.node_tree.nodes.new(type='ShaderNodeEmission')
-        sxmaterial.node_tree.nodes['Emission'].location = (800, 200)
-
-        sxmaterial.node_tree.nodes['Material Output'].location = (1100, 200)
+        sxmaterial.node_tree.nodes['Material Output'].location = (-200, 0)
 
         # Gradient tool color ramp
         sxmaterial.node_tree.nodes.new(type='ShaderNodeValToRGB')
-        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1400, 200)
+        sxmaterial.node_tree.nodes['ColorRamp'].location = (-1000, 0)
 
         # Palette colors
         for i in range(5):
             pCol = sxmaterial.node_tree.nodes.new(type="ShaderNodeRGB")
             pCol.name = 'PaletteColor' + str(i)
-            pCol.location = (-1400, -200*i)
+            pCol.location = (-1000+(200*i), -400)
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
-        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 200)
+        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 0)
 
         output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
-        input = sxmaterial.node_tree.nodes['Emission'].inputs['Color']
-        sxmaterial.node_tree.links.new(input, output)
-
-        output = sxmaterial.node_tree.nodes['Emission'].outputs['Emission']
         input = sxmaterial.node_tree.nodes['Material Output'].inputs['Surface']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -2279,7 +2266,7 @@ class SXTOOLS_layers(object):
                 layer0 = utils.find_layer_from_index(objs[0], 0)
                 layer1 = utils.find_layer_from_index(objs[0], 1)
                 self.blend_layers(objs, compLayers, layer1, layer0, uv_as_alpha=True)
-            elif prefs.materialtype != 'SMP':
+            else:
                 self.blend_debug(objs, layer, shadingmode)
 
             sxglobals.composite = False
@@ -4416,10 +4403,6 @@ def refresh_actives(self, context):
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 if vcols != '':
                     obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
-                    if (mode != 'FULL') and (prefs.materialtype == 'SMP'):
-                        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = vcols
-                    else:
-                        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
 
@@ -4472,11 +4455,6 @@ def shading_mode(self, context):
                 for space in area.spaces:
                     if space.type == 'VIEW_3D':
                         space.shading.type = shading
-            if mode == 'FULL':
-                sxmaterial.node_tree.nodes['Vertex Color'].layer_name = 'VertexColor0'
-            else:
-                # source to activelayer
-                pass
 
         else:
             occlusion = objs[0].sxlayers['occlusion'].enabled
@@ -6798,12 +6776,13 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_debug.prop(scene, 'gpucomposite', text='GPU Compositing (Experimental)')
                             col_debug.operator('sxtools.smart_separate', text='Debug: Smart Separate sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
-                            col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
                             col_debug.operator('sxtools.generatemasks', text='Debug: Generate Masks')
                             col_debug.operator('sxtools.createuv0', text='Debug: Create UVSet0')
                             col_debug.operator('sxtools.generatelods', text='Debug: Create LOD Meshes')
-                            col_debug.operator('sxtools.resetoverlay', text='Debug: Reset Default Layer Values')
+                            if prefs.materialtype != 'SMP':
+                                col_debug.operator('sxtools.enableall', text='Debug: Enable All Layers')
+                                col_debug.operator('sxtools.resetoverlay', text='Debug: Reset Default Layer Values')
                             col_debug.operator('sxtools.resetmaterial', text='Debug: Reset SXMaterial')
                             col_debug.operator('sxtools.resetscene', text='Debug: Reset scene (warning!)')
 
