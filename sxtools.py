@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 7, 1),
+    'version': (5, 7, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2794,7 +2794,6 @@ class SXTOOLS_tools(object):
         modename = modeDict[setmode]
 
         if mode == 'EDIT':
-
             for obj in objs:
                 mesh = obj.data
                 bm = bmesh.from_edit_mesh(mesh)
@@ -6360,11 +6359,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     layer = utils.find_layer_from_index(obj, sel_idx)
                     message_box('Invalid layer selected!', 'SX Tools Error', 'ERROR')
 
-                if prefs.materialtype != 'SMP':
-                    row = layout.row(align=True)
-                    row.label(text='Category:')
-                    row.prop(sxtools, 'category', text='')
-
                 row_shading = layout.row(align=True)
                 row_shading.prop(scene, 'shadingmode', expand=True)
 
@@ -6725,6 +6719,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 row_export.prop(scene, 'exportmode', expand=True)
                 if scene.exportmode == 'MAGIC':
                     if scene.expandexport:
+                        if prefs.materialtype != 'SMP':
+                            row_cat = box_export.row(align=True)
+                            row_cat.label(text='Category:')
+                            row_cat.prop(sxtools, 'category', text='')
                         col_export = box_export.column(align=True)
                         if (obj.sxtools.category != 'DEFAULT') and (obj.sxtools.category != 'PALETTED'):
                             col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
