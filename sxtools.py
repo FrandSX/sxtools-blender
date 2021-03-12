@@ -8362,6 +8362,7 @@ if __name__ == '__main__':
 
 
 # TODO:
+# FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
 # BUG: Adding a new object into scene -> setup object -> object is black until refresh
 # FEAT: Pivot to center of mass for convex submeshes

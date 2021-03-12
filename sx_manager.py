@@ -20,8 +20,14 @@ elif platform == 'Darwin':
 elif platform == 'Linux':
     blender_path = ''
 
+# ------------------------------------------------------------------------
+#    NOTE: Point catalogue path to your catalogue file.
+#          The catalogue file should be located in the root
+#          of your asset folder structure.
+# ------------------------------------------------------------------------
+catalogue_path = '/Users/bob/sx_assets/sx_assets.json'
 script_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_batch.py')
-asset_path = str(os.path.realpath(__file__)).replace('sx_manager.py', 'sx_assets.json')
+asset_path = catalogue_path.rsplit('/', 1)[0]
 
 
 def get_args():
@@ -38,7 +44,7 @@ def get_args():
 
 
 def update_export_path():
-    export_path = r'D:\exports\\' # '/Users/frand/Desktop/exports/'
+    export_path = '/Users/bob/exports/' # r'D:\exports\\' # 
 
     args = get_args()
     if args.exportpath is not None:
@@ -52,13 +58,13 @@ def update_export_path():
 
 
 def load_asset_data():
-    if len(asset_path) > 0:
+    if len(catalogue_path) > 0:
         try:
-            with open(asset_path, 'r') as input:
+            with open(catalogue_path, 'r') as input:
                 temp_dict = {}
                 temp_dict = json.load(input)
                 input.close()
-            print('SX Tools: Asset Registry loaded from ' + asset_path)
+            print('SX Tools: Asset Registry loaded from ' + catalogue_path)
             return temp_dict
         except ValueError:
             print('SX Tools Error: Invalid Asset Registry file.')
@@ -100,27 +106,27 @@ if __name__ == '__main__':
     elif args.category is not None:
         if category in asset_dict.keys():
             for value in asset_dict[category].values():
-                source_files.append(value[0])
+                source_files.append(asset_path + value[0])
     elif args.name is not None:
         for category in asset_dict.keys():
             if name in asset_dict[category].keys():
-                source_files.append(asset_dict[category][name][0])
+                source_files.append(asset_path + asset_dict[category][name][0])
     elif args.filename is not None:
         for category in asset_dict.keys():
             for name, values in asset_dict[category].items():
                 for value in values:
                     if filename in value:
-                        source_files.append(asset_dict[category][name][0])
+                        source_files.append(asset_path + asset_dict[category][name][0])
     elif args.tag is not None:
         for category in asset_dict.keys():
             for name, values in asset_dict[category].items():
                 for value in values:
                     if tag in value:
-                        source_files.append(asset_dict[category][name][0])
+                        source_files.append(asset_path + asset_dict[category][name][0])
     else:
         for category in asset_dict.keys():
             for value in asset_dict[category].values():
-                source_files.append(value[0])
+                source_files.append(asset_path + value[0])
 
     print('Source files: ')
     for file in source_files:

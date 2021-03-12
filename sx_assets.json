@@ -1,15 +1,15 @@
 {
     "Vehicles": {
         "Delivery Van": [
-            "/cages/milkvan_controlcage.blend",
+            "/blender_files/milkvan_controlcage.blend",
             "tag1"
         ],
         "Pink Lightning": [
-            "/cages/tricycle_controlcage.blend",
+            "/blender_files/tricycle_controlcage.blend",
             "tag1"
         ],
         "The Wedge": [
-            "/cages/sports_controlcage.blend",
+            "/blender_files/sports_controlcage.blend",
             "tag1",
             "tag2"
         ]
