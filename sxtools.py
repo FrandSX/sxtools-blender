@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 7, 4),
+    'version': (5, 7, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4247,6 +4247,9 @@ class SXTOOLS_export(object):
             if ('_collision_hull' in obj.name) and (obj.name not in colliders.objects):
                 colliders.objects.link(obj)
                 obj.select_set(True)
+
+        # set collider pivots
+        tools.set_pivots(colliders.objects, pivotmode=1)
 
         # optimize hulls
         for obj in colliders.objects:
