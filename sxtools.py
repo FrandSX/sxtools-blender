@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 7, 5),
+    'version': (5, 7, 7),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4216,8 +4216,7 @@ class SXTOOLS_export(object):
 
             newObj.parent = bpy.context.view_layer.objects[obj.parent.name]
 
-            if newObj.sxtools.subdivisionlevel >= 1:
-                newObj.sxtools.subdivisionlevel = 1
+            newObj.sxtools.subdivisionlevel = scene.sourcesubdivision
 
             new_objs.append(newObj)
 
@@ -4235,7 +4234,7 @@ class SXTOOLS_export(object):
             bpy.ops.transform.shrink_fatten(value=offset)
             bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-        bpy.ops.object.vhacd('EXEC_DEFAULT', remove_doubles=scene.removedoubles, apply_transforms='NONE', resolution=scene.voxelresolution, depth=scene.clippingdepth, concavity=scene.maxconcavity, planeDownsampling=scene.planedownsampling, convexhullDownsampling=scene.hulldownsampling, alpha=scene.collalpha, beta=scene.collbeta, gamma=scene.collgamma, pca=False, mode='VOXEL', maxNumVerticesPerCH=scene.maxvertsperhull, minVolumePerCH=scene.minvolumeperhull)
+        bpy.ops.object.vhacd('EXEC_DEFAULT', remove_doubles=scene.removedoubles, apply_transforms='NONE', resolution=scene.voxelresolution, concavity=scene.maxconcavity, planeDownsampling=scene.planedownsampling, convexhullDownsampling=scene.hulldownsampling, alpha=scene.collalpha, beta=scene.collbeta, maxHulls=scene.maxhulls, pca=False, projectHullVertices=True, mode='VOXEL', maxNumVerticesPerCH=scene.maxvertsperhull, minVolumePerCH=scene.minvolumeperhull)
 
         for src_obj in collisionSourceObjects.objects:
             bpy.data.objects.remove(src_obj, do_unlink=True)
@@ -4252,27 +4251,27 @@ class SXTOOLS_export(object):
         tools.set_pivots(colliders.objects, pivotmode=1)
 
         # optimize hulls
-        for obj in colliders.objects:
-            obj.modifiers.new(type='DECIMATE', name='hullDecimate')
-            obj.modifiers['hullDecimate'].show_viewport = True
-            obj.modifiers['hullDecimate'].show_expanded = False
-            obj.modifiers['hullDecimate'].decimate_type = 'DISSOLVE'
-            obj.modifiers['hullDecimate'].angle_limit = math.radians(20.0)
-            obj.modifiers['hullDecimate'].use_dissolve_boundaries = True
+        # for obj in colliders.objects:
+        #     obj.modifiers.new(type='DECIMATE', name='hullDecimate')
+        #     obj.modifiers['hullDecimate'].show_viewport = True
+        #     obj.modifiers['hullDecimate'].show_expanded = False
+        #     obj.modifiers['hullDecimate'].decimate_type = 'DISSOLVE'
+        #     obj.modifiers['hullDecimate'].angle_limit = math.radians(20.0)
+        #     obj.modifiers['hullDecimate'].use_dissolve_boundaries = True
 
-            obj.modifiers.new(type='WELD', name='hullWeld')
-            obj.modifiers['hullWeld'].show_viewport = True
-            obj.modifiers['hullWeld'].show_expanded = False
-            obj.modifiers['hullWeld'].merge_threshold = 0.05
+        #     obj.modifiers.new(type='WELD', name='hullWeld')
+        #     obj.modifiers['hullWeld'].show_viewport = True
+        #     obj.modifiers['hullWeld'].show_expanded = False
+        #     obj.modifiers['hullWeld'].merge_threshold = 0.05
 
-            tools.apply_modifiers([obj, ])
+        #     tools.apply_modifiers([obj, ])
 
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.convex_hull()
-            bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        #     bpy.context.view_layer.objects.active = obj
+        #     bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        #     bpy.ops.mesh.select_all(action='SELECT')
+        #     bpy.ops.mesh.convex_hull()
+        #     bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+        #     bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         bpy.ops.object.select_all(action='DESELECT')
         for obj in org_objs:
@@ -5998,6 +5997,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
             ('NONMET', 'Non-Metallic', '')],
         default='MET')
 
+    sourcesubdivision: bpy.props.IntProperty(
+        name='Source Mesh Subdivision',
+        description='Subdivision level for the source mesh for collider generation',
+        min=0,
+        max=10,
+        default=1)
+
     removedoubles: bpy.props.BoolProperty(
         name='Merge Overlapping Verts',
         description='Collapse overlapping vertices in generated mesh',
@@ -6007,48 +6013,43 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Voxel Resolution',
         description='Maximum number of voxels generated during the voxelization stage',
         min=10000,
-        max=64000000,
-        default=10000000)
-
-    clippingdepth: bpy.props.IntProperty(
-        name='Clipping Depth',
-        description='TBD',
-        min=1,
-        max=32,
-        default=32)
+        max=16000000,
+        default=5000000)
 
     planedownsampling: bpy.props.IntProperty(
         name='Plane Downsampling',
         description='TBD',
         min=1,
         max=16,
-        default=16)
+        default=4)
 
     hulldownsampling: bpy.props.IntProperty(
         name='Convex Hull Downsampling',
         description='TBD',
         min=1,
         max=16,
-        default=16)
+        default=4)
 
     maxvertsperhull: bpy.props.IntProperty(
         name='Maximum Vertices Per Convex Hull',
         description='TBD',
         min=4,
         max=1024,
-        default=255)
+        default=64)
 
     maxconcavity: bpy.props.FloatProperty(
         name='Maximum Concavity',
-        min=0.0,
+        min=0.0001,
         max=1.0,
-        default=0.015)
+        precision=4,
+        default=0.0025)
 
     minvolumeperhull: bpy.props.FloatProperty(
         name='Minimum Volume Per Convex Hull',
         min=0.0,
         max=0.01,
-        default=0.0001)
+        precision=4,
+        default=0.001)
 
     collalpha: bpy.props.FloatProperty(
         name='Symmetry Clipping Bias',
@@ -6062,11 +6063,11 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=1.0,
         default=0.05)
 
-    collgamma: bpy.props.FloatProperty(
-        name='Maximum Merge Concavity',
-        min=0.0,
-        max=1.0,
-        default=0.015)
+    maxhulls: bpy.props.IntProperty(
+        name='Maximum Convex Hulls',
+        min=0,
+        max=1000,
+        default=100)
 
 
 class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
@@ -6730,15 +6731,14 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 if scene.expandcolliders:
                                     col_colliders = box_colliders.column(align=True)
                                     col_colliders.prop(scene, 'removedoubles', text='Remove Doubles')
+                                    col_colliders.prop(scene, 'sourcesubdivision', text='Source Subdivision')
                                     col_colliders.prop(scene, 'voxelresolution', text='Voxel Resolution', slider=True)
-                                    col_colliders.prop(scene, 'clippingdepth', text='Clipping Depth', slider=True)
                                     col_colliders.prop(scene, 'maxconcavity', text='Maximum Concavity', slider=True)
-                                    col_colliders.prop(scene, 'planedownsampling', text='Plane Downsampling', slider=True)
                                     col_colliders.prop(scene, 'hulldownsampling', text='Convex Hull Downsampling', slider=True)
                                     col_colliders.prop(scene, 'planedownsampling', text='Plane Downsampling', slider=True)
                                     col_colliders.prop(scene, 'collalpha', text='Symmetry Clipping Bias', slider=True)
                                     col_colliders.prop(scene, 'collbeta', text='Axis Clipping Bias', slider=True)
-                                    col_colliders.prop(scene, 'collgamma', text='Max Merge Concavity', slider=True)
+                                    col_colliders.prop(scene, 'maxhulls', text='Max Hulls', slider=True)
                                     col_colliders.prop(scene, 'maxvertsperhull', text='Max Vertices Per Convex Hull', slider=True)
                                     col_colliders.prop(scene, 'minvolumeperhull', text='Min Volume Per Convex Hull', slider=True)
 
@@ -8364,7 +8364,12 @@ if __name__ == '__main__':
     bpy.ops.wm.call_menu_pie(name='SXTOOLS_MT_piemenu')
 
 
-# TODO:
+# TODO
+# BUG: collision mesh subdivision control not working as intended
+# FEAT: Choose subdivision level for collider generation
+# FEAT: Asset Library vs. Export tab
+# FEAT: Mark objects in scene for export (asset mode)
+# FEAT: Handle collider mesh active selection, present relevant tools
 # FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
 # BUG: Adding a new object into scene -> setup object -> object is black until refresh
