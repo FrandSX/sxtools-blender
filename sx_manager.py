@@ -79,6 +79,7 @@ def load_asset_data():
 
 def sx_process(sourcefile):
     export_path = update_export_path()
+    print('Exporting to:', export_path)
     # -d for debug
     batch_args = [blender_path, "-b", "-noaudio", sourcefile, "-P", script_path, "--", "-x", export_path]
 

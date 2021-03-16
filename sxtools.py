@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 7, 7),
+    'version': (5, 8, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -655,7 +655,6 @@ class SXTOOLS_setup(object):
 
 
     def start_modal(self):
-        # if not bpy.app.background:
         bpy.ops.sxtools.selectionmonitor('EXEC_DEFAULT')
         bpy.ops.sxtools.keymonitor('EXEC_DEFAULT')
         sxglobals.modalStatus = True
@@ -3058,7 +3057,7 @@ class SXTOOLS_tools(object):
 
         group = bpy.data.objects.new('empty', None)
         bpy.context.scene.collection.objects.link(group)
-        group.empty_display_size = 2
+        group.empty_display_size = 0.5
         group.empty_display_type = 'PLAIN_AXES'
         group.location = pivot
         group.name = objs[0].name + '_root'
@@ -5935,6 +5934,14 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Expand Colliders',
         default=False)
 
+    expandbatchexport: bpy.props.BoolProperty(
+        name='Expand Batch Export',
+        default=False)
+
+    expandmanualexport: bpy.props.BoolProperty(
+        name='Expand Manual Export',
+        default=False)
+
     exportmode: bpy.props.EnumProperty(
         name='Export Mode',
         description='Display magic processing, misc utils, or export settings',
@@ -5963,6 +5970,13 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     exportcolliders: bpy.props.BoolProperty(
         name='Export Mesh Colliders',
         default=False)
+
+    cataloguepath: bpy.props.StringProperty(
+        name='Catalogue File',
+        description='Catalogue JSON file for project assets',
+        default='',
+        maxlen=1024,
+        subtype='FILE_PATH')
 
     gpucomposite: bpy.props.BoolProperty(
         name='GPU Compositing',
@@ -6791,12 +6805,33 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 elif scene.exportmode == 'EXPORT':
                     if scene.expandexport:
-                        col2_export = box_export.column(align=True)
-                        col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
-                        col2_export.label(text='Export Folder:')
-                        col2_export.prop(scene, 'exportfolder', text='')
-                        split_export = box_export.split(factor=0.1)
-                        split_export.operator('sxtools.checklist', text='', icon='INFO')
+                        row_batchexport = box_export.row()
+                        row_batchexport.prop(scene, 'expandbatchexport',
+                            icon='TRIA_DOWN' if scene.expandbatchexport else 'TRIA_RIGHT',
+                            icon_only=True, emboss=False)
+                        row_batchexport.label(text='Batch Export Settings')
+                        if scene.expandbatchexport:
+                            if scene.shift:
+                                tag_text = 'Clear Ready for Batch Export Tag'
+                            else:
+                                tag_text = 'Mark Group as Ready for Batch Export'
+                            col_batchexport = box_export.column(align=True)
+                            col_batchexport.operator('sxtools.tagforexport', text=tag_text)
+                            col_batchexport.label(text='Catalogue File:')
+                            col_batchexport.prop(scene, 'cataloguepath', text='')
+
+                        row_manualexport = box_export.row()
+                        row_manualexport.prop(scene, 'expandmanualexport',
+                            icon='TRIA_DOWN' if scene.expandmanualexport else 'TRIA_RIGHT',
+                            icon_only=True, emboss=False)
+                        row_manualexport.label(text='Manual Export Settings')
+                        if scene.expandmanualexport:
+                            col2_export = box_export.column(align=True)
+                            col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
+                            col2_export.label(text='Export Folder:')
+                            col2_export.prop(scene, 'exportfolder', text='')
+                            split_export = box_export.split(factor=0.1)
+                            split_export.operator('sxtools.checklist', text='', icon='INFO')
 
                         if not scene.shift:
                             exp_text = 'Export Selected'
@@ -7864,6 +7899,14 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
                     tools.group_objects([obj, ])
 
         groups = utils.find_groups(selected)
+
+        if bpy.app.background:
+            filtered_groups = []
+            for group in groups:
+                if group['ExportReady']:
+                    filtered_groups.append(group)
+            groups = filtered_groups
+
         files.export_files(groups)
 
         if prefs.removelods:
@@ -7936,6 +7979,27 @@ class SXTOOLS_OT_groupobjects(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             tools.group_objects(objs)
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_tagforexport(bpy.types.Operator):
+    bl_idname = 'sxtools.tagforexport'
+    bl_label = 'Tag for Export'
+    bl_description = 'Tag selected group of objects to be included in the batch export process.\nShift-click to remove tag.'
+    bl_options ={'UNDO'}
+
+
+    def invoke(self, context, event):
+        objs = selection_validator(self, context)
+        groups = utils.find_groups(objs)
+        for group in groups:
+            if event.shift:
+                group['ExportReady'] = False
+                group.empty_display_size = 0.5
+            else:
+                group['ExportReady'] = True
+                group.empty_display_size = 2.0
+
         return {'FINISHED'}
 
 
@@ -8292,6 +8356,7 @@ classes = (
     SXTOOLS_OT_setpivots,
     SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
+    SXTOOLS_OT_tagforexport,
     SXTOOLS_OT_generatelods,
     SXTOOLS_OT_resetoverlay,
     SXTOOLS_OT_resetmaterial,
