@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 0),
+    'version': (5, 8, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -19,6 +19,7 @@ import json
 import pathlib
 import statistics
 import sys
+import os
 import numpy as np
 from bpy.app.handlers import persistent
 from collections import Counter
@@ -302,19 +303,14 @@ class SXTOOLS_files(object):
                 else:
                     category = objArray[0].sxtools.category.lower()
                     print('Determining path: ', objArray[0].name, category)
-                    path = scene.exportfolder + category
+                    path = scene.exportfolder + category + os.path.sep
                     pathlib.Path(path).mkdir(exist_ok=True)
 
                 if len(collider_array) > 0:
                     for collider in collider_array:
                         collider.select_set(True)
 
-                if '/' in scene.exportfolder:
-                    slash = '/'
-                elif '\\' in scene.exportfolder:
-                    slash = '\\'
-
-                exportPath = path + slash + group.name + '.' + 'fbx'
+                exportPath = path + group.name + '.' + 'fbx'
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
@@ -366,8 +362,11 @@ class SXTOOLS_utils(object):
 
     # Finds groups to be exported,
     # only EMPTY objects with no parents
-    def find_groups(self, objs):
+    def find_groups(self, objs, all_groups=False):
         groups = []
+        if all_groups:
+            objs = bpy.context.view_layer.objects
+
         for obj in objs:
             if (obj.type == 'EMPTY') and (obj.parent is None):
                 groups.append(obj)
@@ -3049,18 +3048,23 @@ class SXTOOLS_tools(object):
                 obj.sxtools.decimation = 0.0                
 
 
-    def group_objects(self, objs):
+    def group_objects(self, objs, origin=False):
         utils.mode_manager(objs, set_mode=True, mode_id='group_objects')
         bpy.context.view_layer.objects.active = objs[0]
 
-        pivot = utils.find_root_pivot(objs)
+        if origin:
+            pivot = Vector((0.0, 0.0, 0.0))
+        else:
+            pivot = utils.find_root_pivot(objs)
 
         group = bpy.data.objects.new('empty', None)
         bpy.context.scene.collection.objects.link(group)
         group.empty_display_size = 0.5
         group.empty_display_type = 'PLAIN_AXES'
         group.location = pivot
-        group.name = objs[0].name + '_root'
+        group.name = objs[0].name.split('_', 1)[0] + '_root'
+        group.show_name = True
+        group.sxtools.exportready = False
 
         for obj in objs:
             obj.parent = group
@@ -3283,6 +3287,22 @@ class SXTOOLS_validate(object):
                         message_box(obj.name + '\ncontains the substring ' + keyword + '\nreserved for Smart Separate\nfunction of Mirror Modifier')
                         return False
         return True
+
+
+    def validate_catalogue(self, catalogue_path):
+        if len(catalogue_path) > 0:
+            try:
+                with open(catalogue_path, 'r') as input:
+                    temp_dict = {}
+                    temp_dict = json.load(input)
+                    input.close()
+                return True
+            except ValueError:
+                return False
+            except IOError:
+                return False
+        else:
+            return False
 
 
     def __del__(self):
@@ -5383,6 +5403,11 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=0.25,
         update=update_custom_props)
 
+    exportready: bpy.props.BoolProperty(
+        name='Export Ready',
+        description='Mark the group ready for batch export',
+        default=False)
+
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -5936,10 +5961,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     expandbatchexport: bpy.props.BoolProperty(
         name='Expand Batch Export',
-        default=False)
-
-    expandmanualexport: bpy.props.BoolProperty(
-        name='Expand Manual Export',
         default=False)
 
     exportmode: bpy.props.EnumProperty(
@@ -6545,7 +6566,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_category.prop(scene, 'palettecategories', text='')
                             row_category.operator('sxtools.addpalettecategory', text='', icon='ADD')
                             row_category.operator('sxtools.delpalettecategory', text='', icon='REMOVE')
-                            row_category.separator()
                             for palette in palettes:
                                 name = palette.name
                                 if palette.category.replace(" ", "").upper() == category:
@@ -6597,7 +6617,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 row_category.prop(scene, 'materialcategories', text='')
                                 row_category.operator('sxtools.addmaterialcategory', text='', icon='ADD')
                                 row_category.operator('sxtools.delmaterialcategory', text='', icon='REMOVE')
-                                row_category.separator()
                                 for material in materials:
                                     name = material.name
                                     if material.category.replace(" ", "_").upper() == category:
@@ -6729,6 +6748,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         split_export = col_export.split()
                         split_export.label(text='Auto-pivot:')
                         split_export.prop(sxtools, 'pivotmode', text='')
+                        col_export.prop(sxtools, 'smartseparate', text='Smart Separate on Export')
                         col_export.prop(sxtools, 'lodmeshes', text='Generate LOD Meshes')
                         if hasattr(bpy.types, bpy.ops.object.vhacd.idname()):
                             col_export.prop(scene, 'exportcolliders', text='Generate Mesh Colliders (V-HACD)')
@@ -6773,16 +6793,20 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandexport:
                         col_utils = box_export.column(align=False)
                         if scene.shift:
+                            group_text = 'Group Under World Origin'
                             pivot_text = 'Set Pivots to Bbox Center'
                         elif scene.ctrl:
+                            group_text = 'Group Selected Objects'
                             pivot_text = 'Set Pivots to Bbox Base'
                         elif scene.alt:
+                            group_text = 'Group Selected Objects'
                             pivot_text = 'Set Pivots to Origin'
                         else:
+                            group_text = 'Group Selected Objects'
                             pivot_text = 'Set Pivots to Center of Mass'
                         col_utils.operator('sxtools.setpivots', text=pivot_text)
-                        col_utils.operator('sxtools.groupobjects', text='Group Selected Objects')
-                        col_utils.operator('sxtools.zeroverts', text='Zero Vertices to Mirror Axis')
+                        col_utils.operator('sxtools.groupobjects', text=group_text)
+                        col_utils.operator('sxtools.zeroverts', text='Snap Vertices to Mirror Axis')
                         row_debug = box_export.row()
                         row_debug.prop(scene, 'expanddebug',
                             icon='TRIA_DOWN' if scene.expanddebug else 'TRIA_RIGHT',
@@ -6815,28 +6839,35 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 tag_text = 'Clear Ready for Batch Export Tag'
                             else:
                                 tag_text = 'Mark Group as Ready for Batch Export'
+
                             col_batchexport = box_export.column(align=True)
-                            col_batchexport.operator('sxtools.tagforexport', text=tag_text)
+                            groups = utils.find_groups(objs, all_groups=True)
+                            if len(groups) == 0:
+                                col_batchexport.label(text='No Groups Selected')
+                            else:
+                                col_batchexport.label(text='Groups to Batch Process:')
+                                for group in groups:
+                                    row_group = col_batchexport.row(align=True)
+                                    row_group.prop(group.sxtools, 'exportready', text='')
+                                    row_group.label(text='  ' + group.name)
+
                             col_batchexport.label(text='Catalogue File:')
                             col_batchexport.prop(scene, 'cataloguepath', text='')
+                            row_addcat = col_batchexport.row(align=True)
+                            row_addcat.operator('sxtools.catalogue_add', text='Add', icon='ADD')
+                            row_addcat.operator('sxtools.catalogue_remove', text='Remove', icon='REMOVE')
 
-                        row_manualexport = box_export.row()
-                        row_manualexport.prop(scene, 'expandmanualexport',
-                            icon='TRIA_DOWN' if scene.expandmanualexport else 'TRIA_RIGHT',
-                            icon_only=True, emboss=False)
-                        row_manualexport.label(text='Manual Export Settings')
-                        if scene.expandmanualexport:
-                            col2_export = box_export.column(align=True)
-                            col2_export.prop(sxtools, 'smartseparate', text='Smart Separate')
-                            col2_export.label(text='Export Folder:')
-                            col2_export.prop(scene, 'exportfolder', text='')
-                            split_export = box_export.split(factor=0.1)
-                            split_export.operator('sxtools.checklist', text='', icon='INFO')
+                        col2_export = box_export.column(align=True)
+                        col2_export.label(text='Export Folder:')
+                        col2_export.prop(scene, 'exportfolder', text='')
 
-                        if not scene.shift:
-                            exp_text = 'Export Selected'
-                        else:
+                        split_export = box_export.split(factor=0.1)
+                        split_export.operator('sxtools.checklist', text='', icon='INFO')
+
+                        if scene.shift:
                             exp_text = 'Export All'
+                        else:
+                            exp_text = 'Export Selected'
                         exp_button = split_export.operator('sxtools.exportfiles', text=exp_text)
 
                         if (mode == 'EDIT') or (len(scene.exportfolder) == 0):
@@ -7113,7 +7144,6 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
     bl_idname = 'sxtools.delramp'
     bl_label = 'Remove Ramp Preset'
     bl_description = 'Delete ramp preset from Gradient Library'
-    bl_options = {'UNDO'}
 
 
     def execute(self, context):
@@ -7172,7 +7202,6 @@ class SXTOOLS_OT_delpalettecategory(bpy.types.Operator):
     bl_idname = 'sxtools.delpalettecategory'
     bl_label = 'Remove Palette Category'
     bl_description = 'Removes a palette category from the Palette Library'
-    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -7234,7 +7263,6 @@ class SXTOOLS_OT_delmaterialcategory(bpy.types.Operator):
     bl_idname = 'sxtools.delmaterialcategory'
     bl_label = 'Remove Material Category'
     bl_description = 'Removes a material category from the Material Library'
-    bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
@@ -7317,7 +7345,6 @@ class SXTOOLS_OT_delpalette(bpy.types.Operator):
     bl_idname = 'sxtools.delpalette'
     bl_label = 'Remove Palette Preset'
     bl_description = 'Delete palette preset from Palette Library'
-    bl_options = {'UNDO'}
 
     label: bpy.props.StringProperty(name='Palette Name')
 
@@ -7389,7 +7416,6 @@ class SXTOOLS_OT_delmaterial(bpy.types.Operator):
     bl_idname = 'sxtools.delmaterial'
     bl_label = 'Remove Material Preset'
     bl_description = 'Delete material preset from Material Library'
-    bl_options = {'UNDO'}
 
     label: bpy.props.StringProperty(name='Material Name')
 
@@ -7903,7 +7929,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         if bpy.app.background:
             filtered_groups = []
             for group in groups:
-                if group['ExportReady']:
+                if group.sxtools.exportready:
                     filtered_groups.append(group)
             groups = filtered_groups
 
@@ -7971,35 +7997,15 @@ class SXTOOLS_OT_createuv0(bpy.types.Operator):
 class SXTOOLS_OT_groupobjects(bpy.types.Operator):
     bl_idname = 'sxtools.groupobjects'
     bl_label = 'Group Objects'
-    bl_description = 'Groups objects under an empty\nwith pivot placed at the bottom center'
+    bl_description = 'Groups objects under an empty.\nDefault pivot placed at the bottom center\nShift-click to place pivot in world origin'
     bl_options = {'UNDO'}
 
 
     def invoke(self, context, event):
         objs = selection_validator(self, context)
+        origin = event.shift
         if len(objs) > 0:
-            tools.group_objects(objs)
-        return {'FINISHED'}
-
-
-class SXTOOLS_OT_tagforexport(bpy.types.Operator):
-    bl_idname = 'sxtools.tagforexport'
-    bl_label = 'Tag for Export'
-    bl_description = 'Tag selected group of objects to be included in the batch export process.\nShift-click to remove tag.'
-    bl_options ={'UNDO'}
-
-
-    def invoke(self, context, event):
-        objs = selection_validator(self, context)
-        groups = utils.find_groups(objs)
-        for group in groups:
-            if event.shift:
-                group['ExportReady'] = False
-                group.empty_display_size = 0.5
-            else:
-                group['ExportReady'] = True
-                group.empty_display_size = 2.0
-
+            tools.group_objects(objs, origin)
         return {'FINISHED'}
 
 
@@ -8202,6 +8208,151 @@ class SXTOOLS_OT_selectdown(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
+    bl_idname = 'sxtools.catalogue_add'
+    bl_label = 'Add File to Asset Catalogue'
+    bl_description = 'Add current file to the Asset Catalogue for batch exporting'
+    bl_options = {'UNDO'}
+
+    assetTags: bpy.props.StringProperty(name='Tags')
+
+    def load_asset_data(self, catalogue_path):
+        if len(catalogue_path) > 0:
+            try:
+                with open(catalogue_path, 'r') as input:
+                    temp_dict = {}
+                    temp_dict = json.load(input)
+                    input.close()
+                return True, temp_dict
+            except ValueError:
+                message_box('Invalid Asset Catalogue file.', 'SX Tools Error', 'ERROR')
+                return False, None
+            except IOError:
+                message_box('Asset Catalogue file not found!', 'SX Tools Error', 'ERROR')
+                return False, None
+        else:
+            message_box('Invalid catalogue path', 'SX Tools Error', 'ERROR')
+            return False, None
+
+
+    def save_asset_data(self, catalogue_path, data_dict):
+        if len(catalogue_path) > 0:
+            with open(catalogue_path, 'w') as output:
+                json.dump(data_dict, output, indent=4)
+                output.close()
+            message_box(catalogue_path + ' saved')
+        else:
+            message_box(mode + ' file location not set!', 'SX Tools Error', 'ERROR')
+
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+        col.prop(self, 'assetTags')
+        col.label(text='Use only spaces between multiple tags')
+
+
+    def execute(self, context):
+        asset_dict = {}
+        scene = context.scene.sxtools
+        objs = selection_validator(self, context)
+        result, asset_dict = self.load_asset_data(scene.cataloguepath)
+        if not result:
+            return {'FINISHED'}
+
+        asset_category = objs[0].sxtools.category.lower()
+        asset_tags = self.assetTags.split(' ')
+        file_path = bpy.data.filepath
+        asset_path = os.path.split(scene.cataloguepath)[0]
+        prefix = os.path.commonpath([asset_path, file_path])
+        print('asset dict:', asset_dict)
+        # print(asset_tags)
+        # print('Prefix:', prefix)
+        # print('Asset path:', asset_path)
+        # print('File in library:', os.path.samefile(asset_path, prefix))
+        # print('File library path:', os.path.relpath(file_path, asset_path))
+        file_rel_path = os.path.relpath(file_path, asset_path)
+
+        if not os.path.samefile(asset_path, prefix):
+            message_box('File not located under asset folders!', 'SX Tools Error', 'ERROR')
+            return {'FINISHED'}
+
+        for key in asset_dict[asset_category].keys():
+            print('key:', key, 'asset path:', asset_path, 'file path:', file_path)
+            if os.path.samefile(file_path, os.path.join(asset_path, key)):
+                message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
+                return {'FINISHED'}
+
+        asset_dict[asset_category][file_rel_path] = asset_tags
+        self.save_asset_data(scene.cataloguepath, asset_dict)
+        return {'FINISHED'}
+
+
+class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
+    bl_idname = 'sxtools.catalogue_remove'
+    bl_label = 'Remove from Asset Catalogue'
+    bl_description = 'Remove selected Group from the Asset Catalogue'
+    bl_options = {'UNDO'}
+
+
+    def load_asset_data(self, catalogue_path):
+        if len(catalogue_path) > 0:
+            try:
+                with open(catalogue_path, 'r') as input:
+                    temp_dict = {}
+                    temp_dict = json.load(input)
+                    input.close()
+                return True, temp_dict
+            except ValueError:
+                message_box('Invalid Asset Catalogue file.', 'SX Tools Error', 'ERROR')
+                return False, None
+            except IOError:
+                message_box('Asset Catalogue file not found!', 'SX Tools Error', 'ERROR')
+                return False, None
+        else:
+            message_box('Invalid catalogue path', 'SX Tools Error', 'ERROR')
+            return False, None
+
+
+    def save_asset_data(self, catalogue_path, data_dict):
+        if len(catalogue_path) > 0:
+            with open(catalogue_path, 'w') as output:
+                json.dump(data_dict, output, indent=4)
+                output.close()
+            message_box(catalogue_path + ' saved')
+        else:
+            message_box(mode + ' file location not set!', 'SX Tools Error', 'ERROR')
+
+
+    def invoke(self, context, event):
+        scene = context.scene.sxtools
+        objs = selection_validator(self, context)
+        result, asset_dict = self.load_asset_data(scene.cataloguepath)
+        if not result:
+            return {'FINISHED'}
+
+        file_path = bpy.data.filepath
+        asset_path = os.path.split(scene.cataloguepath)[0]
+        paths = [asset_path, file_path]
+        prefix = os.path.commonpath(paths)
+
+        file_rel_path = os.path.relpath(file_path, asset_path)
+
+        if not os.path.samefile(asset_path, prefix):
+            message_box('File not located under asset folders!', 'SX Tools Error', 'ERROR')
+            return {'FINISHED'}
+
+        for asset_category in asset_dict.keys():
+            asset_dict[asset_category].pop(file_rel_path, None)
+
+        self.save_asset_data(scene.cataloguepath, asset_dict)
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
     bl_idname = 'sxtools.create_sxcollection'
     bl_label = 'Update SXCollection'
@@ -8278,6 +8429,21 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
     def invoke(self, context, event):
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
+
+        if bpy.app.background:
+            filtered_objs = []
+            for obj in objs:
+                groups = utils.find_groups([obj, ])
+                for group in groups:
+                    if group is not None and group.sxtools.exportready:
+                        filtered_objs.append(obj)
+
+            bpy.ops.object.select_all(action='DESELECT')
+            for obj in filtered_objs:
+                obj.select_set(True)
+
+            objs = filtered_objs
+
         if len(objs) > 0:
             bpy.context.view_layer.objects.active = objs[0]
             check = validate.validate_objects(objs)
@@ -8356,7 +8522,6 @@ classes = (
     SXTOOLS_OT_setpivots,
     SXTOOLS_OT_createuv0,
     SXTOOLS_OT_groupobjects,
-    SXTOOLS_OT_tagforexport,
     SXTOOLS_OT_generatelods,
     SXTOOLS_OT_resetoverlay,
     SXTOOLS_OT_resetmaterial,
@@ -8366,6 +8531,8 @@ classes = (
     SXTOOLS_OT_checklist,
     SXTOOLS_OT_selectup,
     SXTOOLS_OT_selectdown,
+    SXTOOLS_OT_catalogue_add,
+    SXTOOLS_OT_catalogue_remove,
     SXTOOLS_OT_create_sxcollection,
     SXTOOLS_OT_smart_separate,
     SXTOOLS_OT_macro)
@@ -8430,6 +8597,10 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Export selected fails if empty is selected
+# BUG: Batch export errors if group has been filtered
+# BUG: _root empties may end up in SXCollection
+# FEAT: only magic export readies when in background
 # BUG: collision mesh subdivision control not working as intended
 # FEAT: Choose subdivision level for collider generation
 # FEAT: Asset Library vs. Export tab

@@ -1,5 +1,6 @@
 import argparse
 import bpy
+import os
 
 def get_args():
 	parser = argparse.ArgumentParser()
@@ -15,8 +16,7 @@ def get_args():
 	return parsed_script_args
 
 args = get_args()
-export_path = str(args.exportpath)
-
+export_path = os.path.abspath(args.exportpath) + os.path.sep
 bpy.data.scenes["Scene"].sxtools.exportfolder = export_path
 
 bpy.ops.sxtools.loadlibraries('EXEC_DEFAULT')
