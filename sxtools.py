@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 3),
+    'version': (5, 8, 4),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8269,23 +8269,19 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
         file_path = bpy.data.filepath
         asset_path = os.path.split(scene.cataloguepath)[0]
         prefix = os.path.commonpath([asset_path, file_path])
-        print('asset dict:', asset_dict)
-        # print(asset_tags)
-        # print('Prefix:', prefix)
-        # print('Asset path:', asset_path)
-        # print('File in library:', os.path.samefile(asset_path, prefix))
-        # print('File library path:', os.path.relpath(file_path, asset_path))
         file_rel_path = os.path.relpath(file_path, asset_path)
 
         if not os.path.samefile(asset_path, prefix):
             message_box('File not located under asset folders!', 'SX Tools Error', 'ERROR')
             return {'FINISHED'}
 
-        for key in asset_dict[asset_category].keys():
-            print('key:', key, 'asset path:', asset_path, 'file path:', file_path)
-            if os.path.samefile(file_path, os.path.join(asset_path, key)):
-                message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
-                return {'FINISHED'}
+        if asset_category in asset_dict.keys():
+            for key in asset_dict[asset_category].keys():
+                if os.path.samefile(file_path, os.path.join(asset_path, key)):
+                    message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
+                    return {'FINISHED'}
+        else:
+            asset_dict[asset_category] = {}
 
         asset_dict[asset_category][file_rel_path] = asset_tags
         self.save_asset_data(scene.cataloguepath, asset_dict)
@@ -8294,8 +8290,8 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
 
 class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
     bl_idname = 'sxtools.catalogue_remove'
-    bl_label = 'Remove from Asset Catalogue'
-    bl_description = 'Remove selected Group from the Asset Catalogue'
+    bl_label = 'Remove File from Asset Catalogue'
+    bl_description = 'Remove current file from the Asset Catalogue'
     bl_options = {'UNDO'}
 
 
@@ -8597,6 +8593,8 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: Split SX Manager to separate project
+# FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # BUG: Batch export errors if group has been filtered
 # BUG: _root empties may end up in SXCollection
