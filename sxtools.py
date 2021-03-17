@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 4),
+    'version': (5, 8, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3289,22 +3289,6 @@ class SXTOOLS_validate(object):
         return True
 
 
-    def validate_catalogue(self, catalogue_path):
-        if len(catalogue_path) > 0:
-            try:
-                with open(catalogue_path, 'r') as input:
-                    temp_dict = {}
-                    temp_dict = json.load(input)
-                    input.close()
-                return True
-            except ValueError:
-                return False
-            except IOError:
-                return False
-        else:
-            return False
-
-
     def __del__(self):
         print('SX Tools: Exiting validate')
 
@@ -5192,6 +5176,13 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         description='Reverse smart naming on Y-axis',
         default=False)
 
+    cataloguepath: bpy.props.StringProperty(
+        name='Catalogue File',
+        description='Catalogue file for batch exporting',
+        default='',
+        maxlen=1024,
+        subtype='FILE_PATH')
+
 
     def draw(self, context):
         layout = self.layout
@@ -5218,6 +5209,9 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         layout_split8 = layout.split()
         layout_split8.label(text='Library Folder:')
         layout_split8.prop(self, 'libraryfolder', text='')
+        layout_split9 = layout.split()
+        layout_split9.label(text='Catalogue File (Optional):')
+        layout_split9.prop(self, 'cataloguepath', text='')
 
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
@@ -5991,13 +5985,6 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     exportcolliders: bpy.props.BoolProperty(
         name='Export Mesh Colliders',
         default=False)
-
-    cataloguepath: bpy.props.StringProperty(
-        name='Catalogue File',
-        description='Catalogue JSON file for project assets',
-        default='',
-        maxlen=1024,
-        subtype='FILE_PATH')
 
     gpucomposite: bpy.props.BoolProperty(
         name='GPU Compositing',
@@ -6829,33 +6816,31 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 elif scene.exportmode == 'EXPORT':
                     if scene.expandexport:
-                        row_batchexport = box_export.row()
-                        row_batchexport.prop(scene, 'expandbatchexport',
-                            icon='TRIA_DOWN' if scene.expandbatchexport else 'TRIA_RIGHT',
-                            icon_only=True, emboss=False)
-                        row_batchexport.label(text='Batch Export Settings')
-                        if scene.expandbatchexport:
-                            if scene.shift:
-                                tag_text = 'Clear Ready for Batch Export Tag'
-                            else:
-                                tag_text = 'Mark Group as Ready for Batch Export'
+                        if len(prefs.cataloguepath) > 0:
+                            row_batchexport = box_export.row()
+                            row_batchexport.prop(scene, 'expandbatchexport',
+                                icon='TRIA_DOWN' if scene.expandbatchexport else 'TRIA_RIGHT',
+                                icon_only=True, emboss=False)
+                            row_batchexport.label(text='Batch Export Settings')
+                            if scene.expandbatchexport:
+                                if scene.shift:
+                                    tag_text = 'Clear Ready for Batch Export Tag'
+                                else:
+                                    tag_text = 'Mark Group as Ready for Batch Export'
 
-                            col_batchexport = box_export.column(align=True)
-                            groups = utils.find_groups(objs, all_groups=True)
-                            if len(groups) == 0:
-                                col_batchexport.label(text='No Groups Selected')
-                            else:
-                                col_batchexport.label(text='Groups to Batch Process:')
-                                for group in groups:
-                                    row_group = col_batchexport.row(align=True)
-                                    row_group.prop(group.sxtools, 'exportready', text='')
-                                    row_group.label(text='  ' + group.name)
+                                col_batchexport = box_export.column(align=True)
+                                groups = utils.find_groups(objs, all_groups=True)
+                                if len(groups) == 0:
+                                    col_batchexport.label(text='No Groups Selected')
+                                else:
+                                    col_batchexport.label(text='Groups to Batch Process:')
+                                    for group in groups:
+                                        row_group = col_batchexport.row(align=True)
+                                        row_group.prop(group.sxtools, 'exportready', text='')
+                                        row_group.label(text='  ' + group.name)
 
-                            col_batchexport.label(text='Catalogue File:')
-                            col_batchexport.prop(scene, 'cataloguepath', text='')
-                            row_addcat = col_batchexport.row(align=True)
-                            row_addcat.operator('sxtools.catalogue_add', text='Add', icon='ADD')
-                            row_addcat.operator('sxtools.catalogue_remove', text='Remove', icon='REMOVE')
+                                col_batchexport.operator('sxtools.catalogue_add', text='Add to Catalogue', icon='ADD')
+                                col_batchexport.operator('sxtools.catalogue_remove', text='Remove from Catalogue', icon='REMOVE')
 
                         col2_export = box_export.column(align=True)
                         col2_export.label(text='Export Folder:')
@@ -8258,16 +8243,16 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
 
     def execute(self, context):
         asset_dict = {}
-        scene = context.scene.sxtools
+        prefs = context.preferences.addons['sxtools'].preferences
         objs = selection_validator(self, context)
-        result, asset_dict = self.load_asset_data(scene.cataloguepath)
+        result, asset_dict = self.load_asset_data(prefs.cataloguepath)
         if not result:
             return {'FINISHED'}
 
         asset_category = objs[0].sxtools.category.lower()
         asset_tags = self.assetTags.split(' ')
         file_path = bpy.data.filepath
-        asset_path = os.path.split(scene.cataloguepath)[0]
+        asset_path = os.path.split(prefs.cataloguepath)[0]
         prefix = os.path.commonpath([asset_path, file_path])
         file_rel_path = os.path.relpath(file_path, asset_path)
 
@@ -8284,7 +8269,7 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
             asset_dict[asset_category] = {}
 
         asset_dict[asset_category][file_rel_path] = asset_tags
-        self.save_asset_data(scene.cataloguepath, asset_dict)
+        self.save_asset_data(prefs.cataloguepath, asset_dict)
         return {'FINISHED'}
 
 
@@ -8325,14 +8310,14 @@ class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
 
 
     def invoke(self, context, event):
-        scene = context.scene.sxtools
+        prefs = context.preferences.addons['sxtools'].preferences
         objs = selection_validator(self, context)
-        result, asset_dict = self.load_asset_data(scene.cataloguepath)
+        result, asset_dict = self.load_asset_data(prefs.cataloguepath)
         if not result:
             return {'FINISHED'}
 
         file_path = bpy.data.filepath
-        asset_path = os.path.split(scene.cataloguepath)[0]
+        asset_path = os.path.split(prefs.cataloguepath)[0]
         paths = [asset_path, file_path]
         prefix = os.path.commonpath(paths)
 
@@ -8345,7 +8330,7 @@ class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
         for asset_category in asset_dict.keys():
             asset_dict[asset_category].pop(file_rel_path, None)
 
-        self.save_asset_data(scene.cataloguepath, asset_dict)
+        self.save_asset_data(prefs.cataloguepath, asset_dict)
         return {'FINISHED'}
 
 
