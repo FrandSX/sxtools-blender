@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 6),
+    'version': (5, 8, 7),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8272,7 +8272,7 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
         else:
             asset_dict[asset_category] = {}
 
-        asset_dict[asset_category][file_rel_path] = asset_tags
+        asset_dict[asset_category][file_rel_path.replace(os.path.sep, '//')] = asset_tags
         self.save_asset_data(prefs.cataloguepath, asset_dict)
         return {'FINISHED'}
 
