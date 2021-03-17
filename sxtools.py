@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 7),
+    'version': (5, 8, 10),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1295,7 +1295,7 @@ class SXTOOLS_setup(object):
         else:
             sxObjects = bpy.data.collections['SXObjects']
         for obj in bpy.data.objects:
-            if (len(obj.sxtools.keys()) > 0) and (obj.name not in sxObjects.objects):
+            if (len(obj.sxtools.keys()) > 0) and (obj.name not in sxObjects.objects) and (obj.type == 'MESH'):
                 sxObjects.objects.link(obj)
 
         if sxObjects.name not in bpy.context.scene.collection.children.keys():
@@ -7894,36 +7894,45 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
                 setup.create_sxcollection()
                 selected = bpy.data.collections['SXObjects'].all_objects
         else:
-            selected = context.view_layer.objects.selected
-            if context.scene.sxtools.exportquality == 'LO':
+            selected = selection_validator(self, context)
+            # selected = context.view_layer.objects.selected
+
+            if bpy.app.background:
+                filtered_objs = []
+                for obj in selected:
+                    groups = utils.find_groups([obj, ])
+                    for group in groups:
+                        if (group is not None) and (group.sxtools.exportready):
+                            filtered_objs.append(obj)
+
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in filtered_objs:
+                    obj.select_set(True)
+
+                selected = filtered_objs
+
+            if (context.scene.sxtools.exportquality == 'LO') and (len(selected) > 0):
                 newObjs = export.smart_separate(selected)
                 for obj in newObjs:
                     obj.select_set(True)
                 selected = viewlayer.objects.selected
 
-        # Make sure objects are in groups
-        for obj in selected:
-            if obj.parent is None:
-                obj.hide_viewport = False
-                # viewlayer.objects.active = obj
-                if obj.type == 'MESH':
-                    tools.group_objects([obj, ])
+        if len(selected) > 0:
+            # Make sure objects are in groups
+            for obj in selected:
+                if obj.parent is None:
+                    obj.hide_viewport = False
+                    # viewlayer.objects.active = obj
+                    if obj.type == 'MESH':
+                        tools.group_objects([obj, ])
 
-        groups = utils.find_groups(selected)
+            groups = utils.find_groups(selected)
+            files.export_files(groups)
 
-        if bpy.app.background:
-            filtered_groups = []
-            for group in groups:
-                if group.sxtools.exportready:
-                    filtered_groups.append(group)
-            groups = filtered_groups
-
-        files.export_files(groups)
-
-        if prefs.removelods:
-            export.remove_exports()
-        # sxglobals.composite = True
-        # refresh_actives(self, context)
+            if prefs.removelods:
+                export.remove_exports()
+            # sxglobals.composite = True
+            # refresh_actives(self, context)
         return {'FINISHED'}
 
 
@@ -8588,8 +8597,6 @@ if __name__ == '__main__':
 # TODO
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
-# BUG: Batch export errors if group has been filtered
-# BUG: _root empties may end up in SXCollection
 # BUG: collision mesh subdivision control not working as intended
 # FEAT: Choose subdivision level for collider generation
 # FEAT: Handle collider mesh active selection, present relevant tools
@@ -8612,14 +8619,13 @@ if __name__ == '__main__':
 # - Limit UV4 clear workload (currently 4 passes)
 # - Full GPU compositing of Layers 1-10
 # - GPU alpha accumulation
-# - GPU debug mode
 #
 # Issues:
 # - Investigate breaking refresh
 # - "Selected layer. Double click to rename" ???
 #
 # Colliders:
-# - Depend on V-HACD, test OpenCL vs. software
+# - Depend on V-HACD
 #     10000000
 #     32
 #     0.015
