@@ -8586,16 +8586,12 @@ if __name__ == '__main__':
 
 
 # TODO
-# FEAT: Split SX Manager to separate project
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # BUG: Batch export errors if group has been filtered
 # BUG: _root empties may end up in SXCollection
-# FEAT: only magic export readies when in background
 # BUG: collision mesh subdivision control not working as intended
 # FEAT: Choose subdivision level for collider generation
-# FEAT: Asset Library vs. Export tab
-# FEAT: Mark objects in scene for export (asset mode)
 # FEAT: Handle collider mesh active selection, present relevant tools
 # FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
