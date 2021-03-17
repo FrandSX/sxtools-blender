@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 5),
+    'version': (5, 8, 6),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8252,6 +8252,10 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
         asset_category = objs[0].sxtools.category.lower()
         asset_tags = self.assetTags.split(' ')
         file_path = bpy.data.filepath
+        if len(file_path) == 0:
+            message_box('Current file not saved!', 'SX Tools Error', 'ERROR')
+            return {'FINISHED'}
+
         asset_path = os.path.split(prefs.cataloguepath)[0]
         prefix = os.path.commonpath([asset_path, file_path])
         file_rel_path = os.path.relpath(file_path, asset_path)
@@ -8317,6 +8321,10 @@ class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
             return {'FINISHED'}
 
         file_path = bpy.data.filepath
+        if len(file_path) == 0:
+            message_box('Current file not saved!', 'SX Tools Error', 'ERROR')
+            return {'FINISHED'}
+
         asset_path = os.path.split(prefs.cataloguepath)[0]
         paths = [asset_path, file_path]
         prefix = os.path.commonpath(paths)
