@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 8, 15),
+    'version': (5, 9, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5044,6 +5044,22 @@ def expand_element(self, context, element):
         setattr(context.scene.sxtools, element, True)
 
 
+def export_validator(self, context):
+    if self.exportready:
+        root_group = self.id_data
+        objs = selection_validator(self, context)
+        for obj in objs:
+            obj.select_set(False)
+
+        objs = utils.find_children(root_group, context.view_layer.objects)
+        for obj in objs:
+            obj.select_set(True)
+
+        bpy.context.view_layer.update()
+        validate.validate_objects(objs)
+        root_group.select_set(True)
+
+
 def compositing_mode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial'].node_tree
     sw_output = sxmaterial.nodes['Vertex Color'].outputs['Color']
@@ -5400,7 +5416,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     exportready: bpy.props.BoolProperty(
         name='Export Ready',
         description='Mark the group ready for batch export',
-        default=False)
+        default=False,
+        update=export_validator)
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -8610,6 +8627,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: validate modifier settings, control cage
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # BUG: collision mesh subdivision control not working as intended
