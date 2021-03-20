@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 9, 0),
+    'version': (5, 9, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -893,65 +893,6 @@ class SXTOOLS_setup(object):
 
             pCol.location = (-1400, -200*i)
 
-        # Gradient1 and gradient2 source
-        if gradient1 or gradient2:
-            grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            grd.name = 'GradientUV'
-            grd.uv_map = gradient1UVSet
-            grd.location = (0, 650)
-
-            grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            grdSep.name = 'GradientXYZ'
-            grdSep.location = (200, 650)
-
-            output = grd.outputs['UV']
-            input = grdSep.inputs['Vector']
-            sxmaterial.node_tree.links.new(input, output)
-
-        # Overlay source
-        if overlay:
-            ovr1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            ovr1.name = 'OverlayUV1'
-            ovr1.uv_map = overlayUVSet1
-            ovr1.location = (400, 650)
-
-            ovr2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
-            ovr2.name = 'OverlayUV2'
-            ovr2.uv_map = overlayUVSet2
-            ovr2.location = (800, 650)
-
-            ovrSep1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            ovrSep1.name = 'OverlayXYZ1'
-            ovrSep1.location = (600, 650)
-
-            ovrSep2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
-            ovrSep2.name = 'OverlayXYZ2'
-            ovrSep2.location = (1000, 650)
-
-            ovrRGB = sxmaterial.node_tree.nodes.new(type='ShaderNodeCombineRGB')
-            ovrRGB.name = 'OverlayCombine'
-            ovrRGB.location = (1200, 650)
-
-            output = ovr1.outputs['UV']
-            input = ovrSep1.inputs['Vector']
-            sxmaterial.node_tree.links.new(input, output)
-
-            output = ovr2.outputs['UV']
-            input = ovrSep2.inputs['Vector']
-            sxmaterial.node_tree.links.new(input, output)
-
-            output = ovrSep1.outputs['X']
-            input = ovrRGB.inputs['R']
-            sxmaterial.node_tree.links.new(input, output)
-
-            output = ovrSep1.outputs['Y']
-            input = ovrRGB.inputs['G']
-            sxmaterial.node_tree.links.new(input, output)
-
-            output = ovrSep2.outputs['X']
-            input = ovrRGB.inputs['B']
-            sxmaterial.node_tree.links.new(input, output)
-
         # GPU visibility toggles
         vis_names = ['occlusion_visibility', 'metallic_visibility', 'smoothness_visibility', 'transmission_visibility', 'emission_visibility']
         for i in range(5):
@@ -977,87 +918,151 @@ class SXTOOLS_setup(object):
             input = sxmaterial.node_tree.nodes['VisMix ' + str(i + 1)].inputs[0]
             sxmaterial.node_tree.links.new(input, output)
 
+        #
+        # NOTE: This section is needed only if GPU compositing of color layers is used
+        #
+
+        # Gradient1 and gradient2 source
+        # if gradient1 or gradient2:
+        #     grd = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+        #     grd.name = 'GradientUV'
+        #     grd.uv_map = gradient1UVSet
+        #     grd.location = (0, 650)
+
+        #     grdSep = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+        #     grdSep.name = 'GradientXYZ'
+        #     grdSep.location = (200, 650)
+
+        #     output = grd.outputs['UV']
+        #     input = grdSep.inputs['Vector']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+        # Overlay source
+        # if overlay:
+        #     ovr1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+        #     ovr1.name = 'OverlayUV1'
+        #     ovr1.uv_map = overlayUVSet1
+        #     ovr1.location = (400, 650)
+
+        #     ovr2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeUVMap')
+        #     ovr2.name = 'OverlayUV2'
+        #     ovr2.uv_map = overlayUVSet2
+        #     ovr2.location = (800, 650)
+
+        #     ovrSep1 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+        #     ovrSep1.name = 'OverlayXYZ1'
+        #     ovrSep1.location = (600, 650)
+
+        #     ovrSep2 = sxmaterial.node_tree.nodes.new(type='ShaderNodeSeparateXYZ')
+        #     ovrSep2.name = 'OverlayXYZ2'
+        #     ovrSep2.location = (1000, 650)
+
+        #     ovrRGB = sxmaterial.node_tree.nodes.new(type='ShaderNodeCombineRGB')
+        #     ovrRGB.name = 'OverlayCombine'
+        #     ovrRGB.location = (1200, 650)
+
+        #     output = ovr1.outputs['UV']
+        #     input = ovrSep1.inputs['Vector']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+        #     output = ovr2.outputs['UV']
+        #     input = ovrSep2.inputs['Vector']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+        #     output = ovrSep1.outputs['X']
+        #     input = ovrRGB.inputs['R']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+        #     output = ovrSep1.outputs['Y']
+        #     input = ovrRGB.inputs['G']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+        #     output = ovrSep2.outputs['X']
+        #     input = ovrRGB.inputs['B']
+        #     sxmaterial.node_tree.links.new(input, output)
+
+
         # Vertex color and alpha sources
-        for i in range(numlayers + numgradients + numoverlays - 1):
-            if i < numlayers:
-                colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
-                colornode.name = 'VertexColor' + str(i + 1)
-                colornode.layer_name = 'VertexColor' + str(i + 1)
-                colornode.location = (i*200-1400, 650)
+        # for i in range(numlayers + numgradients + numoverlays - 1):
+        #     if i < numlayers:
+        #         colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+        #         colornode.name = 'VertexColor' + str(i + 1)
+        #         colornode.layer_name = 'VertexColor' + str(i + 1)
+        #         colornode.location = (i*200-1400, 650)
 
-            mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-            mixnode.name = 'Mix ' + str(i + 1)
-            mixnode.inputs[0].default_value = 1
-            mixnode.inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
-            mixnode.blend_type = 'MIX'
-            mixnode.use_clamp = True
-            mixnode.location = (i*200-1200, 500)
+        #     mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
+        #     mixnode.name = 'Mix ' + str(i + 1)
+        #     mixnode.inputs[0].default_value = 1
+        #     mixnode.inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
+        #     mixnode.blend_type = 'MIX'
+        #     mixnode.use_clamp = True
+        #     mixnode.location = (i*200-1200, 500)
 
-            mathnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
-            mathnode.name = 'Opacity ' + str(i + 1)
-            mathnode.operation = 'MULTIPLY'
-            mathnode.use_clamp = True
-            mathnode.inputs[0].default_value = 1
-            mathnode.location = (i*200-1200, 850)
+        #     mathnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
+        #     mathnode.name = 'Opacity ' + str(i + 1)
+        #     mathnode.operation = 'MULTIPLY'
+        #     mathnode.use_clamp = True
+        #     mathnode.inputs[0].default_value = 1
+        #     mathnode.location = (i*200-1200, 850)
 
-            # Vertex Colors, base layer connection
-            if i == 0:
-                output = colornode.outputs['Color']
-            else:
-                output = sxmaterial.node_tree.nodes['Mix ' + str(i)].outputs['Color']
-            input = mixnode.inputs['Color1']
-            sxmaterial.node_tree.links.new(input, output)
+        #     # Vertex Colors, base layer connection
+        #     if i == 0:
+        #         output = colornode.outputs['Color']
+        #     else:
+        #         output = sxmaterial.node_tree.nodes['Mix ' + str(i)].outputs['Color']
+        #     input = mixnode.inputs['Color1']
+        #     sxmaterial.node_tree.links.new(input, output)
 
-            # Vertex Colors, top layer connection
-            if (i != 0) and (i < numlayers):
-                output = colornode.outputs['Color']
-                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
-                sxmaterial.node_tree.links.new(input, output)
+        #     # Vertex Colors, top layer connection
+        #     if (i != 0) and (i < numlayers):
+        #         output = colornode.outputs['Color']
+        #         input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
+        #         sxmaterial.node_tree.links.new(input, output)
 
-                output = colornode.outputs['Alpha']
-                input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
-                sxmaterial.node_tree.links.new(input, output)
+        #         output = colornode.outputs['Alpha']
+        #         input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+        #         sxmaterial.node_tree.links.new(input, output)
 
-                output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
-                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
-                sxmaterial.node_tree.links.new(input, output)
+        #         output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
+        #         input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
+        #         sxmaterial.node_tree.links.new(input, output)
 
-            # Gradient (alpha overlay) base connections
-            if (i >= numlayers) and (i < numlayers + numgradients):
-                output = sxmaterial.node_tree.nodes['PaletteColor' + str(i - numlayers + 3)].outputs['Color']
-                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
-                sxmaterial.node_tree.links.new(input, output)
+        #     # Gradient (alpha overlay) base connections
+        #     if (i >= numlayers) and (i < numlayers + numgradients):
+        #         output = sxmaterial.node_tree.nodes['PaletteColor' + str(i - numlayers + 3)].outputs['Color']
+        #         input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Color2']
+        #         sxmaterial.node_tree.links.new(input, output)
 
-                if (gradient1 or gradient2) and (i == numlayers):
-                    output = grdSep.outputs['X']
-                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
-                    sxmaterial.node_tree.links.new(input, output)
-                elif (gradient2) and (i == numlayers + 1):
-                    output = grdSep.outputs['Y']
-                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
-                    sxmaterial.node_tree.links.new(input, output)
+        #         if (gradient1 or gradient2) and (i == numlayers):
+        #             output = grdSep.outputs['X']
+        #             input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+        #             sxmaterial.node_tree.links.new(input, output)
+        #         elif (gradient2) and (i == numlayers + 1):
+        #             output = grdSep.outputs['Y']
+        #             input = sxmaterial.node_tree.nodes['Opacity ' + str(i)].inputs[1]
+        #             sxmaterial.node_tree.links.new(input, output)
 
-                output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
-                input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
-                sxmaterial.node_tree.links.new(input, output)
+        #         output = sxmaterial.node_tree.nodes['Opacity ' + str(i)].outputs['Value']
+        #         input = sxmaterial.node_tree.nodes['Mix ' + str(i)].inputs['Fac']
+        #         sxmaterial.node_tree.links.new(input, output)
 
-            if (i == numlayers + numgradients + numoverlays - 2):
-                if overlay:
-                    output = ovrRGB.outputs['Image']
-                    input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Color2']
-                    sxmaterial.node_tree.links.new(input, output)
+        #     if (i == numlayers + numgradients + numoverlays - 2):
+        #         if overlay:
+        #             output = ovrRGB.outputs['Image']
+        #             input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Color2']
+        #             sxmaterial.node_tree.links.new(input, output)
 
-                    output = ovrSep2.outputs['Y']
-                    input = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].inputs[1]
-                    sxmaterial.node_tree.links.new(input, output)
+        #             output = ovrSep2.outputs['Y']
+        #             input = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].inputs[1]
+        #             sxmaterial.node_tree.links.new(input, output)
 
-                    output = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].outputs['Value']
-                    input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Fac']
-                    sxmaterial.node_tree.links.new(input, output)
+        #             output = sxmaterial.node_tree.nodes['Opacity ' + str(i + 1)].outputs['Value']
+        #             input = sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].inputs['Fac']
+        #             sxmaterial.node_tree.links.new(input, output)
 
-                    sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].blend_type = 'OVERLAY'
+        #             sxmaterial.node_tree.nodes['Mix ' + str(i + 1)].blend_type = 'OVERLAY'
 
-                mixnode.name = 'Final Step'
+        #         mixnode.name = 'Final Step'
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
         sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
@@ -6818,7 +6823,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         row_debug.label(text='Debug Tools')
                         if scene.expanddebug:
                             col_debug = box_export.column(align=True)
-                            col_debug.prop(scene, 'gpucomposite', text='GPU Compositing (Experimental)')
+                            # col_debug.prop(scene, 'gpucomposite', text='GPU Compositing (Experimental)')
                             col_debug.operator('sxtools.smart_separate', text='Debug: Smart Separate sxMirror')
                             col_debug.operator('sxtools.create_sxcollection', text='Debug: Update SXCollection')
                             col_debug.operator('sxtools.applymodifiers', text='Debug: Apply Modifiers')
