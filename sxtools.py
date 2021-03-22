@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 9, 1),
+    'version': (5, 9, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2232,7 +2232,10 @@ class SXTOOLS_layers(object):
                 colors = generate.color_list(obj, color=default_color)
                 layers.set_layer(obj, colors, layer)
             else:
-                colors = layers.get_layer(obj, layer)
+                if (targetlayer.name == 'gradient1') or (targetlayer.name == 'gradient2'):
+                    colors = layers.get_layer(obj, layer, uv_as_alpha=True)
+                else:
+                    colors = layers.get_layer(obj, layer)
                 mask, empty = generate.selection_mask(obj)
                 if not empty:
                     for i in range(len(mask)):
