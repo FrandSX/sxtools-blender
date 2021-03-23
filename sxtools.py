@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 9, 2),
+    'version': (5, 9, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5067,6 +5067,8 @@ def export_validator(self, context):
         validate.validate_objects(objs)
         root_group.select_set(True)
 
+        setup.create_sxcollection()
+
 
 def compositing_mode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial'].node_tree
@@ -8635,7 +8637,7 @@ if __name__ == '__main__':
 
 
 # TODO
-# FEAT: validate modifier settings, control cage
+# FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # BUG: collision mesh subdivision control not working as intended
