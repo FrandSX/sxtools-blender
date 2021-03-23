@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 9, 3),
+    'version': (5, 10, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3638,7 +3638,7 @@ class SXTOOLS_magic(object):
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
 
-    def process_paletted(self, objs):
+    def process_paletted_old(self, objs):
         print('SX Tools: Processing Paletted')
         scene = bpy.context.scene.sxtools
         obj = objs[0]
@@ -3681,6 +3681,114 @@ class SXTOOLS_magic(object):
         mask = obj.sxlayers['emission']
         layer = obj.sxlayers['smoothness']
         tools.apply_tool(objs, layer, masklayer=mask, color=color)
+
+
+    def process_paletted(self, objs):
+        print('SX Tools: Processing Paletted')
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+
+        # Apply occlusion masked by emission
+        scene.occlusionblend = 0.5
+        scene.occlusionrays = 200
+        scene.occlusionbias = 0.01
+
+        for obj in objs:
+            layer = obj.sxlayers['occlusion']
+            colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
+            colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
+
+            layers.set_layer(obj, colors, layer)
+
+        # Apply custom overlay
+        layer = obj.sxlayers['overlay']
+        scene.toolmode = 'CRV'
+        scene.curvaturenormalize = True
+
+        tools.apply_tool(objs, layer)
+
+        scene.toolmode = 'NSE'
+        scene.toolopacity = 0.01
+        scene.toolblend = 'MUL'
+        scene.noisemono = False
+
+        tools.apply_tool(objs, layer)
+
+        scene.toolopacity = 1.0
+        scene.toolblend = 'ALPHA'
+
+        for obj in objs:
+            obj.sxlayers['overlay'].blendMode = 'OVR'
+            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+
+        # Clear metallic, smoothness, and transmission
+        layers.clear_layers(objs, obj.sxlayers['metallic'])
+        layers.clear_layers(objs, obj.sxlayers['smoothness'])
+        layers.clear_layers(objs, obj.sxlayers['transmission'])
+
+        material = 'Iron'
+        palette = [
+            bpy.context.scene.sxmaterials[material].color0,
+            bpy.context.scene.sxmaterials[material].color1,
+            bpy.context.scene.sxmaterials[material].color2]
+
+        for obj in objs:
+            # Construct layer1-7 smoothness base mask
+            color = (obj.sxtools.smoothness1, obj.sxtools.smoothness1, obj.sxtools.smoothness1, 1.0)
+            colors = generate.color_list(obj, color)
+            color = (obj.sxtools.smoothness2, obj.sxtools.smoothness2, obj.sxtools.smoothness2, 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 4))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 5))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            color = (0.0, 0.0, 0.0, 1.0)
+            colors1 = generate.color_list(obj, color, utils.find_layer_from_index(obj, 6))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            # Combine with smoothness from PBR material
+            colors1 = generate.color_list(obj, palette[2], utils.find_layer_from_index(obj, 7))
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            # Noise for variance
+            colors1 = generate.noise_list(obj, 0.01, True)
+            colors = tools.blend_values(colors1, colors, 'OVR', 1.0)
+            # Combine smoothness base mask with custom curvature gradient
+            scene.curvaturenormalize = True
+            scene.ramplist = 'CURVATURESMOOTHNESS'
+            colors1 = generate.curvature_list(obj)
+            values = layers.get_luminances(obj, colors=colors1)
+            colors1 = generate.luminance_remap_list(obj, values=values)
+            colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+            # Combine previous mix with directional dust
+            scene.ramplist = 'DIRECTIONALDUST'
+            scene.dirAngle = 0.0
+            scene.dirInclination = 90.0
+            scene.dirCone = 30
+            colors1 = generate.direction_list(obj)
+            values = layers.get_luminances(obj, colors=colors1)
+            colors1 = generate.luminance_remap_list(obj, values=values)
+            colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+            # Emissives are smooth
+            color = (1.0, 1.0, 1.0, 1.0)
+            colors1 = generate.color_list(obj, color, obj.sxlayers['emission'])
+            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
+            # Write smoothness
+            layer = obj.sxlayers['smoothness']
+            layers.set_layer(obj, colors, layer)
+            # layer.locked = True
+
+            # Apply PBR metal based on layer7
+            # noise = 0.01
+            # mono = True
+            scene.toolmode = 'COL'
+            scene.toolopacity = 1.0
+            scene.toolblend = 'ALPHA'
+
+            # Mix metallic with occlusion (dirt in crevices)
+            colors = generate.color_list(obj, color=palette[1], masklayer=utils.find_layer_from_index(obj, 7))
+            colors1 = layers.get_layer(obj, obj.sxlayers['occlusion'], uv_as_alpha=True)
+            if colors is not None:
+                colors = tools.blend_values(colors1, colors, 'MUL', 1.0)
+                layers.set_layer(obj, colors, obj.sxlayers['metallic'])
 
 
     def process_vehicles(self, objs):
@@ -6753,7 +6861,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_cat.label(text='Category:')
                             row_cat.prop(sxtools, 'category', text='')
                         col_export = box_export.column(align=True)
-                        if (obj.sxtools.category != 'DEFAULT') and (obj.sxtools.category != 'PALETTED'):
+                        if (obj.sxtools.category != 'DEFAULT'):
                             col_export.prop(sxtools, 'smoothness1', text='Layer1-3 Base Smoothness', slider=True)
                             col_export.prop(sxtools, 'smoothness2', text='Layer4-5 Base Smoothness', slider=True)
                         if obj.sxtools.staticvertexcolors == '0':
