@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 0),
+    'version': (5, 10, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7828,6 +7828,10 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
     bl_options = {'UNDO'}
 
     label: bpy.props.StringProperty()
+
+
+    def execute(self, context):
+        return self.invoke(context, None) 
 
 
     def invoke(self, context, event):
