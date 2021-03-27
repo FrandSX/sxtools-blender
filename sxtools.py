@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 1),
+    'version': (5, 10, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7840,8 +7840,9 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
             palette = self.label
             tools.apply_palette(objs, palette)
 
-            sxglobals.composite = True
-            refresh_actives(self, context)
+            if not bpy.app.background:
+                sxglobals.composite = True
+                refresh_actives(self, context)
         return {'FINISHED'}
 
 
