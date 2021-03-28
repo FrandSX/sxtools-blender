@@ -5101,7 +5101,7 @@ def update_material_layer(self, context, index):
                     color = (rgb[0], rgb[1], rgb[2], 1.0)
                 elif hsl[2] < minl:
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
- %                   color = (rgb[0], rgb[1], rgb[2], 1.0)
+                    color = (rgb[0], rgb[1], rgb[2], 1.0)
 
         if sxglobals.mode == 'EDIT':
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1)[0]
