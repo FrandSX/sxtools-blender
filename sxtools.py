@@ -345,7 +345,7 @@ class SXTOOLS_utils(object):
 
     def mode_manager(self, objs, set_mode=False, revert=False, mode_id=None):
         if set_mode:
-            if sxglobals.modeID == None:
+            if sxglobals.modeID is None:
                 sxglobals.modeID = mode_id
                 sxglobals.mode = objs[0].mode
                 if objs[0].mode != 'OBJECT':
@@ -635,7 +635,7 @@ class SXTOOLS_utils(object):
             if hit:
                 dist = Vector((loc[0] - vert_loc[0], loc[1] - vert_loc[1], loc[2] - vert_loc[2])).length
                 if dist > 0.0:
-                    max_distances.append(dist) 
+                    max_distances.append(dist)
 
         bm.free
         return min(max_distances)
@@ -2038,7 +2038,7 @@ class SXTOOLS_layers(object):
         if apply_layer_alpha and alpha != 1.0:
             count = len(values)//4
             for i in range(count):
-                values[3+i*4] *= alpha 
+                values[3+i*4] *= alpha
 
         if as_tuple:
             count = len(values)//4
@@ -2262,7 +2262,6 @@ class SXTOOLS_layers(object):
     def composite_layers(self, objs):
         if sxglobals.composite:
             # then = time.time()
-            prefs = bpy.context.preferences.addons['sxtools'].preferences
             compLayers = utils.find_comp_layers(objs[0])
             shadingmode = bpy.context.scene.sxtools.shadingmode
             idx = objs[0].sxtools.selectedlayer
@@ -2669,7 +2668,6 @@ class SXTOOLS_tools(object):
                 valueArray.append(hsl[hslmode])
             offset = newValue - max(valueArray)
         else:
-            layervalue = 0.0
             offset = newValue
 
         for obj in objs:
@@ -2924,7 +2922,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxMirror'].use_axis[0] = obj.sxtools.xmirror
                 obj.modifiers['sxMirror'].use_axis[1] = obj.sxtools.ymirror
                 obj.modifiers['sxMirror'].use_axis[2] = obj.sxtools.zmirror
-                if obj.sxtools.mirrorobject != None:
+                if obj.sxtools.mirrorobject is not None:
                     obj.modifiers['sxMirror'].mirror_object = obj.sxtools.mirrorobject
                 else:
                     obj.modifiers['sxMirror'].mirror_object = None
@@ -3053,7 +3051,7 @@ class SXTOOLS_tools(object):
                 obj.sxtools.subdivisionlevel = 1
                 obj.sxtools.smoothangle = 180.0
                 obj.sxtools.weldthreshold = 0.0
-                obj.sxtools.decimation = 0.0                
+                obj.sxtools.decimation = 0.0
 
 
     def group_objects(self, objs, origin=False):
@@ -3339,7 +3337,7 @@ class SXTOOLS_magic(object):
 
         for obj in objs:
             for layer in obj.sxlayers:
-                layer.locked=False
+                layer.locked = False
 
         # Make sure export and source Collections exist
         if 'ExportObjects' not in bpy.data.collections.keys():
@@ -4500,7 +4498,6 @@ def refresh_actives(self, context):
         prefs = context.preferences.addons['sxtools'].preferences
         scene = context.scene.sxtools
         mode = context.scene.sxtools.shadingmode
-        sxmaterial = bpy.data.materials['SXMaterial']
         objs = selection_validator(self, context)
 
         utils.mode_manager(objs, set_mode=True, mode_id='refresh_actives')
@@ -4869,7 +4866,7 @@ def update_modifiers(self, context, modifier):
                     obj.modifiers['sxMirror'].use_axis[1] = ymirror
                     obj.modifiers['sxMirror'].use_axis[2] = zmirror
 
-                    if mirrorobj != None:
+                    if mirrorobj is not None:
                         obj.modifiers['sxMirror'].mirror_object = mirrorobj
                     else:
                         obj.modifiers['sxMirror'].mirror_object = None
@@ -5012,7 +5009,6 @@ def update_custom_props(self, context):
 
 
 def update_gpu_props(self, context):
-    scene = context.scene.sxtools
     mode = context.scene.sxtools.shadingmode
     objs = selection_validator(self, context)
 
@@ -5105,7 +5101,7 @@ def update_material_layer(self, context, index):
                     color = (rgb[0], rgb[1], rgb[2], 1.0)
                 elif hsl[2] < minl:
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
-                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+ %                   color = (rgb[0], rgb[1], rgb[2], 1.0)
 
         if sxglobals.mode == 'EDIT':
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1)[0]
@@ -5228,14 +5224,14 @@ def load_post_handler(dummy):
                 obj.sxtools.hardmode = 'SHARP'
         if 'sxlayers' in obj.keys():
             if (len(obj.sxlayers) > 7):
-                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
-                 obj['occlusion_visibility'] = True
-                 obj['metallic_visibility'] = True
-                 obj['smoothness_visibility'] = True
-                 obj['transmission_visibility'] = True
-                 obj['emission_visibility'] = True
+                bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
+                obj['occlusion_visibility'] = True
+                obj['metallic_visibility'] = True
+                obj['smoothness_visibility'] = True
+                obj['transmission_visibility'] = True
+                obj['emission_visibility'] = True
             else:
-                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
+                bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
     if not bpy.app.background:
         for obj in bpy.data.objects:
@@ -6504,7 +6500,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Layer Controls -----------------------------------------------
                 box_layer = layout.box()
                 row_layer = box_layer.row()
-                row_layer.prop(scene, 'expandlayer',
+                row_layer.prop(
+                    scene, 'expandlayer',
                     icon='TRIA_DOWN' if scene.expandlayer else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 split_basics = row_layer.split(factor=0.3)
@@ -6582,7 +6579,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Fill Tools --------------------------------------------------------
                 box_fill = layout.box()
                 row_fill = box_fill.row()
-                row_fill.prop(scene, 'expandfill',
+                row_fill.prop(
+                    scene, 'expandfill',
                     icon='TRIA_DOWN' if scene.expandfill else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_fill.prop(scene, 'toolmode', text='')
@@ -6676,7 +6674,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                     if scene.expandfill:
                         row_lib = box_fill.row()
-                        row_lib.prop(scene, 'expandpal',
+                        row_lib.prop(
+                            scene, 'expandpal',
                             icon='TRIA_DOWN' if scene.expandpal else 'TRIA_RIGHT',
                             icon_only=True, emboss=False)
                         row_lib.label(text='Library')
@@ -6727,7 +6726,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                         if scene.expandfill:
                             row_lib = box_fill.row()
-                            row_lib.prop(scene, 'expandmat',
+                            row_lib.prop(
+                                scene, 'expandmat',
                                 icon='TRIA_DOWN' if scene.expandmat else 'TRIA_RIGHT',
                                 icon_only=True, emboss=False)
                             row_lib.label(text='Library')
@@ -6764,7 +6764,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Crease and Bevel Sets, Modifier Settings --------------------------------
                 box_crease = layout.box()
                 row_crease = box_crease.row()
-                row_crease.prop(scene, 'expandcrease',
+                row_crease.prop(
+                    scene, 'expandcrease',
                     icon='TRIA_DOWN' if scene.expandcrease else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_crease.prop(scene, 'creasemode', expand=True)
@@ -6790,7 +6791,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 elif scene.creasemode == 'SDS':
                     if scene.expandcrease:
                         row_mod1 = box_crease.row()
-                        row_mod1.prop(scene, 'expandmirror',
+                        row_mod1.prop(
+                            scene, 'expandmirror',
                             icon='TRIA_DOWN' if scene.expandmirror else 'TRIA_RIGHT',
                             icon_only=True, emboss=False)
                         row_mod1.label(text='Mirror Modifier Settings')
@@ -6803,7 +6805,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_mirrorobj.prop_search(sxtools, 'mirrorobject', context.scene, 'objects')
 
                         row_mod2 = box_crease.row()
-                        row_mod2.prop(scene, 'expandbevel',
+                        row_mod2.prop(
+                            scene, 'expandbevel',
                             icon='TRIA_DOWN' if scene.expandbevel else 'TRIA_RIGHT',
                             icon_only=True, emboss=False)
                         row_mod2.label(text='Bevel Modifier Settings')
@@ -6850,7 +6853,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 # Processing, Utils, and Export ------------------------------------
                 box_export = layout.box()
                 row_export = box_export.row()
-                row_export.prop(scene, 'expandexport',
+                row_export.prop(
+                    scene, 'expandexport',
                     icon='TRIA_DOWN' if scene.expandexport else 'TRIA_RIGHT',
                     icon_only=True, emboss=False)
                 row_export.prop(scene, 'exportmode', expand=True)
@@ -6880,7 +6884,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                 col_collideroffset.prop(sxtools, 'collideroffset', text='Auto-Shrink Collision Mesh')
                                 col_collideroffset.prop(sxtools, 'collideroffsetfactor', text='Shrink Factor', slider=True)
                                 row_colliders = box_colliders.row()
-                                row_colliders.prop(scene, 'expandcolliders',
+                                row_colliders.prop(
+                                    scene, 'expandcolliders',
                                     icon='TRIA_DOWN' if scene.expandcolliders else 'TRIA_RIGHT',
                                     icon_only=True, emboss=False)
                                 row_colliders.label(text='V-HACD Settings')
@@ -6930,7 +6935,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_utils.operator('sxtools.groupobjects', text=group_text)
                         col_utils.operator('sxtools.zeroverts', text='Snap Vertices to Mirror Axis')
                         row_debug = box_export.row()
-                        row_debug.prop(scene, 'expanddebug',
+                        row_debug.prop(
+                            scene, 'expanddebug',
                             icon='TRIA_DOWN' if scene.expanddebug else 'TRIA_RIGHT',
                             icon_only=True, emboss=False)
                         row_debug.label(text='Debug Tools')
@@ -6953,16 +6959,12 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandexport:
                         if len(prefs.cataloguepath) > 0:
                             row_batchexport = box_export.row()
-                            row_batchexport.prop(scene, 'expandbatchexport',
+                            row_batchexport.prop(
+                                scene, 'expandbatchexport',
                                 icon='TRIA_DOWN' if scene.expandbatchexport else 'TRIA_RIGHT',
                                 icon_only=True, emboss=False)
                             row_batchexport.label(text='Batch Export Settings')
                             if scene.expandbatchexport:
-                                if scene.shift:
-                                    tag_text = 'Clear Ready for Batch Export Tag'
-                                else:
-                                    tag_text = 'Mark Group as Ready for Batch Export'
-
                                 col_batchexport = box_export.column(align=True)
                                 groups = utils.find_groups(objs, all_groups=True)
                                 if len(groups) == 0:
@@ -6988,7 +6990,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             exp_text = 'Export All'
                         else:
                             exp_text = 'Export Selected'
-                        exp_button = split_export.operator('sxtools.exportfiles', text=exp_text)
+                        split_export.operator('sxtools.exportfiles', text=exp_text)
 
                         if (mode == 'EDIT') or (len(scene.exportfolder) == 0):
                             split_export.enabled = False
@@ -7008,8 +7010,8 @@ class SXTOOLS_UL_layerlist(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index, flt_flag):
         scene = context.scene.sxtools
         objs = selection_validator(self, context)
-        hide_icon = {False:'HIDE_ON', True:'HIDE_OFF'}
-        lock_icon = {False:'UNLOCKED', True:'LOCKED'}
+        hide_icon = {False: 'HIDE_ON', True: 'HIDE_OFF'}
+        lock_icon = {False: 'UNLOCKED', True: 'LOCKED'}
 
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             if item.enabled:
@@ -7173,7 +7175,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -7228,7 +7230,7 @@ class SXTOOLS_OT_keymonitor(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -7267,7 +7269,7 @@ class SXTOOLS_OT_delramp(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -7429,31 +7431,31 @@ class SXTOOLS_OT_addpalette(bpy.types.Operator):
                 for i, category in enumerate(categoryDict.keys()):
                     if category.casefold() == context.scene.sxtools.palettecategories.casefold():
                         categoryDict[category][paletteName] = [
-                        [
-                            scene.newpalette0[0],
-                            scene.newpalette0[1],
-                            scene.newpalette0[2]
-                        ],
-                        [
-                            scene.newpalette1[0],
-                            scene.newpalette1[1],
-                            scene.newpalette1[2]
-                        ],
-                        [
-                            scene.newpalette2[0],
-                            scene.newpalette2[1],
-                            scene.newpalette2[2]
-                        ],
-                        [
-                            scene.newpalette3[0],
-                            scene.newpalette3[1],
-                            scene.newpalette3[2]
-                        ],
-                        [
-                            scene.newpalette4[0],
-                            scene.newpalette4[1],
-                            scene.newpalette4[2]
-                        ]]
+                            [
+                                scene.newpalette0[0],
+                                scene.newpalette0[1],
+                                scene.newpalette0[2]
+                            ],
+                            [
+                                scene.newpalette1[0],
+                                scene.newpalette1[1],
+                                scene.newpalette1[2]
+                            ],
+                            [
+                                scene.newpalette2[0],
+                                scene.newpalette2[1],
+                                scene.newpalette2[2]
+                            ],
+                            [
+                                scene.newpalette3[0],
+                                scene.newpalette3[1],
+                                scene.newpalette3[2]
+                            ],
+                            [
+                                scene.newpalette4[0],
+                                scene.newpalette4[1],
+                                scene.newpalette4[2]
+                            ]]
                     break
 
         files.save_file('palettes')
@@ -7510,21 +7512,21 @@ class SXTOOLS_OT_addmaterial(bpy.types.Operator):
                 for i, category in enumerate(categoryDict.keys()):
                     if category.casefold() == context.scene.sxtools.materialcategories.casefold():
                         categoryDict[category][materialName] = [
-                        [
-                            scene.newpalette0[0],
-                            scene.newpalette0[1],
-                            scene.newpalette0[2]
-                        ],
-                        [
-                            scene.newpalette1[0],
-                            scene.newpalette1[1],
-                            scene.newpalette1[2]
-                        ],
-                        [
-                            scene.newpalette2[0],
-                            scene.newpalette2[1],
-                            scene.newpalette2[2]
-                        ]]
+                            [
+                                scene.newpalette0[0],
+                                scene.newpalette0[1],
+                                scene.newpalette0[2]
+                            ],
+                            [
+                                scene.newpalette1[0],
+                                scene.newpalette1[1],
+                                scene.newpalette1[2]
+                            ],
+                            [
+                                scene.newpalette2[0],
+                                scene.newpalette2[1],
+                                scene.newpalette2[2]
+                            ]]
                     break
 
         files.save_file('materials')
@@ -7831,7 +7833,7 @@ class SXTOOLS_OT_applypalette(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -8018,7 +8020,7 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -8172,7 +8174,7 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -8257,7 +8259,7 @@ class SXTOOLS_OT_loadlibraries(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -8376,7 +8378,7 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
                 output.close()
             message_box(catalogue_path + ' saved')
         else:
-            message_box(mode + ' file location not set!', 'SX Tools Error', 'ERROR')
+            message_box('Invalid catalogue path', 'SX Tools Error', 'ERROR')
 
 
     def invoke(self, context, event):
@@ -8474,12 +8476,11 @@ class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
                 output.close()
             message_box(catalogue_path + ' saved')
         else:
-            message_box(mode + ' file location not set!', 'SX Tools Error', 'ERROR')
+            message_box('Invalid catalogue path', 'SX Tools Error', 'ERROR')
 
 
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
-        objs = selection_validator(self, context)
         result, asset_dict = self.load_asset_data(prefs.cataloguepath)
         if not result:
             return {'FINISHED'}
@@ -8514,7 +8515,7 @@ class SXTOOLS_OT_create_sxcollection(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
@@ -8576,7 +8577,7 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
 
 
     def execute(self, context):
-        return self.invoke(context, None) 
+        return self.invoke(context, None)
 
 
     def invoke(self, context, event):
