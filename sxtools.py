@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 2),
+    'version': (5, 10, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1615,7 +1615,7 @@ class SXTOOLS_generate(object):
         mesh.update(calc_edges=True)
 
         # groundPlane.location = pos
-        return groundPlane
+        return groundPlane, mesh
 
 
     def thickness_list(self, obj, raycount, bias=0.000001, masklayer=None):
@@ -1702,7 +1702,7 @@ class SXTOOLS_generate(object):
             if groundplane:
                 pivot = utils.find_root_pivot([obj, ])
                 pivot = (pivot[0], pivot[1], pivot[2] - 0.5)
-                ground = self.ground_plane(20, pivot)
+                ground, groundmesh = self.ground_plane(20, pivot)
 
             for vert_id in vert_dict.keys():
                 occValue = 1.0
@@ -1750,6 +1750,7 @@ class SXTOOLS_generate(object):
 
             if groundplane:
                 bpy.data.objects.remove(ground, do_unlink=True)
+                bpy.data.meshes.remove(groundmesh, do_unlink=True)
 
             for modifier in obj.modifiers:
                 if modifier.type == 'SUBSURF':
@@ -3232,15 +3233,36 @@ class SXTOOLS_validate(object):
 
         ok1 = self.test_palette_layers(objs)
         ok2 = self.test_names(objs)
+        ok3 = self.test_loose(objs)
 
         utils.mode_manager(objs, revert=True, mode_id='validate_objects')
 
-        if ok1 and ok2:
+        if ok1 and ok2 and ok3:
             print('SX Tools: Selected objects passed validation tests')
             return True
         else:
             print('SX Tools: Selected objects failed validation tests')
             return False
+
+
+    # Check for loose geometry
+    def test_loose(self, objs):
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.context.tool_settings.mesh_select_mode=(True, False, False)
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.select_loose()
+
+        for obj in objs:
+            obj.update_from_editmode()
+            mesh = obj.data
+            selection = [None] * len(mesh.vertices)
+            mesh.vertices.foreach_get('select', selection)
+
+            if True in selection:
+                message_box('Objects contain loose geometry!')
+                return False
+
+        return True
 
 
     # Check that objects are grouped
