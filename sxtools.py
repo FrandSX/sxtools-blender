@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 5),
+    'version': (5, 10, 7),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4117,10 +4117,12 @@ class SXTOOLS_export(object):
         view_layer = bpy.context.view_layer
         mode = objs[0].mode
         objs = objs[:]
+
         sepObjs = []
         for obj in objs:
             if obj.sxtools.smartseparate:
-                sepObjs.append(obj)
+                if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                    sepObjs.append(obj)
 
         if 'ExportObjects' not in bpy.data.collections.keys():
             exportObjects = bpy.data.collections.new('ExportObjects')
@@ -4140,7 +4142,9 @@ class SXTOOLS_export(object):
         separatedObjs = []
         if len(sepObjs) > 0:
             active = view_layer.objects.active
+            bpy.ops.object.select_all(action='DESELECT')
             for obj in sepObjs:
+                obj.select_set(True)
                 view_layer.objects.active = obj
                 refObjs = view_layer.objects[:]
                 orgname = obj.name[:]
@@ -8557,8 +8561,9 @@ class SXTOOLS_OT_smart_separate(bpy.types.Operator):
         objs = selection_validator(self, context)
         sep_objs = []
         for obj in objs:
-            if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
-                sep_objs.append(obj)
+            if obj.smartseparate:
+                if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                    sep_objs.append(obj)
         export.smart_separate(sep_objs)
 
         return {'FINISHED'}
