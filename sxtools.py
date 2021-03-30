@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 10),
+    'version': (5, 10, 12),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2005,7 +2005,10 @@ class SXTOOLS_layers(object):
     # wrapper for low-level functions, always returns layerdata in RGBA
     def get_layer(self, obj, sourcelayer, as_tuple=False, uv_as_alpha=False, apply_layer_alpha=False, gradient_with_palette=False):
         sourceType = sourcelayer.layerType
-        sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+        try:
+            sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+        except:
+            print('SX Tools Error:', obj.name, 'has an invalid SX Material')
         alpha = sourcelayer.alpha
 
         if sourceType == 'COLOR':
@@ -3278,9 +3281,10 @@ class SXTOOLS_validate(object):
 
             if True in selection:
                 message_box('Objects contain loose geometry!')
-                print('SX Tools Error: Objects contain loose geometry')
+                print('SX Tools Error:', obj.name, 'contains loose geometry')
                 return False
 
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         return True
 
 
@@ -3289,6 +3293,7 @@ class SXTOOLS_validate(object):
         for obj in objs:
             if obj.parent is None:
                 message_box('Object is not in a group: ' + obj.name)
+                print('SX Tools Error:', obj.name, 'is not in a group')
                 return False
 
         return True
