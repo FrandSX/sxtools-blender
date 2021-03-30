@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 7),
+    'version': (5, 10, 10),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3161,11 +3161,11 @@ class SXTOOLS_tools(object):
             bpy.context.view_layer.objects.active = obj
             setCount = len(obj.data.uv_layers)
             if setCount == 0:
-                print('SX Tools: ', obj.name, ' has no UV Sets')
+                print('SX Tools Error: ', obj.name, ' has no UV Sets')
             elif setCount > 6:
                 base = obj.data.uv_layers[0]
                 if base.name != 'UVSet0':
-                    print('SX Tools: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
+                    print('SX Tools Error: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
             else:
                 base = obj.data.uv_layers[0]
                 if 'UVSet' not in base.name:
@@ -3180,7 +3180,7 @@ class SXTOOLS_tools(object):
                         bpy.ops.mesh.uv_texture_remove()
                         obj.data.uv_layers[setCount].name = uvName
                 else:
-                    print('SX Tools: ', obj.name, ' has an unknown UV Set configuration')
+                    print('SX Tools Error: ', obj.name, ' has an unknown UV Set configuration')
 
         bpy.context.view_layer.objects.active = active
 
@@ -3234,15 +3234,33 @@ class SXTOOLS_validate(object):
         ok1 = self.test_palette_layers(objs)
         ok2 = self.test_names(objs)
         ok3 = self.test_loose(objs)
+        ok4 = self.test_uv_sets(objs)
 
         utils.mode_manager(objs, revert=True, mode_id='validate_objects')
 
-        if ok1 and ok2 and ok3:
+        if ok1 and ok2 and ok3 and ok4:
             print('SX Tools: Selected objects passed validation tests')
             return True
         else:
-            print('SX Tools: Selected objects failed validation tests')
+            print('SX Tools Error: Selected objects failed validation tests')
             return False
+
+
+    # Check for proper UV set configuration
+    def test_uv_sets(self, objs):
+        for obj in objs:
+            if len(obj.data.uv_layers) != 7:
+                message_box('Objects contain an invalid number of UV Sets!')
+                print('SX Tools Error:', obj.name, 'has invalid UV Sets')
+                return False
+
+            for i, uv_layer in enumerate(obj.data.uv_layers):
+                if uv_layer.name != 'UVSet'+str(i):
+                    message_box('Objects contain incorrectly named UV Sets!')
+                    print('SX Tools Error:', obj.name, 'has incorrect UV Set naming')
+                    return False
+
+        return True
 
 
     # Check for loose geometry
@@ -3260,6 +3278,7 @@ class SXTOOLS_validate(object):
 
             if True in selection:
                 message_box('Objects contain loose geometry!')
+                print('SX Tools Error: Objects contain loose geometry')
                 return False
 
         return True
@@ -5259,13 +5278,12 @@ def load_post_handler(dummy):
             else:
                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
 
-    if not bpy.app.background:
-        for obj in bpy.data.objects:
-            if (len(obj.sxtools.keys()) > 0):
-                if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
-                    bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
-                    print('SX Tools: Updated SXMaterial')
-                    break
+    for obj in bpy.data.objects:
+        if (len(obj.sxtools.keys()) > 0):
+            if ('sxToolsVersion' not in obj.keys()) or (obj['sxToolsVersion'] != 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))):
+                bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
+                print('SX Tools: Updated SXMaterial')
+                break
 
     setup.start_modal()
 
@@ -8561,7 +8579,7 @@ class SXTOOLS_OT_smart_separate(bpy.types.Operator):
         objs = selection_validator(self, context)
         sep_objs = []
         for obj in objs:
-            if obj.smartseparate:
+            if obj.sxtools.smartseparate:
                 if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                     sep_objs.append(obj)
         export.smart_separate(sep_objs)
