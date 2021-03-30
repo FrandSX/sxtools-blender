@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 12),
+    'version': (5, 10, 14),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2005,10 +2005,7 @@ class SXTOOLS_layers(object):
     # wrapper for low-level functions, always returns layerdata in RGBA
     def get_layer(self, obj, sourcelayer, as_tuple=False, uv_as_alpha=False, apply_layer_alpha=False, gradient_with_palette=False):
         sourceType = sourcelayer.layerType
-        try:
-            sxmaterial = bpy.data.materials['SXMaterial'].node_tree
-        except:
-            print('SX Tools Error:', obj.name, 'has an invalid SX Material')
+        sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         alpha = sourcelayer.alpha
 
         if sourceType == 'COLOR':
@@ -3234,6 +3231,8 @@ class SXTOOLS_validate(object):
     def validate_objects(self, objs):
         utils.mode_manager(objs, set_mode=True, mode_id='validate_objects')
 
+        self.test_sxmaterial(objs)    
+
         ok1 = self.test_palette_layers(objs)
         ok2 = self.test_names(objs)
         ok3 = self.test_loose(objs)
@@ -3247,6 +3246,14 @@ class SXTOOLS_validate(object):
         else:
             print('SX Tools Error: Selected objects failed validation tests')
             return False
+
+
+    def test_sxmaterial(self, objs):
+        try:
+            sxmaterial = bpy.data.materials['SXMaterial'].node_tree
+        except:
+            print('SX Tools Error: Invalid SX Material on', objs, 'Performing SX Material reset.')
+            bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
 
 
     # Check for proper UV set configuration
@@ -3317,10 +3324,12 @@ class SXTOOLS_validate(object):
 
                     if i == 0:
                         if len(colorSet) > 1:
+                            print('SX Tools Error: Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             message_box('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             return False
                     else:
                         if len(colorSet) > 2:
+                            print('SX Tools Error: Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             message_box('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             return False
         return True
