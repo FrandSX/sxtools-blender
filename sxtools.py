@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 10, 14),
+    'version': (5, 11, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3083,7 +3083,7 @@ class SXTOOLS_tools(object):
 
 
     # pivotmodes: 0 == no change, 1 == center of mass, 2 == center of bbox,
-    # 3 == base of bbox, 4 == world origin, force == set mirror axis to zero
+    # 3 == base of bbox, 4 == world origin, 5 == pivot of parent, force == set mirror axis to zero
     def set_pivots(self, objs, pivotmode=None, force=False):
         viewlayer = bpy.context.view_layer
         active = viewlayer.objects.active
@@ -3105,11 +3105,11 @@ class SXTOOLS_tools(object):
             if mode == 0:
                 pivot_loc = obj.matrix_world.to_translation()
                 xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ])
-                if not (xmin < pivot_loc[0] < xmax):
+                if obj.sxtools.xmirror and not (xmin < pivot_loc[0] < xmax):
                     pivot_loc[0] *= -1.0
-                if not (ymin < pivot_loc[1] < ymax):
+                if obj.sxtools.ymirror and not (ymin < pivot_loc[1] < ymax):
                     pivot_loc[1] *= -1.0
-                if not (zmin < pivot_loc[2] < zmax):
+                if obj.sxtools.zmirror and not (zmin < pivot_loc[2] < zmax):
                     pivot_loc[2] *= -1.0
                 bpy.context.scene.cursor.location = pivot_loc
                 bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
@@ -3146,7 +3146,9 @@ class SXTOOLS_tools(object):
                 bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
                 bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 5:
-                pass
+                pivot_loc = obj.parent.matrix_world.to_translation()
+                bpy.context.scene.cursor.location = pivot_loc
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             else:
                 pass
 
