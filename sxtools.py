@@ -3088,7 +3088,7 @@ class SXTOOLS_tools(object):
         viewlayer = bpy.context.view_layer
         active = viewlayer.objects.active
         selected = viewlayer.objects.selected[:]
-        modedict = {'OFF': 0, 'MASS': 1, 'BBOX': 2, 'ROOT': 3, 'ORG': 4}
+        modedict = {'OFF': 0, 'MASS': 1, 'BBOX': 2, 'ROOT': 3, 'ORG': 4, 'PAR': 5}
 
         for sel in viewlayer.objects.selected:
             sel.select_set(False)
@@ -3145,6 +3145,8 @@ class SXTOOLS_tools(object):
             elif mode == 4:
                 bpy.context.scene.cursor.location = (0.0, 0.0, 0.0)
                 bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+            elif mode == 5:
+                pass
             else:
                 pass
 
@@ -5569,7 +5571,8 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('MASS', 'Center of Mass', ''),
             ('BBOX', 'Bbox Center', ''),
             ('ROOT', 'Bbox Base', ''),
-            ('ORG', 'Origin', '')],
+            ('ORG', 'Origin', ''),
+            ('PAR', 'Parent', '')],
         default='OFF',
         update=update_custom_props)
 
