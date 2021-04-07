@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 11, 0),
+    'version': (5, 12, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2405,6 +2405,8 @@ class SXTOOLS_layers(object):
 
 
     def paste_layer(self, objs, sourceLayer, targetLayer, fillMode):
+        utils.mode_manager(objs, set_mode=True, mode_id='paste_layer')
+
         sourceMode = sourceLayer.layerType
         targetMode = targetLayer.layerType
 
@@ -2437,8 +2439,14 @@ class SXTOOLS_layers(object):
                 layers.set_layer(obj, sourcevalues, targetLayer)
         else:
             for obj in objs:
-                sourcevalues = layers.get_layer(obj, sourceLayer)
-                layers.set_layer(obj, sourcevalues, targetLayer)
+                colors = self.get_layer(obj, sourceLayer)
+                if sxglobals.mode == 'EDIT':
+                    targetvalues = self.get_layer(obj, targetLayer)
+                    colors = generate.mask_list(obj, colors)
+                    colors = tools.blend_values(colors, targetvalues, 'ALPHA', 1.0)
+                layers.set_layer(obj, colors, targetLayer)
+
+        utils.mode_manager(objs, revert=True, mode_id='paste_layer')
 
 
     def update_layer_panel(self, objs, layer):
@@ -7201,7 +7209,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
         if len(objs) > 0:
             mode = objs[0].mode
             if mode != sxglobals.prevMode:
-                print('selectionmonitor: mode change')
+                # print('selectionmonitor: mode change')
                 sxglobals.prevMode = mode
                 sxglobals.mode = mode
                 refresh_actives(self, context)
@@ -7215,7 +7223,7 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
                 # print('selectionmonitor: componentselection ', selection)
 
                 if selection != sxglobals.prevComponentSelection:
-                    print('selectionmonitor: component selection changed')
+                    # print('selectionmonitor: component selection changed')
                     sxglobals.prevComponentSelection = selection
                     refresh_actives(self, context)
                     return {'PASS_THROUGH'}
