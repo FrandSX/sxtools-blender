@@ -4046,8 +4046,8 @@ class SXTOOLS_magic(object):
             colors1 = generate.color_list(obj, palette[2], utils.find_layer_from_index(obj, 7))
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             # Noise for variance
-            colors1 = generate.noise_list(obj, 0.01, True)
-            colors = tools.blend_values(colors1, colors, 'OVR', 1.0)
+            # colors1 = generate.noise_list(obj, 0.01, True)
+            # colors = tools.blend_values(colors1, colors, 'OVR', 1.0)
             # Combine smoothness base mask with custom curvature gradient
             scene.curvaturenormalize = True
             scene.ramplist = 'CURVATURESMOOTHNESS'
