@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 12, 3),
+    'version': (5, 13, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1618,7 +1618,7 @@ class SXTOOLS_generate(object):
         return groundPlane, mesh
 
 
-    def thickness_list(self, obj, raycount, bias=0.000001, masklayer=None):
+    def thickness_list(self, obj, raycount, masklayer=None):
 
         def dist_hit(vert_id, loc, vertPos, dist_list):
             distanceVec = Vector((loc[0] - vertPos[0], loc[1] - vertPos[1], loc[2] - vertPos[2]))
@@ -1634,9 +1634,17 @@ class SXTOOLS_generate(object):
                 vert_occ_dict[vert_id] = 0.0
                 vertLoc = Vector(vert_dict[vert_id][0])
                 vertNormal = Vector(vert_dict[vert_id][1])
+                bias = 0.0001
 
                 # Invert normal to cast inside object
                 invNormal = tuple([-1*x for x in vertNormal])
+
+                # Raycast for bias
+                hit, loc, normal, index = obj.ray_cast(vertLoc, invNormal, distance=raydistance)
+                if hit and (normal.dot(invNormal) < 0):
+                    hit_dist = Vector((loc[0] - vertLoc[0], loc[1] - vertLoc[1], loc[2] - vertLoc[2])).length
+                    if hit_dist < 0.5:
+                        bias = hit_dist + 0.0001
 
                 biasVec = tuple([bias*x for x in invNormal])
                 rotQuat = forward.rotation_difference(invNormal)
@@ -1655,7 +1663,6 @@ class SXTOOLS_generate(object):
 
         contribution = 1.0/float(raycount)
         forward = Vector((0.0, 0.0, 1.0))
-        bias = 1e-5
 
         dist_list = []
         vert_occ_dict = {}
@@ -1684,7 +1691,7 @@ class SXTOOLS_generate(object):
             return None
 
 
-    def occlusion_list(self, obj, raycount=100, blend=0.5, dist=10.0, groundplane=False, bias=0.01, masklayer=None):
+    def occlusion_list(self, obj, raycount=100, blend=0.5, dist=10.0, groundplane=False, masklayer=None):
         scene = bpy.context.scene
         contribution = 1.0/float(raycount)
         hemiSphere = self.ray_randomizer(raycount)
@@ -1698,9 +1705,6 @@ class SXTOOLS_generate(object):
         vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
-            # for modifier in obj.modifiers:
-            #     if modifier.type == 'SUBSURF':
-            #         modifier.show_viewport = False
 
             if groundplane:
                 pivot = utils.find_root_pivot([obj, ])
@@ -1708,12 +1712,20 @@ class SXTOOLS_generate(object):
                 ground, groundmesh = self.ground_plane(20, pivot)
 
             for vert_id in vert_dict.keys():
+                bias = 0.001
                 occValue = 1.0
                 scnOccValue = 1.0
                 vertLoc = Vector(vert_dict[vert_id][0])
                 vertNormal = Vector(vert_dict[vert_id][1])
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
+
+                # Pass 0: Raycast for bias
+                hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
+                if hit and (normal.dot(vertNormal) > 0):
+                    hit_dist = Vector((loc[0] - vertLoc[0], loc[1] - vertLoc[1], loc[2] - vertLoc[2])).length
+                    if hit_dist < 0.5:
+                        bias = hit_dist + 0.001
 
                 # Pass 1: Local space occlusion for individual object
                 if 0.0 <= mix < 1.0:
@@ -1755,10 +1767,6 @@ class SXTOOLS_generate(object):
             if groundplane:
                 bpy.data.objects.remove(ground, do_unlink=True)
                 bpy.data.meshes.remove(groundmesh, do_unlink=True)
-
-            # for modifier in obj.modifiers:
-            #     if modifier.type == 'SUBSURF':
-            #         modifier.show_viewport = obj.sxtools.modifiervisibility
 
             vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
             return self.mask_list(obj, vert_occ_list, masklayer)
@@ -2650,9 +2658,9 @@ class SXTOOLS_tools(object):
             elif scene.toolmode == 'CRV':
                 colors = generate.curvature_list(obj, masklayer)
             elif scene.toolmode == 'OCC':
-                colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias, masklayer)
+                colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, masklayer)
             elif scene.toolmode == 'THK':
-                colors = generate.thickness_list(obj, scene.occlusionrays, scene.occlusionbias, masklayer)
+                colors = generate.thickness_list(obj, scene.occlusionrays, masklayer)
             elif scene.toolmode == 'DIR':
                 colors = generate.direction_list(obj, masklayer)
             elif scene.toolmode == 'LUM':
@@ -3677,7 +3685,6 @@ class SXTOOLS_magic(object):
             scene.noisemono = True
             scene.occlusionblend = 0.5
             scene.occlusionrays = 200
-            scene.occlusionbias = 0.01
 
             tools.apply_tool(objs, layer)
 
@@ -3715,11 +3722,10 @@ class SXTOOLS_magic(object):
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.01
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
             layers.set_layer(obj, colors, layer)
@@ -3760,11 +3766,10 @@ class SXTOOLS_magic(object):
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.01
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
 
@@ -3868,12 +3873,11 @@ class SXTOOLS_magic(object):
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.06
         scene.occlusiongroundplane = True
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors0 = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
             colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
             colors = tools.blend_values(colors1, colors0, 'ALPHA', 1.0)
 
@@ -3990,14 +3994,13 @@ class SXTOOLS_magic(object):
         scene.noisemono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.06
         scene.occlusiongroundplane = True
         color = (1.0, 1.0, 1.0, 1.0)
         mask = utils.find_layer_from_index(obj, 7)
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
             colors1 = generate.color_list(obj, color=color, masklayer=mask)
             colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
 
@@ -4098,12 +4101,11 @@ class SXTOOLS_magic(object):
         scene.noisemono = True
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.05
         color = (1.0, 1.0, 1.0, 1.0)
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
-            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane, scene.occlusionbias)
+            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
             layers.set_layer(obj, colors, layer)
 
         # Apply overlay
@@ -5983,16 +5985,9 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         max=100.0,
         default=10.0)
 
-    occlusionbias: bpy.props.FloatProperty(
-        name='Bias',
-        description='Offset ray start position to prevent artifacts',
-        min=0.0,
-        max=1.0,
-        default=0.01)
-
     occlusiongroundplane: bpy.props.BoolProperty(
         name='Ground Plane',
-        description='Enable temporary ground plane for occlusion',
+        description='Enable temporary ground plane for occlusion (height -0.5)',
         default=True)
 
     dirInclination: bpy.props.FloatProperty(
@@ -6702,7 +6697,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col_fill = box_fill.column(align=True)
                         if scene.toolmode == 'OCC' or scene.toolmode == 'THK':
                             col_fill.prop(scene, 'occlusionrays', slider=True, text='Ray Count')
-                            col_fill.prop(scene, 'occlusionbias', slider=True, text='Bias')
                         if scene.toolmode == 'OCC':
                             col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
