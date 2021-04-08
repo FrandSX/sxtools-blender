@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 12, 1),
+    'version': (5, 12, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1691,17 +1691,20 @@ class SXTOOLS_generate(object):
         mix = max(min(blend, 1.0), 0.0)
         forward = Vector((0.0, 0.0, 1.0))
 
+        edg = bpy.context.evaluated_depsgraph_get()
+        obj_eval = obj.evaluated_get(edg)
+
         vert_occ_dict = {}
         vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = False
+            # for modifier in obj.modifiers:
+            #     if modifier.type == 'SUBSURF':
+            #         modifier.show_viewport = False
 
             if groundplane:
                 pivot = utils.find_root_pivot([obj, ])
-                pivot = (pivot[0], pivot[1], pivot[2] - 0.5)
+                pivot = (pivot[0], pivot[1], -0.5) # pivot[2] - 0.5)
                 ground, groundmesh = self.ground_plane(20, pivot)
 
             for vert_id in vert_dict.keys():
@@ -1724,7 +1727,7 @@ class SXTOOLS_generate(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        hit, loc, normal, index = obj.ray_cast(vertPos, sample, distance=dist)
+                        hit, loc, normal, index = obj_eval.ray_cast(vertPos, sample, distance=dist)
 
                         if hit:
                             occValue -= contribution
@@ -1741,7 +1744,8 @@ class SXTOOLS_generate(object):
                         sample = Vector(sample)
                         sample.rotate(rotQuat)
 
-                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(scene.view_layers[0].depsgraph, scnVertPos, sample, distance=dist)
+                        scnHit, scnLoc, scnNormal, scnIndex, scnObj, ma = scene.ray_cast(edg, scnVertPos, sample, distance=dist)
+                        # scene.ray_cast(scene.view_layers[0].depsgraph, scnVertPos, sample, distance=dist)
 
                         if scnHit:
                             scnOccValue -= contribution
@@ -1752,9 +1756,9 @@ class SXTOOLS_generate(object):
                 bpy.data.objects.remove(ground, do_unlink=True)
                 bpy.data.meshes.remove(groundmesh, do_unlink=True)
 
-            for modifier in obj.modifiers:
-                if modifier.type == 'SUBSURF':
-                    modifier.show_viewport = obj.sxtools.modifiervisibility
+            # for modifier in obj.modifiers:
+            #     if modifier.type == 'SUBSURF':
+            #         modifier.show_viewport = obj.sxtools.modifiervisibility
 
             vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
             return self.mask_list(obj, vert_occ_list, masklayer)
@@ -3864,7 +3868,8 @@ class SXTOOLS_magic(object):
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.01
+        scene.occlusionbias = 0.06
+        scene.occlusiongroundplane = True
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
@@ -3969,12 +3974,24 @@ class SXTOOLS_magic(object):
         scene = bpy.context.scene.sxtools
         obj = objs[0]
 
+        objs_windows = []
+        objs_tiles = []
+        for obj in objs:
+            if 'window' in obj.name:
+                objs_windows.append(obj)
+                obj.hide_viewport = True
+            else:
+                objs_tiles.append(obj)
+
+        objs = objs_tiles[:]
+
         # Apply occlusion
         scene.toolmode = 'OCC'
         scene.noisemono = True
-        scene.occlusionblend = 0.0
+        scene.occlusionblend = 0.5
         scene.occlusionrays = 200
-        scene.occlusionbias = 0.05
+        scene.occlusionbias = 0.06
+        scene.occlusiongroundplane = True
         color = (1.0, 1.0, 1.0, 1.0)
         mask = utils.find_layer_from_index(obj, 7)
 
@@ -4066,6 +4083,9 @@ class SXTOOLS_magic(object):
             colors = generate.color_list(obj, color=palette[0], masklayer=utils.find_layer_from_index(obj, 7))
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
+
+        for obj in objs_windows:
+            obj.hide_viewport = False
 
 
     def process_trees(self, objs):
