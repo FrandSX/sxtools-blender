@@ -1307,6 +1307,31 @@ class SXTOOLS_setup(object):
             bpy.context.scene.collection.children.link(sxObjects)
 
 
+    def create_sxtileduplicator(self):
+        if 'sxGeometryNodes' not in obj.modifiers.keys():
+            tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
+        else:
+            tiler = obj.modifiers['sxGeometryNodes']
+
+        if 'sxMirror' in obj.modifiers.keys():
+            bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
+
+        # Assigning node group:
+        # tiler.node_group = bpy.data.node_groups['sx_middle_corner_tiler']
+        # tiler.node_group = bpy.data.node_groups['sx_bottom_straight_tiler']
+
+
+        # Build networks for:
+        # roof corner, middle corner, bottom corner
+        # roof & middle straight, bottom straight
+
+        nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_straight_tiler')
+        nodetree.nodes.new(type='NodeGroupInput')
+        nodetree.nodes.new(type='NodeGroupOutput')
+        nodetree.nodes.new(type='GeometryNodeTransform')
+        nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+
+
     def __del__(self):
         print('SX Tools: Exiting setup')
 
