@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 13, 1),
+    'version': (5, 14, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1307,29 +1307,207 @@ class SXTOOLS_setup(object):
             bpy.context.scene.collection.children.link(sxObjects)
 
 
-    def create_sxtileduplicator(self):
-        if 'sxGeometryNodes' not in obj.modifiers.keys():
-            tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
-        else:
-            tiler = obj.modifiers['sxGeometryNodes']
-
-        if 'sxMirror' in obj.modifiers.keys():
-            bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
-
-        # Assigning node group:
-        # tiler.node_group = bpy.data.node_groups['sx_middle_corner_tiler']
-        # tiler.node_group = bpy.data.node_groups['sx_bottom_straight_tiler']
-
-
+    def create_tiler_nodegroups(self):
         # Build networks for:
-        # roof corner, middle corner, bottom corner
-        # roof & middle straight, bottom straight
+        # roof, middle, bottom straight
+        # roof, middle, bottom corner
 
-        nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_straight_tiler')
-        nodetree.nodes.new(type='NodeGroupInput')
-        nodetree.nodes.new(type='NodeGroupOutput')
-        nodetree.nodes.new(type='GeometryNodeTransform')
-        nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+        # Bottom straight tiler
+        if not 'sx_bottom_straight_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_bottom_straight_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1500, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+        # Middle straight tiler
+        if not 'sx_middle_straight_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_middle_straight_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1500, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+        # Roof straight tiler
+        if not 'sx_roof_straight_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_roof_straight_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1500, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+        # Bottom corner tiler
+        if not 'sx_bottom_corner_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_bottom_corner_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1500, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+        # Middle corner tiler
+        if not 'sx_middle_corner_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_middle_corner_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1200, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+                if i == 0:
+                    transform.inputs[2].default_value[2] = math.radians(270)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 1:
+                    transform.inputs[2].default_value[2] = math.radians(180)
+                    output = nodetree.nodes['join0'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 2:
+                    output = nodetree.nodes['join1'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 3:
+                    output = nodetree.nodes['join1'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    output = nodetree.nodes['join2'].outputs['Geometry']
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+            output = group_in.outputs[1]
+            input = nodetree.nodes['transform0'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[2]
+            input = nodetree.nodes['transform1'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[3]
+            input = nodetree.nodes['transform2'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[4]
+            input = nodetree.nodes['transform3'].inputs['Translation']
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['join3'].outputs['Geometry']
+            input = group_out.inputs[0]
+            nodetree.links.new(input, output)
+
+
+        # Roof corner tiler
+        if not 'sx_roof_corner_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_roof_corner_tiler')
+            group_in = nodetree.nodes.new(type='NodeGroupInput')
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.location = (-200, 0)
+            group_out.location = (1500, 0)
+
+            for i in range(4):
+                transform = nodetree.nodes.new(type='GeometryNodeTransform')
+                transform.name = 'transform'+str(i)
+                transform.location = (200*i, 0)
+
+                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+                join.name = 'join'+str(i)
+                join.location = (200*i+100, 200)
+
+            output = group_in.outputs[0]
+            input = nodetree.nodes['transform0'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs['Geometry']
+            input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
 
 
     def __del__(self):
@@ -1723,6 +1901,14 @@ class SXTOOLS_generate(object):
         mix = max(min(blend, 1.0), 0.0)
         forward = Vector((0.0, 0.0, 1.0))
 
+        if obj.sxtools.tiling:
+            tools.add_tiling(obj)
+            obj.modifiers['sxGeometryNodes']['Input_3'][1] = 5.0
+            obj.modifiers['sxGeometryNodes']['Input_5'][0] = 5.0
+            obj.modifiers['sxGeometryNodes']['Input_5'][1] = 5.0
+            obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
+            obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]
+
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
 
@@ -1792,6 +1978,9 @@ class SXTOOLS_generate(object):
             if groundplane:
                 bpy.data.objects.remove(ground, do_unlink=True)
                 bpy.data.meshes.remove(groundmesh, do_unlink=True)
+
+            if obj.sxtools.tiling:
+                tools.remove_tiling(obj)
 
             vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
             return self.mask_list(obj, vert_occ_list, masklayer)
@@ -2949,6 +3138,46 @@ class SXTOOLS_tools(object):
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_material')
+
+
+    def add_tiling(self, obj):
+        setup.create_tiler_nodegroups()
+
+        # Construct the correct node group to assign:
+        # bottom / middle / roof
+        # corner / straight / inner
+        node_string = 'sx_'
+        if 'bottom' in obj.name:
+            node_string += 'bottom_'
+        elif 'middle' in obj.name:
+            node_string += 'middle_'
+        elif 'roof' in obj.name:
+            node_string += 'roof_'
+
+        if 'corner' in obj.name:
+            node_string += 'corner_tiler'
+        elif 'straight' in obj.name:
+            node_string += 'straight_tiler'
+
+        if node_string in bpy.data.node_groups:
+            if 'sxGeometryNodes' not in obj.modifiers.keys():
+                tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
+            else:
+                tiler = obj.modifiers['sxGeometryNodes']
+
+            if 'sxMirror' in obj.modifiers.keys():
+                bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
+
+            tiler.node_group = bpy.data.node_groups[node_string]
+        else:
+            message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
+            print('SX Tools Error: Invalid tile naming')
+
+
+    def remove_tiling(self, obj):
+        if 'sxGeometryNodes' in obj.modifiers.keys():
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.modifier_remove(modifier='sxGeometryNodes')
 
 
     def add_modifiers(self, objs):
@@ -5091,39 +5320,16 @@ def update_modifiers(self, context, modifier):
                         obj.modifiers['sxDecimate2'].show_viewport = True
 
 
-def update_custom_props(self, context):
+def update_custom_props(self, context, prop):
     objs = selection_validator(self, context)
     if len(objs) > 0:
-        stc = objs[0].sxtools.staticvertexcolors
-        sm1 = objs[0].sxtools.smoothness1
-        sm2 = objs[0].sxtools.smoothness2
-        ovr = objs[0].sxtools.overlaystrength
-        lod = objs[0].sxtools.lodmeshes
-        piv = objs[0].sxtools.pivotmode
-        off = objs[0].sxtools.collideroffset
-        fac = objs[0].sxtools.collideroffsetfactor
-        sep = objs[0].sxtools.smartseparate
+        value = getattr(objs[0].sxtools, prop)
         for obj in objs:
-            obj['staticVertexColors'] = int(stc)
             obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
-            if obj.sxtools.staticvertexcolors != stc:
-                obj.sxtools.staticvertexcolors = stc
-            if obj.sxtools.smoothness1 != sm1:
-                obj.sxtools.smoothness1 = sm1
-            if obj.sxtools.smoothness2 != sm2:
-                obj.sxtools.smoothness2 = sm2
-            if obj.sxtools.overlaystrength != ovr:
-                obj.sxtools.overlaystrength = ovr
-            if obj.sxtools.lodmeshes != lod:
-                obj.sxtools.lodmeshes = lod
-            if obj.sxtools.pivotmode != piv:
-                obj.sxtools.pivotmode = piv
-            if obj.sxtools.collideroffset != off:
-                obj.sxtools.collideroffset = off
-            if obj.sxtools.collideroffsetfactor != fac:
-                obj.sxtools.collideroffsetfactor = fac
-            if obj.sxtools.smartseparate != sep:
-                obj.sxtools.smartseparate = sep
+            if prop == 'staticvertexcolors':
+                obj['staticVertexColors'] = int(objs[0].sxtools.staticvertexcolors)
+            if getattr(obj.sxtools, prop) != value:
+                setattr(obj.sxtools, prop, value)
 
 
 def update_gpu_props(self, context):
@@ -5522,7 +5728,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     smartseparate: bpy.props.BoolProperty(
         name='Smart Separate',
         default=False,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'smartseparate'))
 
     mirrorobject: bpy.props.PointerProperty(
         name='Mirror Object',
@@ -5591,34 +5797,34 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('1', 'Static', ''),
             ('0', 'Paletted', '')],
         default='1',
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'staticvertexcolors'))
 
     smoothness1: bpy.props.FloatProperty(
         name='Layer 1-3 Base Smoothness',
         min=0.0,
         max=1.0,
         default=0.0,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'smoothness1'))
 
     smoothness2: bpy.props.FloatProperty(
         name='Layer 4-5 Base Smoothness',
         min=0.0,
         max=1.0,
         default=0.0,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'smoothness2'))
 
     overlaystrength: bpy.props.FloatProperty(
         name='RGBA Overlay Strength',
         min=0.0,
         max=1.0,
         default=0.5,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'overlaystrength'))
 
     lodmeshes: bpy.props.BoolProperty(
         name='Generate LOD Meshes',
         description='NOTE: Subdivision and Bevel settings affect the end result',
         default=False,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'lodmeshes'))
 
     pivotmode: bpy.props.EnumProperty(
         name='Pivot Mode',
@@ -5631,25 +5837,31 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('ORG', 'Origin', ''),
             ('PAR', 'Parent', '')],
         default='OFF',
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'pivotmode'))
 
     collideroffset: bpy.props.BoolProperty(
         name='Collision Mesh Auto-Offset',
         default=False,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'collideroffset'))
 
     collideroffsetfactor: bpy.props.FloatProperty(
         name='Auto-Offset Factor',
         min=0.0,
         max=1.0,
         default=0.25,
-        update=update_custom_props)
+        update=lambda self, context: update_custom_props(self, context, 'collideroffsetfactor'))
 
     exportready: bpy.props.BoolProperty(
         name='Export Ready',
         description='Mark the group ready for batch export',
         default=False,
         update=export_validator)
+
+    tiling: bpy.props.BoolProperty(
+        name='Tiling Object',
+        description='Creates duplicates during occlusion rendering to fix edge values',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -6726,6 +6938,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                             col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
+                            col_fill.prop(sxtools, 'tiling', text='Tiling Object')
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
