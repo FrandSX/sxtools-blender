@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 0),
+    'version': (5, 14, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1353,11 +1353,61 @@ class SXTOOLS_setup(object):
                 join.name = 'join'+str(i)
                 join.location = (200*i+100, 200)
 
+                if i == 0:
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 1:
+                    output = nodetree.nodes['join0'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 2:
+                    output = nodetree.nodes['join1'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+                elif i == 3:
+                    output = nodetree.nodes['join1'].outputs['Geometry']
+                    input = transform.inputs['Geometry']
+                    nodetree.links.new(input, output)
+                    output = nodetree.nodes['join2'].outputs['Geometry']
+                    input = join.inputs[0]
+                    nodetree.links.new(input, output)
+                    output = transform.outputs['Geometry']
+                    input = join.inputs[1]
+                    nodetree.links.new(input, output)
+
             output = group_in.outputs[0]
             input = nodetree.nodes['transform0'].inputs['Geometry']
             nodetree.links.new(input, output)
             output = group_in.outputs['Geometry']
             input = nodetree.nodes['join0'].inputs[0]
+            nodetree.links.new(input, output)
+
+            output = group_in.outputs[1]
+            input = nodetree.nodes['transform0'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[2]
+            input = nodetree.nodes['transform1'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[3]
+            input = nodetree.nodes['transform2'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[4]
+            input = nodetree.nodes['transform3'].inputs['Translation']
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['join3'].outputs['Geometry']
+            input = group_out.inputs[0]
             nodetree.links.new(input, output)
 
         # Roof straight tiler
@@ -1894,7 +1944,7 @@ class SXTOOLS_generate(object):
             return None
 
 
-    def occlusion_list(self, obj, raycount=100, blend=0.5, dist=10.0, groundplane=False, masklayer=None):
+    def occlusion_list(self, obj, raycount=500, blend=0.5, dist=10.0, groundplane=False, masklayer=None):
         scene = bpy.context.scene
         contribution = 1.0/float(raycount)
         hemiSphere = self.ray_randomizer(raycount)
@@ -1903,11 +1953,17 @@ class SXTOOLS_generate(object):
 
         if obj.sxtools.tiling:
             tools.add_tiling(obj)
-            obj.modifiers['sxGeometryNodes']['Input_3'][1] = 5.0
-            obj.modifiers['sxGeometryNodes']['Input_5'][0] = 5.0
-            obj.modifiers['sxGeometryNodes']['Input_5'][1] = 5.0
-            obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
-            obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]
+            if 'corner' in obj.name:
+                obj.modifiers['sxGeometryNodes']['Input_3'][1] = obj.sxtools.tilewidth
+                obj.modifiers['sxGeometryNodes']['Input_5'][0] = obj.sxtools.tilewidth
+                obj.modifiers['sxGeometryNodes']['Input_5'][1] = obj.sxtools.tilewidth
+                obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
+                obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]
+            elif 'straight' in obj.name:
+                obj.modifiers['sxGeometryNodes']['Input_3'][0] = -obj.sxtools.tilewidth
+                obj.modifiers['sxGeometryNodes']['Input_5'][0] = obj.sxtools.tilewidth
+                obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
+                obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]   
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -3938,7 +3994,7 @@ class SXTOOLS_magic(object):
             scene.toolmode = 'OCC'
             scene.noisemono = True
             scene.occlusionblend = 0.5
-            scene.occlusionrays = 200
+            scene.occlusionrays = 500
 
             tools.apply_tool(objs, layer)
 
@@ -3975,7 +4031,7 @@ class SXTOOLS_magic(object):
 
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
@@ -4019,7 +4075,7 @@ class SXTOOLS_magic(object):
 
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
@@ -4126,7 +4182,7 @@ class SXTOOLS_magic(object):
 
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
         scene.occlusiongroundplane = True
 
         for obj in objs:
@@ -4247,7 +4303,7 @@ class SXTOOLS_magic(object):
         scene.toolmode = 'OCC'
         scene.noisemono = True
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
         scene.occlusiongroundplane = True
         color = (1.0, 1.0, 1.0, 1.0)
         mask = utils.find_layer_from_index(obj, 7)
@@ -4354,7 +4410,7 @@ class SXTOOLS_magic(object):
         scene.toolmode = 'OCC'
         scene.noisemono = True
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 200
+        scene.occlusionrays = 500
         color = (1.0, 1.0, 1.0, 1.0)
 
         for obj in objs:
@@ -5863,6 +5919,12 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=False,
         update=lambda self, context: update_custom_props(self, context, 'tiling'))
 
+    tilewidth: bpy.props.FloatProperty(
+        name='Tile Grid',
+        min=0.0,
+        default=5.0,
+        update=lambda self, context: update_custom_props(self, context, 'tilewidth'))
+
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -6212,8 +6274,8 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Ray Count',
         description='Increase ray count to reduce noise',
         min=1,
-        max=2000,
-        default=256)
+        max=5000,
+        default=500)
 
     occlusiondistance: bpy.props.FloatProperty(
         name='Ray Distance',
@@ -6938,7 +7000,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                             col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
-                            col_fill.prop(sxtools, 'tiling', text='Tiling Object')
+                            row_tiling = col_fill.row(align=True)
+                            row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
+                            row_tiling.prop(sxtools, 'tilewidth', text='Tile Grid')
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
