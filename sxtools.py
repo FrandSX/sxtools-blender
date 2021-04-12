@@ -3050,6 +3050,7 @@ class SXTOOLS_tools(object):
                 tiler['Input_11'][2] = math.radians(180)
                 tiler['Input_15'][2] = obj.dimensions[2]
                 tiler['Input_19'][2] = -obj.dimensions[2]
+
             elif ('middle' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
                 tiler['Input_7'][1] = -1.0
@@ -3058,6 +3059,18 @@ class SXTOOLS_tools(object):
                 tiler['Input_11'][2] = math.radians(180)
                 tiler['Input_15'][2] = obj.dimensions[2]
                 tiler['Input_19'][2] = -obj.dimensions[2]
+
+            elif ('roof' in obj.name) and ('empty' in obj.name) and ('left' in obj.name):
+                pass
+
+            elif ('roof' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
+                pass
+
+            elif ('bottom' in obj.name) and ('empty' in obj.name) and ('left' in obj.name):
+                pass
+
+            elif ('bottom' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
+                pass
 
             elif ('middle' in obj.name) and ('corner' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
@@ -3073,6 +3086,9 @@ class SXTOOLS_tools(object):
                 tiler['Input_9'][0] = obj.sxtools.tilewidth
                 tiler['Input_15'][2] = obj.dimensions[2]
                 tiler['Input_19'][2] = -obj.dimensions[2]
+
+            elif ('middle' in obj.name) and ('empty' in obj.name):
+                pass
 
             elif ('roof' in obj.name) and ('corner' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
@@ -3093,6 +3109,9 @@ class SXTOOLS_tools(object):
                 tiler['Input_21'][1] = 0.0
                 tiler['Input_21'][2] = 0.0
 
+            elif ('roof' in obj.name) and ('empty' in obj.name):
+                pass
+
             elif ('bottom' in obj.name) and ('corner' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
                 tiler['Input_5'][2] = math.radians(270)
@@ -3103,6 +3122,20 @@ class SXTOOLS_tools(object):
                 tiler['Input_19'][2] = obj.dimensions[2] * 2.0
                 tiler['Input_21'][2] = -1.0
 
+            elif ('bottom' in obj.name) and ('straight' in obj.name):
+                pass
+
+            elif ('bottom' in obj.name) and ('inner' in obj.name):
+                pass
+
+            elif ('bottom' in obj.name) and ('empty' in obj.name):
+                pass
+
+            elif ('middle' in obj.name) and ('inner' in obj.name):
+                pass
+
+            elif ('roof' in obj.name) and ('inner' in obj.name):
+                pass
 
         else:
             message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
