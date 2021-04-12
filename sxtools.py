@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 1),
+    'version': (5, 14, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1307,42 +1307,13 @@ class SXTOOLS_setup(object):
             bpy.context.scene.collection.children.link(sxObjects)
 
 
-    def create_tiler_nodegroups(self):
-        # Build networks for:
-        # roof, middle, bottom straight
-        # roof, middle, bottom corner
-
-        # Bottom straight tiler
-        if not 'sx_bottom_straight_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_bottom_straight_tiler')
+    def create_tiler(self):
+        if not 'sx_tiler' in bpy.data.node_groups.keys():
+            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
             group_in = nodetree.nodes.new(type='NodeGroupInput')
             group_out = nodetree.nodes.new(type='NodeGroupOutput')
             group_in.location = (-200, 0)
-            group_out.location = (1500, 0)
-
-            for i in range(4):
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
-
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
-
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
-            nodetree.links.new(input, output)
-
-        # Middle straight tiler
-        if not 'sx_middle_straight_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_middle_straight_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_in.location = (-200, 0)
-            group_out.location = (1500, 0)
+            group_out.location = (1000, 0)
 
             for i in range(4):
                 transform = nodetree.nodes.new(type='GeometryNodeTransform')
@@ -1397,166 +1368,38 @@ class SXTOOLS_setup(object):
             input = nodetree.nodes['transform0'].inputs['Translation']
             nodetree.links.new(input, output)
             output = group_in.outputs[2]
-            input = nodetree.nodes['transform1'].inputs['Translation']
+            input = nodetree.nodes['transform0'].inputs['Rotation']
             nodetree.links.new(input, output)
             output = group_in.outputs[3]
+            input = nodetree.nodes['transform0'].inputs['Scale']
+            nodetree.links.new(input, output)
+
+            output = group_in.outputs[4]
+            input = nodetree.nodes['transform1'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[5]
+            input = nodetree.nodes['transform1'].inputs['Rotation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[6]
+            input = nodetree.nodes['transform1'].inputs['Scale']
+            nodetree.links.new(input, output)
+
+            output = group_in.outputs[7]
             input = nodetree.nodes['transform2'].inputs['Translation']
             nodetree.links.new(input, output)
-            output = group_in.outputs[4]
+            output = group_in.outputs[8]
+            input = nodetree.nodes['transform2'].inputs['Scale']
+            nodetree.links.new(input, output)
+
+            output = group_in.outputs[9]
             input = nodetree.nodes['transform3'].inputs['Translation']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[10]
+            input = nodetree.nodes['transform3'].inputs['Scale']
             nodetree.links.new(input, output)
 
             output = nodetree.nodes['join3'].outputs['Geometry']
             input = group_out.inputs[0]
-            nodetree.links.new(input, output)
-
-        # Roof straight tiler
-        if not 'sx_roof_straight_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_roof_straight_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_in.location = (-200, 0)
-            group_out.location = (1500, 0)
-
-            for i in range(4):
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
-
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
-
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
-            nodetree.links.new(input, output)
-
-        # Bottom corner tiler
-        if not 'sx_bottom_corner_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_bottom_corner_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_in.location = (-200, 0)
-            group_out.location = (1500, 0)
-
-            for i in range(4):
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
-
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
-
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
-            nodetree.links.new(input, output)
-
-        # Middle corner tiler
-        if not 'sx_middle_corner_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_middle_corner_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_in.location = (-200, 0)
-            group_out.location = (1200, 0)
-
-            for i in range(4):
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
-
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
-
-                if i == 0:
-                    transform.inputs[2].default_value[2] = math.radians(270)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[1]
-                    nodetree.links.new(input, output)
-                elif i == 1:
-                    transform.inputs[2].default_value[2] = math.radians(180)
-                    output = nodetree.nodes['join0'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[1]
-                    nodetree.links.new(input, output)
-                elif i == 2:
-                    output = nodetree.nodes['join1'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[1]
-                    nodetree.links.new(input, output)
-                elif i == 3:
-                    output = nodetree.nodes['join1'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    output = nodetree.nodes['join2'].outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[1]
-                    nodetree.links.new(input, output)
-
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
-            nodetree.links.new(input, output)
-
-            output = group_in.outputs[1]
-            input = nodetree.nodes['transform0'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[2]
-            input = nodetree.nodes['transform1'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[3]
-            input = nodetree.nodes['transform2'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[4]
-            input = nodetree.nodes['transform3'].inputs['Translation']
-            nodetree.links.new(input, output)
-
-            output = nodetree.nodes['join3'].outputs['Geometry']
-            input = group_out.inputs[0]
-            nodetree.links.new(input, output)
-
-
-        # Roof corner tiler
-        if not 'sx_roof_corner_tiler' in bpy.data.node_groups.keys():
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_roof_corner_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_in.location = (-200, 0)
-            group_out.location = (1500, 0)
-
-            for i in range(4):
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
-
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
-
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
             nodetree.links.new(input, output)
 
 
@@ -1953,17 +1796,6 @@ class SXTOOLS_generate(object):
 
         if obj.sxtools.tiling:
             tools.add_tiling(obj)
-            if 'corner' in obj.name:
-                obj.modifiers['sxGeometryNodes']['Input_3'][1] = obj.sxtools.tilewidth
-                obj.modifiers['sxGeometryNodes']['Input_5'][0] = obj.sxtools.tilewidth
-                obj.modifiers['sxGeometryNodes']['Input_5'][1] = obj.sxtools.tilewidth
-                obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
-                obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]
-            elif 'straight' in obj.name:
-                obj.modifiers['sxGeometryNodes']['Input_3'][0] = -obj.sxtools.tilewidth
-                obj.modifiers['sxGeometryNodes']['Input_5'][0] = obj.sxtools.tilewidth
-                obj.modifiers['sxGeometryNodes']['Input_7'][2] = obj.dimensions[2]
-                obj.modifiers['sxGeometryNodes']['Input_9'][2] = -obj.dimensions[2]   
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -3197,25 +3029,9 @@ class SXTOOLS_tools(object):
 
 
     def add_tiling(self, obj):
-        setup.create_tiler_nodegroups()
+        setup.create_tiler()
 
-        # Construct the correct node group to assign:
-        # bottom / middle / roof
-        # corner / straight / inner
-        node_string = 'sx_'
-        if 'bottom' in obj.name:
-            node_string += 'bottom_'
-        elif 'middle' in obj.name:
-            node_string += 'middle_'
-        elif 'roof' in obj.name:
-            node_string += 'roof_'
-
-        if 'corner' in obj.name:
-            node_string += 'corner_tiler'
-        elif 'straight' in obj.name:
-            node_string += 'straight_tiler'
-
-        if node_string in bpy.data.node_groups:
+        if 'sx_tiler' in bpy.data.node_groups:
             if 'sxGeometryNodes' not in obj.modifiers.keys():
                 tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
             else:
@@ -3224,7 +3040,70 @@ class SXTOOLS_tools(object):
             if 'sxMirror' in obj.modifiers.keys():
                 bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
 
-            tiler.node_group = bpy.data.node_groups[node_string]
+            tiler.node_group = bpy.data.node_groups['sx_tiler']
+
+            if ('middle' in obj.name) and ('empty' in obj.name) and ('left' in obj.name):
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_15'][2] = obj.dimensions[2]
+                tiler['Input_19'][2] = -obj.dimensions[2]
+            elif ('middle' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_15'][2] = obj.dimensions[2]
+                tiler['Input_19'][2] = -obj.dimensions[2]
+
+            elif ('middle' in obj.name) and ('corner' in obj.name):
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_5'][2] = math.radians(270)
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_15'][2] = obj.dimensions[2]
+                tiler['Input_19'][2] = -obj.dimensions[2]
+
+            elif ('middle' in obj.name) and ('straight' in obj.name):
+                tiler['Input_3'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_15'][2] = obj.dimensions[2]
+                tiler['Input_19'][2] = -obj.dimensions[2]
+
+            elif ('roof' in obj.name) and ('corner' in obj.name):
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_5'][2] = math.radians(270)
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
+
+            elif ('roof' in obj.name) and ('straight' in obj.name):
+                tiler['Input_3'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
+
+            elif ('bottom' in obj.name) and ('corner' in obj.name):
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_5'][2] = math.radians(270)
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_19'][2] = obj.dimensions[2] * 2.0
+                tiler['Input_21'][2] = -1.0
+
+
         else:
             message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
             print('SX Tools Error: Invalid tile naming')
