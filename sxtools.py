@@ -3039,13 +3039,17 @@ class SXTOOLS_tools(object):
         setup.create_tiler()
 
         if 'sx_tiler' in bpy.data.node_groups:
+            # utils.mode_manager([obj, ], set_mode=True, mode_id='add_tiling')
             if 'sxGeometryNodes' not in obj.modifiers.keys():
                 tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
             else:
                 tiler = obj.modifiers['sxGeometryNodes']
 
             if 'sxMirror' in obj.modifiers.keys():
+                bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
+
+            # utils.mode_manager([obj, ], revert=True, mode_id='add_tiling')
 
             tiler.node_group = bpy.data.node_groups['sx_tiler']
 
