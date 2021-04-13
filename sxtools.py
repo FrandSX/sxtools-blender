@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 2),
+    'version': (5, 14, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1730,7 +1730,7 @@ class SXTOOLS_generate(object):
                 vert_occ_dict[vert_id] = 0.0
                 vertLoc = Vector(vert_dict[vert_id][0])
                 vertNormal = Vector(vert_dict[vert_id][1])
-                bias = 0.0001
+                bias = 0.001
 
                 # Invert normal to cast inside object
                 invNormal = tuple([-1*x for x in vertNormal])
@@ -1740,7 +1740,7 @@ class SXTOOLS_generate(object):
                 if hit and (normal.dot(invNormal) < 0):
                     hit_dist = Vector((loc[0] - vertLoc[0], loc[1] - vertLoc[1], loc[2] - vertLoc[2])).length
                     if hit_dist < 0.5:
-                        bias = hit_dist + 0.0001
+                        bias += hit_dist
 
                 biasVec = tuple([bias*x for x in invNormal])
                 rotQuat = forward.rotation_difference(invNormal)
@@ -1796,6 +1796,9 @@ class SXTOOLS_generate(object):
 
         if obj.sxtools.tiling:
             tools.add_tiling(obj)
+            blend = 0.0
+            groundplane = False
+            # bpy.context.view_layer.update()
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -1824,7 +1827,7 @@ class SXTOOLS_generate(object):
                 if hit and (normal.dot(vertNormal) > 0):
                     hit_dist = Vector((loc[0] - vertLoc[0], loc[1] - vertLoc[1], loc[2] - vertLoc[2])).length
                     if hit_dist < 0.5:
-                        bias = hit_dist + 0.001
+                        bias += hit_dist
 
                 # Pass 1: Local space occlusion for individual object
                 if 0.0 <= mix < 1.0:
@@ -1861,7 +1864,11 @@ class SXTOOLS_generate(object):
                         if scnHit:
                             scnOccValue -= contribution
 
-                vert_occ_dict[vert_id] = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
+                ao_value = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
+                if obj.sxtools.quantize > 0:
+                    ao_value = round(ao_value*obj.sxtools.quantize)/obj.sxtools.quantize
+
+                vert_occ_dict[vert_id] = ao_value
 
             if groundplane:
                 bpy.data.objects.remove(ground, do_unlink=True)
@@ -3061,16 +3068,48 @@ class SXTOOLS_tools(object):
                 tiler['Input_19'][2] = -obj.dimensions[2]
 
             elif ('roof' in obj.name) and ('empty' in obj.name) and ('left' in obj.name):
-                pass
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
+                tiler['Input_17'][2] = -100.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
             elif ('roof' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
-                pass
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
+                tiler['Input_17'][2] = -100.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
             elif ('bottom' in obj.name) and ('empty' in obj.name) and ('left' in obj.name):
-                pass
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_19'][2] = obj.dimensions[2] * 2.0
+                tiler['Input_21'][2] = -1.0
 
             elif ('bottom' in obj.name) and ('empty' in obj.name) and ('right' in obj.name):
-                pass
+                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_7'][1] = -1.0
+                tiler['Input_9'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][1] = obj.sxtools.tilewidth
+                tiler['Input_11'][2] = math.radians(180)
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_19'][2] = obj.dimensions[2] * 2.0
+                tiler['Input_21'][2] = -1.0
 
             elif ('middle' in obj.name) and ('corner' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
@@ -3081,36 +3120,32 @@ class SXTOOLS_tools(object):
                 tiler['Input_15'][2] = obj.dimensions[2]
                 tiler['Input_19'][2] = -obj.dimensions[2]
 
-            elif ('middle' in obj.name) and ('straight' in obj.name):
+            elif ('middle' in obj.name) and (('straight' in obj.name) or ('empty' in obj.name)):
                 tiler['Input_3'][0] = -obj.sxtools.tilewidth
                 tiler['Input_9'][0] = obj.sxtools.tilewidth
                 tiler['Input_15'][2] = obj.dimensions[2]
                 tiler['Input_19'][2] = -obj.dimensions[2]
 
-            elif ('middle' in obj.name) and ('empty' in obj.name):
-                pass
-
             elif ('roof' in obj.name) and ('corner' in obj.name):
-                tiler['Input_3'][1] = obj.sxtools.tilewidth
+                tiler['Input_3'][1] = obj.sxtools.tilewidth * 1.5
                 tiler['Input_5'][2] = math.radians(270)
-                tiler['Input_9'][0] = obj.sxtools.tilewidth
-                tiler['Input_9'][1] = obj.sxtools.tilewidth
-                tiler['Input_11'][2] = math.radians(180)
-                tiler['Input_17'][2] = -10.0
+                tiler['Input_7'][0] = 2.0
+                tiler['Input_9'][0] = obj.sxtools.tilewidth * 1.5
+                tiler['Input_13'][0] = -2.0
+                tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
+                tiler['Input_17'][2] = -100.0
                 tiler['Input_21'][0] = 0.0
                 tiler['Input_21'][1] = 0.0
                 tiler['Input_21'][2] = 0.0
 
-            elif ('roof' in obj.name) and ('straight' in obj.name):
+            elif ('roof' in obj.name) and (('straight' in obj.name) or ('empty' in obj.name)):
                 tiler['Input_3'][0] = -obj.sxtools.tilewidth
                 tiler['Input_9'][0] = obj.sxtools.tilewidth
-                tiler['Input_17'][2] = -10.0
+                tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
+                tiler['Input_17'][2] = -100.0
                 tiler['Input_21'][0] = 0.0
                 tiler['Input_21'][1] = 0.0
                 tiler['Input_21'][2] = 0.0
-
-            elif ('roof' in obj.name) and ('empty' in obj.name):
-                pass
 
             elif ('bottom' in obj.name) and ('corner' in obj.name):
                 tiler['Input_3'][1] = obj.sxtools.tilewidth
@@ -3122,20 +3157,45 @@ class SXTOOLS_tools(object):
                 tiler['Input_19'][2] = obj.dimensions[2] * 2.0
                 tiler['Input_21'][2] = -1.0
 
-            elif ('bottom' in obj.name) and ('straight' in obj.name):
-                pass
+            elif ('bottom' in obj.name) and (('straight' in obj.name) or ('empty' in obj.name)):
+                tiler['Input_3'][0] = -obj.sxtools.tilewidth
+                tiler['Input_9'][0] = obj.sxtools.tilewidth
+                tiler['Input_17'][2] = -10.0
+                tiler['Input_19'][2] = obj.dimensions[2] * 2.0
+                tiler['Input_21'][2] = -1.0
 
             elif ('bottom' in obj.name) and ('inner' in obj.name):
-                pass
-
-            elif ('bottom' in obj.name) and ('empty' in obj.name):
-                pass
+                tiler['Input_3'][2] = obj.dimensions[2] * 2.0
+                tiler['Input_7'][2] = -1.0
+                tiler['Input_9'][2] = -obj.dimensions[2] * 2.0
+                tiler['Input_19'][0] = 0.0
+                tiler['Input_19'][1] = 0.0
+                tiler['Input_19'][2] = 0.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
             elif ('middle' in obj.name) and ('inner' in obj.name):
-                pass
+                tiler['Input_3'][2] = obj.dimensions[2]
+                tiler['Input_9'][2] = -obj.dimensions[2] * 2.0
+                tiler['Input_19'][0] = 0.0
+                tiler['Input_19'][1] = 0.0
+                tiler['Input_19'][2] = 0.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
             elif ('roof' in obj.name) and ('inner' in obj.name):
-                pass
+                tiler['Input_3'][2] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (5 * obj.sxtools.tilewidth))
+                tiler['Input_5'][2] = math.radians(90)
+                tiler['Input_7'][1] = 10.0
+                tiler['Input_11'][2] = math.radians(90)
+                tiler['Input_13'][1] = -1.0
+                tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
+                tiler['Input_17'][2] = -100.0
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
         else:
             message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
@@ -3439,6 +3499,13 @@ class SXTOOLS_tools(object):
         layers.clear_layers(objs, objs[0].sxlayers['metallic'])
         layers.clear_layers(objs, objs[0].sxlayers['smoothness'])
         layers.clear_layers(objs, objs[0].sxlayers['transmission'])
+
+        active = bpy.context.view_layer.objects.active
+        for obj in objs:
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.mesh.customdata_custom_splitnormals_clear()
+
+        bpy.context.view_layer.objects.active = active
 
 
     def zero_verts(self, objs):
@@ -4243,6 +4310,9 @@ class SXTOOLS_magic(object):
             layers.set_layer(obj, colors, layer)
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+
+            # Clear the border edges if the object is tiling
+            # bpy.ops.mesh.region_to_loop()
 
         # Clear metallic, smoothness, and transmission
         layers.clear_layers(objs, obj.sxlayers['metallic'])
@@ -5837,6 +5907,12 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=5.0,
         update=lambda self, context: update_custom_props(self, context, 'tilewidth'))
 
+    quantize: bpy.props.IntProperty(
+        name='Quantize',
+        description='Quantize occlusion values to reduce seams',
+        min=0,
+        default=0)
+
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     numlayers: bpy.props.IntProperty(
@@ -6912,9 +6988,10 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
                             col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
-                            row_tiling = col_fill.row(align=True)
+                            row_tiling = col_fill.row(align=False)
                             row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
                             row_tiling.prop(sxtools, 'tilewidth', text='Tile Grid')
+                            row_tiling.prop(sxtools, 'quantize', text='Quantize')
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
@@ -9051,6 +9128,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: Clear boundary loop in overlay layer on tiling objects!
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
