@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 5),
+    'version': (5, 14, 6),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1557,6 +1557,7 @@ class SXTOOLS_generate(object):
         scene = bpy.context.scene.sxtools
         normalize = scene.curvaturenormalize
         vert_curv_dict = {}
+
         bm = bmesh.new()
         bm.from_mesh(obj.data)
 
@@ -1601,8 +1602,26 @@ class SXTOOLS_generate(object):
             for vert, vtxCurvature in vert_curv_dict.items():
                 vert_curv_dict[vert] = (vtxCurvature + 0.5)
 
+        # Clear the border edges if the object is tiling
+        if obj.sxtools.tiling:
+            bpy.context.view_layer.objects.active = obj
+
+            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+            bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.region_to_loop()
+            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+            sel_verts = [None] * len(obj.data.vertices)
+            obj.data.vertices.foreach_get('select', sel_verts)
+
+            for i, sel in enumerate(sel_verts):
+                if sel:
+                    vert_curv_dict[i] = 0.5
+
         vert_curv_list = self.vert_dict_to_loop_list(obj, vert_curv_dict, 1, 4)
         curv_list = self.mask_list(obj, vert_curv_list, masklayer)
+
         return curv_list
 
 
@@ -4007,50 +4026,6 @@ class SXTOOLS_magic(object):
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
 
-    def process_paletted_old(self, objs):
-        print('SX Tools: Processing Paletted')
-        scene = bpy.context.scene.sxtools
-        obj = objs[0]
-
-        # Apply occlusion masked by emission
-        scene.occlusionblend = 0.5
-        scene.occlusionrays = 500
-
-        for obj in objs:
-            layer = obj.sxlayers['occlusion']
-            colors = generate.occlusion_list(obj, scene.occlusionrays, scene.occlusionblend, scene.occlusiondistance, scene.occlusiongroundplane)
-            colors1 = layers.get_layer(obj, obj.sxlayers['emission'], uv_as_alpha=True)
-            colors = tools.blend_values(colors1, colors, 'ALPHA', 1.0)
-            layers.set_layer(obj, colors, layer)
-
-        # Apply custom overlay
-        layer = obj.sxlayers['overlay']
-        scene.toolmode = 'CRV'
-        scene.curvaturenormalize = True
-
-        tools.apply_tool(objs, layer)
-
-        scene.toolmode = 'NSE'
-        scene.toolopacity = 0.01
-        scene.toolblend = 'MUL'
-        scene.noisemono = False
-
-        tools.apply_tool(objs, layer)
-
-        scene.toolopacity = 1.0
-        scene.toolblend = 'ALPHA'
-
-        for obj in objs:
-            obj.sxlayers['overlay'].blendMode = 'OVR'
-            obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
-
-        # Emissives are smooth
-        color = (1.0, 1.0, 1.0, 1.0)
-        mask = obj.sxlayers['emission']
-        layer = obj.sxlayers['smoothness']
-        tools.apply_tool(objs, layer, masklayer=mask, color=color)
-
-
     def process_paletted(self, objs):
         print('SX Tools: Processing Paletted')
         scene = bpy.context.scene.sxtools
@@ -4302,6 +4277,7 @@ class SXTOOLS_magic(object):
         # Apply normalized curvature with luma remapping to overlay, clear windows
         scene.curvaturenormalize = True
         scene.ramplist = 'WEARANDTEAR'
+        active = bpy.context.view_layer.objects.active
         for obj in objs:
             layer = obj.sxlayers['overlay']
             colors = generate.curvature_list(obj)
@@ -4315,8 +4291,6 @@ class SXTOOLS_magic(object):
             obj.sxlayers['overlay'].blendMode = 'OVR'
             obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
 
-            # Clear the border edges if the object is tiling
-            # bpy.ops.mesh.region_to_loop()
 
         # Clear metallic, smoothness, and transmission
         layers.clear_layers(objs, obj.sxlayers['metallic'])
@@ -7010,6 +6984,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     if scene.expandfill:
                         col_fill = box_fill.column(align=True)
                         col_fill.prop(scene, 'curvaturenormalize', text='Normalize')
+                        col_fill.prop(sxtools, 'tiling', text='Tiling Object')
 
                 # Noise Tool -------------------------------------------------------
                 elif scene.toolmode == 'NSE':
