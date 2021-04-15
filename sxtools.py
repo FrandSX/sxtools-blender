@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 11),
+    'version': (5, 14, 12),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3069,36 +3069,35 @@ class SXTOOLS_tools(object):
 
             tiler.node_group = bpy.data.node_groups['sx_tiler']
 
-
-            stretch = 20.0
+            stretch = 100.0
             if 'roof' in obj.name:
                 if ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
 
                 elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
 
                 elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = 2.0 * stretch
                     tiler['Input_9'][0] = -(stretch * 2.0 + 1.0) * obj.sxtools.tilewidth
 
                 elif ('corner' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
 
                 elif ('inner' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_9'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
 
                 tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
@@ -3109,103 +3108,73 @@ class SXTOOLS_tools(object):
 
             elif 'middle' in obj.name:
                 if ('corner' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = stretch - 1.0
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = stretch - 1.0
 
                 elif ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = stretch - 1.0
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = stretch - 1.0
 
                 elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = stretch - 1.0
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = stretch - 1.0
 
                 elif ('inner' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_9'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = stretch - 1.0
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = stretch - 1.0
 
                 elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = 2.0 * stretch
                     tiler['Input_9'][0] = -(2.0 * stretch + 1.0) * obj.sxtools.tilewidth
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = stretch - 1.0
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = stretch - 1.0
+
+                tiler['Input_15'][2] = stretch * obj.dimensions[2]
+                tiler['Input_17'][2] = stretch - 1.0
+                tiler['Input_19'][2] = -stretch * obj.dimensions[2]
+                tiler['Input_21'][2] = stretch - 1.0
 
             elif 'bottom' in obj.name:
                 if ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = -(stretch - 1.0)
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = -(stretch - 1.0)
 
                 elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = -(stretch - 1.0)
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = -(stretch - 1.0)
 
                 elif ('corner' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = -(stretch - 1.0)
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = -(stretch - 1.0)
 
                 elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth)
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = 2.0 * stretch
                     tiler['Input_9'][0] = -(2.0 * stretch + 1.0) * obj.sxtools.tilewidth
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = -(stretch - 1.0)
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = -(stretch - 1.0)
 
                 elif ('inner' in obj.name):
-                    tiler['Input_3'][0] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_3'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
-                    tiler['Input_9'][1] = -((obj.sxtools.tilewidth * 0.5) + (stretch * obj.sxtools.tilewidth))
+                    tiler['Input_9'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_13'][1] = -2.0 * stretch
-                    tiler['Input_15'][2] = stretch * obj.dimensions[2]
-                    tiler['Input_17'][2] = -(stretch - 1.0)
-                    tiler['Input_19'][2] = -stretch * obj.dimensions[2]
-                    tiler['Input_21'][2] = -(stretch - 1.0)
+
+                tiler['Input_15'][2] = stretch * obj.dimensions[2]
+                tiler['Input_17'][2] = -(stretch - 1.0)
+                tiler['Input_19'][2] = -stretch * obj.dimensions[2]
+                tiler['Input_21'][2] = -(stretch - 1.0)
 
         else:
             message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
