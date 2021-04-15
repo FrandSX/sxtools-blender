@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 6),
+    'version': (5, 14, 9),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3085,22 +3085,21 @@ class SXTOOLS_tools(object):
                     tiler['Input_11'][2] = math.radians(180)
 
                 elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_3'][0] = -obj.sxtools.tilewidth
-                    tiler['Input_9'][0] = obj.sxtools.tilewidth
+                    tiler['Input_3'][0] = (obj.sxtools.tilewidth * 0.5) + (5 * obj.sxtools.tilewidth)
+                    tiler['Input_7'][0] = 10.0
+                    tiler['Input_9'][0] = -11.0 * obj.sxtools.tilewidth
 
                 elif ('corner' in obj.name):
-                    tiler['Input_3'][1] = obj.sxtools.tilewidth * 1.5
-                    tiler['Input_5'][2] = math.radians(270)
-                    tiler['Input_7'][0] = 2.0
-                    tiler['Input_9'][0] = obj.sxtools.tilewidth * 1.5
-                    tiler['Input_13'][0] = -2.0
+                    tiler['Input_3'][1] = (obj.sxtools.tilewidth * 0.5) + (5 * obj.sxtools.tilewidth)
+                    tiler['Input_7'][0] = -10.0
+                    tiler['Input_9'][0] = (obj.sxtools.tilewidth * 0.5) + (5 * obj.sxtools.tilewidth)
+                    tiler['Input_13'][0] = -10.0
 
                 elif ('inner' in obj.name):
-                    tiler['Input_3'][2] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (5 * obj.sxtools.tilewidth))
-                    tiler['Input_5'][2] = math.radians(90)
-                    tiler['Input_7'][1] = 10.0
-                    tiler['Input_11'][2] = math.radians(90)
-                    tiler['Input_13'][1] = -1.0
+                    tiler['Input_3'][0] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (20 * obj.sxtools.tilewidth))
+                    tiler['Input_7'][0] = -40.0
+                    tiler['Input_9'][1] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (20 * obj.sxtools.tilewidth))
+                    tiler['Input_13'][1] = -40.0
 
                 tiler['Input_15'][2] = -obj.sxtools.tilewidth * 0.1
                 tiler['Input_17'][2] = -100.0
@@ -3137,14 +3136,14 @@ class SXTOOLS_tools(object):
                     tiler['Input_19'][2] = -obj.dimensions[2]
 
                 elif ('inner' in obj.name):
-                    tiler['Input_3'][2] = obj.dimensions[2]
-                    tiler['Input_9'][2] = -obj.dimensions[2] * 2.0
-                    tiler['Input_19'][0] = 0.0
-                    tiler['Input_19'][1] = 0.0
-                    tiler['Input_19'][2] = 0.0
-                    tiler['Input_21'][0] = 0.0
-                    tiler['Input_21'][1] = 0.0
-                    tiler['Input_21'][2] = 0.0
+                    tiler['Input_3'][0] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (20 * obj.sxtools.tilewidth))
+                    tiler['Input_7'][0] = -40.0
+                    tiler['Input_9'][1] = -1.0 * ((obj.sxtools.tilewidth * 0.5) + (20 * obj.sxtools.tilewidth))
+                    tiler['Input_13'][1] = -40.0
+                    tiler['Input_15'][2] = 10 * obj.dimensions[2]
+                    tiler['Input_17'][2] = -9.0
+                    tiler['Input_19'][2] = -10 * obj.dimensions[2]
+                    tiler['Input_21'][2] = -9.0
 
                 elif ('straight' in obj.name) or ('empty' in obj.name):
                     tiler['Input_3'][0] = -obj.sxtools.tilewidth
@@ -3340,10 +3339,9 @@ class SXTOOLS_tools(object):
     def remove_modifiers(self, objs, reset=False):
         modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
         for obj in objs:
-            bpy.context.view_layer.objects.active = obj
             for modifier in modifiers:
                 if modifier in obj.modifiers.keys():
-                    bpy.ops.object.modifier_remove(modifier=modifier)
+                    obj.modifiers.remove(obj.modifiers.get(modifier))
 
             if reset:
                 obj.sxtools.xmirror = False
@@ -3977,7 +3975,8 @@ class SXTOOLS_magic(object):
             scene.toolmode = 'OCC'
             scene.noisemono = True
             scene.occlusionblend = 0.5
-            scene.occlusionrays = 500
+            scene.occlusionrays = 1000
+            scene.occlusiondistance = 10.0
 
             tools.apply_tool(objs, layer)
 
@@ -4014,7 +4013,8 @@ class SXTOOLS_magic(object):
 
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 500
+        scene.occlusionrays = 1000
+        scene.occlusiondistance = 10.0
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
@@ -4121,8 +4121,9 @@ class SXTOOLS_magic(object):
 
         # Apply occlusion masked by emission
         scene.occlusionblend = 0.5
-        scene.occlusionrays = 500
+        scene.occlusionrays = 1000
         scene.occlusiongroundplane = True
+        scene.occlusiondistance = 10.0
 
         for obj in objs:
             layer = obj.sxlayers['occlusion']
@@ -4244,6 +4245,7 @@ class SXTOOLS_magic(object):
         scene.occlusionblend = 0.0
         scene.occlusionrays = 1000
         scene.occlusiongroundplane = False
+        scene.occlusiondistance = 1.0
         color = (1.0, 1.0, 1.0, 1.0)
         mask = utils.find_layer_from_index(obj, 7)
 
@@ -9088,7 +9090,6 @@ if __name__ == '__main__':
 
 
 # TODO
-# FEAT: Clear boundary loop in overlay layer on tiling objects!
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
