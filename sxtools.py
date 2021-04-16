@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 12),
+    'version': (5, 14, 13),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4360,7 +4360,7 @@ class SXTOOLS_magic(object):
         color = (1.0, 1.0, 1.0, 1.0)
 
         for obj in objs:
-            colors = generate.thickness_list(obj, 500, bias=0.000001, masklayer=None)
+            colors = generate.thickness_list(obj, 500, masklayer=None)
             values = layers.get_luminances(obj, colors=colors)
             colors = generate.luminance_remap_list(obj, values=values)
             colors1 = generate.color_list(obj, color=color, masklayer=utils.find_layer_from_index(obj, 4))
@@ -9066,6 +9066,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: High-detail export breaking on smart-separate even when disabled
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
