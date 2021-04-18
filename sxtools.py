@@ -9066,6 +9066,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Context incorrect error from selectionmonitor at multi-object setup
 # BUG: High-detail export breaking on smart-separate even when disabled
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
