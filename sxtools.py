@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 14, 13),
+    'version': (5, 15, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -293,6 +293,9 @@ class SXTOOLS_files(object):
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                bpy.context.view_layer.objects.active = group
 
                 # If linear colorspace exporting is selected
                 if colorspace == 'LIN':
@@ -3265,7 +3268,10 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxDecimate2'].use_collapse_triangulate = True
             if 'sxWeightedNormal' not in obj.modifiers.keys():
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
-                obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+                if not obj.sxtools.weightednormals:
+                    obj.modifiers['sxWeightedNormal'].show_viewport = False
+                else:
+                    obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeightedNormal'].show_expanded = False
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 95
@@ -3309,7 +3315,10 @@ class SXTOOLS_tools(object):
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxDecimate2')
             if 'sxWeightedNormal' in obj.modifiers.keys():
-                bpy.ops.object.modifier_apply(modifier='sxWeightedNormal')
+                if not obj.sxtools.weightednormals:
+                    bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
+                else:
+                    bpy.ops.object.modifier_apply(modifier='sxWeightedNormal')
 
 
     def remove_modifiers(self, objs, reset=False):
@@ -5164,7 +5173,10 @@ def update_modifiers(self, context, modifier):
                     else:
                         obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
                 if 'sxWeightedNormal' in obj.modifiers.keys():
-                    obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
+                    if not obj.sxtools.weightednormals:
+                        obj.modifiers['sxWeightedNormal'].show_viewport = False
+                    else:
+                        obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
         elif modifier == 'mirror':
             xmirror = objs[0].sxtools.xmirror
@@ -5746,7 +5758,9 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         items=[
             ('OFFSET', 'Offset', ''),
             ('WIDTH', 'Width', ''),
-            ('PERCENT', 'Percent', '')],
+            ('DEPTH', 'Depth', ''),
+            ('PERCENT', 'Percent', ''),
+            ('ABSOLUTE', 'Absolute', '')],
         default='WIDTH',
         update=lambda self, context: update_modifiers(self, context, 'bevel'))
 
@@ -5849,6 +5863,12 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         description='Quantize occlusion values to reduce seams',
         min=0,
         default=0)
+
+    weightednormals: bpy.props.BoolProperty(
+        name='Weighted Normals',
+        description='Enables Weighted Normals modifier on the object',
+        default=True,
+        update=lambda self, context: update_custom_props(self, context, 'weightednormals'))
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -7140,6 +7160,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         col3_sds.prop(sxtools, 'subdivisionlevel', text='Subdivision Level')
                         col3_sds.prop(sxtools, 'smoothangle', text='Normal Smoothing Angle')
                         col3_sds.prop(sxtools, 'weldthreshold', text='Weld Threshold')
+                        col3_sds.prop(sxtools, 'weightednormals', text='Weighted Normals')
                         if obj.sxtools.subdivisionlevel > 0:
                             col3_sds.prop(sxtools, 'decimation', text='Decimation Limit Angle')
                             col3_sds.label(text='Selection Tri Count: '+utils.calculate_triangles(objs))
