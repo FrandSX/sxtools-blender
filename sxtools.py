@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 15, 2),
+    'version': (5, 15, 4),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5143,15 +5143,12 @@ def adjust_hsl(self, context, hslmode):
             refresh_actives(self, context)
 
 
-def update_modifiers(self, context, modifier):
+def update_modifiers(self, context, prop):
+    update_custom_props(self, context, prop)
+
     objs = selection_validator(self, context)
     if len(objs) > 0:
-        if modifier == 'visibility':
-            vis = objs[0].sxtools.modifiervisibility
-            for obj in objs:
-                if obj.sxtools.modifiervisibility != vis:
-                    obj.sxtools.modifiervisibility = vis
-
+        if prop == 'modifiervisibility':
             for obj in objs:
                 if 'sxMirror' in obj.modifiers.keys():
                     obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
@@ -5186,44 +5183,24 @@ def update_modifiers(self, context, modifier):
                     else:
                         obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
 
-        elif modifier == 'mirror':
-            xmirror = objs[0].sxtools.xmirror
-            ymirror = objs[0].sxtools.ymirror
-            zmirror = objs[0].sxtools.zmirror
-            mirrorobj = objs[0].sxtools.mirrorobject
-
-            for obj in objs:
-                if obj.sxtools.xmirror != xmirror:
-                    obj.sxtools.xmirror = xmirror
-                if obj.sxtools.ymirror != ymirror:
-                    obj.sxtools.ymirror = ymirror
-                if obj.sxtools.zmirror != zmirror:
-                    obj.sxtools.zmirror = zmirror
-                if obj.sxtools.mirrorobject != mirrorobj:
-                    obj.sxtools.mirrorobject = mirrorobj
-
+        elif (prop == 'xmirror') or (prop == 'ymirror') or (prop == 'zmirror') or (prop == 'mirrorobject'):
             for obj in objs:
                 if 'sxMirror' in obj.modifiers.keys():
-                    obj.modifiers['sxMirror'].use_axis[0] = xmirror
-                    obj.modifiers['sxMirror'].use_axis[1] = ymirror
-                    obj.modifiers['sxMirror'].use_axis[2] = zmirror
+                    obj.modifiers['sxMirror'].use_axis[0] = obj.sxtools.xmirror
+                    obj.modifiers['sxMirror'].use_axis[1] = obj.sxtools.ymirror
+                    obj.modifiers['sxMirror'].use_axis[2] = obj.sxtools.zmirror
 
-                    if mirrorobj is not None:
-                        obj.modifiers['sxMirror'].mirror_object = mirrorobj
+                    if obj.sxtools.mirrorobject is not None:
+                        obj.modifiers['sxMirror'].mirror_object = obj.sxtools.mirrorobject
                     else:
                         obj.modifiers['sxMirror'].mirror_object = None
 
-                    if xmirror or ymirror or zmirror:
+                    if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror or (obj.sxtools.mirrorobject is not None):
                         obj.modifiers['sxMirror'].show_viewport = True
                     else:
                         obj.modifiers['sxMirror'].show_viewport = False
 
-        elif modifier == 'crease':
-            hardmode = objs[0].sxtools.hardmode
-            for obj in objs:
-                if obj.sxtools.hardmode != hardmode:
-                    obj.sxtools.hardmode = hardmode
-
+        elif prop == 'hardmode':
             for obj in objs:
                 if 'sxWeightedNormal' in obj.modifiers.keys():
                     if hardmode == 'SMOOTH':
@@ -5231,18 +5208,7 @@ def update_modifiers(self, context, modifier):
                     else:
                         obj.modifiers['sxWeightedNormal'].keep_sharp = True
 
-        elif modifier == 'subdivision':
-            vis = objs[0].sxtools.modifiervisibility
-            hardmode = objs[0].sxtools.hardmode
-            subdivLevel = objs[0].sxtools.subdivisionlevel
-            for obj in objs:
-                if obj.sxtools.modifiervisibility != vis:
-                    obj.sxtools.modifiervisibility = vis
-                if obj.sxtools.hardmode != hardmode:
-                    obj.sxtools.hardmode = hardmode
-                if obj.sxtools.subdivisionlevel != subdivLevel:
-                    obj.sxtools.subdivisionlevel = subdivLevel
-
+        elif prop == 'subdivisionlevel':
             for obj in objs:
                 if 'sxSubdivision' in obj.modifiers.keys():
                     obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
@@ -5261,18 +5227,7 @@ def update_modifiers(self, context, modifier):
                     else:
                         obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
 
-        elif modifier == 'bevel':
-            bevelWidth = objs[0].sxtools.bevelwidth
-            bevelSegments = objs[0].sxtools.bevelsegments
-            bevelType = objs[0].sxtools.beveltype
-            for obj in objs:
-                if obj.sxtools.bevelwidth != bevelWidth:
-                    obj.sxtools.bevelwidth = bevelWidth
-                if obj.sxtools.bevelsegments != bevelSegments:
-                    obj.sxtools.bevelsegments = bevelSegments
-                if obj.sxtools.beveltype != bevelType:
-                    obj.sxtools.beveltype = bevelType
-
+        elif (prop == 'bevelwidth') or (prop == 'bevelsegments') or (prop == 'beveltype'):
             for obj in objs:
                 if 'sxBevel' in obj.modifiers.keys():
                     if obj.sxtools.bevelsegments == 0:
@@ -5284,12 +5239,7 @@ def update_modifiers(self, context, modifier):
                     obj.modifiers['sxBevel'].segments = obj.sxtools.bevelsegments
                     obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype
 
-        elif modifier == 'weld':
-            weldThreshold = objs[0].sxtools.weldthreshold
-            for obj in objs:
-                if obj.sxtools.weldthreshold != weldThreshold:
-                    obj.sxtools.weldthreshold = weldThreshold
-
+        elif prop == 'weldthreshold':
             for obj in objs:
                 if 'sxWeld' in obj.modifiers.keys():
                     obj.modifiers['sxWeld'].merge_threshold = weldThreshold
@@ -5298,12 +5248,7 @@ def update_modifiers(self, context, modifier):
                     elif (obj.sxtools.weldthreshold > 0) and obj.sxtools.modifiervisibility:
                         obj.modifiers['sxWeld'].show_viewport = True
 
-        elif modifier == 'decimate':
-            decimation = objs[0].sxtools.decimation
-            for obj in objs:
-                if obj.sxtools.decimation != decimation:
-                    obj.sxtools.decimation = decimation
-
+        elif prop == 'decimation':
             for obj in objs:
                 if 'sxDecimate' in obj.modifiers.keys():
                     obj.modifiers['sxDecimate'].angle_limit = math.radians(decimation)
@@ -5314,13 +5259,17 @@ def update_modifiers(self, context, modifier):
                         obj.modifiers['sxDecimate'].show_viewport = True
                         obj.modifiers['sxDecimate2'].show_viewport = True
 
+        elif prop == 'weightednormals':
+            for obj in objs:
+                if 'sxWeightedNormal' in obj.modifiers.keys():
+                    obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.weightednormals
+
 
 def update_custom_props(self, context, prop):
     objs = selection_validator(self, context)
     if len(objs) > 0:
         value = getattr(objs[0].sxtools, prop)
         for obj in objs:
-            obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
             if prop == 'staticvertexcolors':
                 obj['staticVertexColors'] = int(objs[0].sxtools.staticvertexcolors)
             if getattr(obj.sxtools, prop) != value:
@@ -5696,7 +5645,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     modifiervisibility: bpy.props.BoolProperty(
         name='Modifier Visibility',
         default=True,
-        update=lambda self, context: update_modifiers(self, context, 'visibility'))
+        update=lambda self, context: update_modifiers(self, context, 'modifiervisibility'))
 
     smoothangle: bpy.props.FloatProperty(
         name='Normal Smoothing Angle',
@@ -5708,17 +5657,17 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     xmirror: bpy.props.BoolProperty(
         name='X-Axis',
         default=False,
-        update=lambda self, context: update_modifiers(self, context, 'mirror'))
+        update=lambda self, context: update_modifiers(self, context, 'xmirror'))
 
     ymirror: bpy.props.BoolProperty(
         name='Y-Axis',
         default=False,
-        update=lambda self, context: update_modifiers(self, context, 'mirror'))
+        update=lambda self, context: update_modifiers(self, context, 'ymirror'))
 
     zmirror: bpy.props.BoolProperty(
         name='Z-Axis',
         default=False,
-        update=lambda self, context: update_modifiers(self, context, 'mirror'))
+        update=lambda self, context: update_modifiers(self, context, 'zmirror'))
 
     smartseparate: bpy.props.BoolProperty(
         name='Smart Separate',
@@ -5728,7 +5677,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
     mirrorobject: bpy.props.PointerProperty(
         name='Mirror Object',
         type=bpy.types.Object,
-        update=lambda self, context: update_modifiers(self, context, 'mirror'))
+        update=lambda self, context: update_modifiers(self, context, 'mirrorobject'))
 
     hardmode: bpy.props.EnumProperty(
         name='Max Crease Mode',
@@ -5737,28 +5686,28 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('SMOOTH', 'Smooth', ''),
             ('SHARP', 'Sharp', '')],
         default='SHARP',
-        update=lambda self, context: update_modifiers(self, context, 'crease'))
+        update=lambda self, context: update_modifiers(self, context, 'hardmode'))
 
     subdivisionlevel: bpy.props.IntProperty(
         name='Subdivision Level',
         min=0,
         max=6,
         default=1,
-        update=lambda self, context: update_modifiers(self, context, 'subdivision'))
+        update=lambda self, context: update_modifiers(self, context, 'subdivisionlevel'))
 
     bevelwidth: bpy.props.FloatProperty(
         name='Bevel Width',
         min=0.0,
         max=100.0,
         default=0.05,
-        update=lambda self, context: update_modifiers(self, context, 'bevel'))
+        update=lambda self, context: update_modifiers(self, context, 'bevelwidth'))
 
     bevelsegments: bpy.props.IntProperty(
         name='Bevel Segments',
         min=0,
         max=10,
         default=2,
-        update=lambda self, context: update_modifiers(self, context, 'bevel'))
+        update=lambda self, context: update_modifiers(self, context, 'bevelsegments'))
 
     beveltype: bpy.props.EnumProperty(
         name='Bevel Type',
@@ -5770,7 +5719,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
             ('PERCENT', 'Percent', ''),
             ('ABSOLUTE', 'Absolute', '')],
         default='WIDTH',
-        update=lambda self, context: update_modifiers(self, context, 'bevel'))
+        update=lambda self, context: update_modifiers(self, context, 'beveltype'))
 
     weldthreshold: bpy.props.FloatProperty(
         name='Weld Threshold',
@@ -5778,14 +5727,14 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         max=10.0,
         default=0.0,
         precision=3,
-        update=lambda self, context: update_modifiers(self, context, 'weld'))
+        update=lambda self, context: update_modifiers(self, context, 'weldthreshold'))
 
     decimation: bpy.props.FloatProperty(
         name='Decimation',
         min=0.0,
         max=10.0,
         default=0.0,
-        update=lambda self, context: update_modifiers(self, context, 'decimate'))
+        update=lambda self, context: update_modifiers(self, context, 'decimation'))
 
     staticvertexcolors: bpy.props.EnumProperty(
         name='Vertex Color Processing Mode',
@@ -5876,7 +5825,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Weighted Normals',
         description='Enables Weighted Normals modifier on the object',
         default=True,
-        update=lambda self, context: update_custom_props(self, context, 'weightednormals'))
+        update=lambda self, context: update_modifiers(self, context, 'weightednormals'))
 
 
 class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
@@ -9095,6 +9044,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: Select objs that have components selected
 # BUG: Context incorrect error from selectionmonitor at multi-object setup
 # BUG: High-detail export breaking on smart-separate even when disabled
 # FEAT: validate modifier settings, control cage, all meshes have single user?
