@@ -9059,7 +9059,7 @@ if __name__ == '__main__':
 # FEAT: Pivot to center of mass for convex submeshes
 # BUG: Error after setting up multiple objects
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
-# - Generate VisToggle and VisMix nodes only when channels are enabled
+# FEAT: Generate VisToggle and VisMix nodes only when channels are enabled
 # FEAT: Strip redundant custom props prior to exporting
 #
 # Selection monitor:
