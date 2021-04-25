@@ -9096,7 +9096,6 @@ if __name__ == '__main__':
 # - Export via FBX
 #
 # Future:
-# - Apply scale and rotation to objs
 # - Update pie menu
 # - Separate reset layers and clear layers
 # - Re-categorize filler tools
