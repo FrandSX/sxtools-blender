@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 15, 5),
+    'version': (5, 15, 6),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -53,6 +53,8 @@ class SXTOOLS_sxglobals(object):
         self.paletteDict = {}
         self.masterPaletteArray = []
         self.materialArray = []
+
+        self.randomseed = 42
 
         # name, enabled, index, layerType (COLOR/UV/UV4),
         # defaultColor, defaultValue,
@@ -1632,6 +1634,7 @@ class SXTOOLS_generate(object):
         scene = bpy.context.scene.sxtools
         coneangle = scene.dirCone
         cone = coneangle*0.5
+        random.seed(sxglobals.randomseed)
 
         if coneangle == 0:
             samples = 1
@@ -1672,6 +1675,7 @@ class SXTOOLS_generate(object):
 
         def make_noise(amplitude, offset, mono):
             col = [None, None, None, 1.0]
+            random.seed(sxglobals.randomseed)
 
             if mono:
                 monoval = offset+random.uniform(-amplitude, amplitude)
@@ -1694,6 +1698,8 @@ class SXTOOLS_generate(object):
 
     def ray_randomizer(self, count):
         hemiSphere = [None] * count
+        random.seed(sxglobals.randomseed)
+
         for i in range(count):
             u1 = random.random()
             u2 = random.random()
