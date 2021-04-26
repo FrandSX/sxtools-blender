@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 15, 4),
+    'version': (5, 15, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4243,7 +4243,7 @@ class SXTOOLS_magic(object):
             layers.set_layer(obj, colors, layer)
 
         # Apply normalized curvature with luma remapping to overlay, clear windows
-        scene.curvaturenormalize = True
+        scene.curvaturenormalize = False
         scene.ramplist = 'WEARANDTEAR'
         active = bpy.context.view_layer.objects.active
         for obj in objs:
