@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 15, 6),
+    'version': (5, 15, 7),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -329,7 +329,8 @@ class SXTOOLS_files(object):
                     use_active_collection=False,
                     add_leaf_bones=False,
                     object_types={'ARMATURE', 'EMPTY', 'MESH'},
-                    use_custom_props=True)
+                    use_custom_props=True,
+                    use_metadata=False)
 
                 groupNames.append(group.name)
                 group.location = org_loc
@@ -9050,6 +9051,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: Characters category: weighted keep sharp off, bevel harden on
 # FEAT: Select objs that have components selected
 # BUG: Context incorrect error from selectionmonitor at multi-object setup
 # BUG: High-detail export breaking on smart-separate even when disabled
