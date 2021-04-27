@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 0),
+    'version': (5, 16, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3239,8 +3239,8 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].use_clamp_overlap = True
                 obj.modifiers['sxBevel'].loop_slide = True
                 obj.modifiers['sxBevel'].mark_sharp = False
-                obj.modifiers['sxBevel'].harden_normals = False
-                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype  # 'OFFSET' 'WIDTH' 'PERCENT'
+                obj.modifiers['sxBevel'].harden_normals = True
+                obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
             if 'sxWeld' not in obj.modifiers.keys():
@@ -3281,7 +3281,7 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeightedNormal'].show_expanded = False
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
-                obj.modifiers['sxWeightedNormal'].weight = 95
+                obj.modifiers['sxWeightedNormal'].weight = 50
                 if hardmode == 'SMOOTH':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
                 else:
@@ -3932,7 +3932,7 @@ class SXTOOLS_magic(object):
                 # obj.show_viewport = True
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
-                obj.modifiers['sxWeightedNormal'].weight = 95
+                obj.modifiers['sxWeightedNormal'].weight = 50
                 obj.modifiers['sxWeightedNormal'].keep_sharp = True
 
             # self.apply_modifiers(objs)
@@ -5211,12 +5211,12 @@ def update_modifiers(self, context, prop):
                     else:
                         obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 if 'sxDecimate' in obj.modifiers.keys():
-                    if (obj.sxtools.subdivisionlevel == 0):
+                    if (obj.sxtools.subdivisionlevel == 0.0):
                         obj.modifiers['sxDecimate'].show_viewport = False
                     else:
                         obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
                 if 'sxDecimate2' in obj.modifiers.keys():
-                    if (obj.sxtools.subdivisionlevel == 0):
+                    if (obj.sxtools.subdivisionlevel == 0.0):
                         obj.modifiers['sxDecimate2'].show_viewport = False
                     else:
                         obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
@@ -5226,7 +5226,7 @@ def update_modifiers(self, context, prop):
                     else:
                         obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
                 if 'sxWeld' in obj.modifiers.keys():
-                    if (obj.sxtools.weldthreshold == 0):
+                    if (obj.sxtools.weldthreshold == 0.0):
                         obj.modifiers['sxWeld'].show_viewport = False
                     else:
                         obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
@@ -5295,7 +5295,7 @@ def update_modifiers(self, context, prop):
         elif prop == 'weldthreshold':
             for obj in objs:
                 if 'sxWeld' in obj.modifiers.keys():
-                    obj.modifiers['sxWeld'].merge_threshold = weldThreshold
+                    obj.modifiers['sxWeld'].merge_threshold = obj.sxtools.weldthreshold
                     if obj.sxtools.weldthreshold == 0:
                         obj.modifiers['sxWeld'].show_viewport = False
                     elif (obj.sxtools.weldthreshold > 0) and obj.sxtools.modifiervisibility:
@@ -5304,8 +5304,8 @@ def update_modifiers(self, context, prop):
         elif prop == 'decimation':
             for obj in objs:
                 if 'sxDecimate' in obj.modifiers.keys():
-                    obj.modifiers['sxDecimate'].angle_limit = math.radians(decimation)
-                    if obj.sxtools.decimation == 0:
+                    obj.modifiers['sxDecimate'].angle_limit = math.radians(obj.sxtools.decimation)
+                    if obj.sxtools.decimation == 0.0:
                         obj.modifiers['sxDecimate'].show_viewport = False
                         obj.modifiers['sxDecimate2'].show_viewport = False
                     elif (obj.sxtools.decimation > 0) and obj.sxtools.modifiervisibility:
