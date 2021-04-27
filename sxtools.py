@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 15, 7),
+    'version': (5, 16, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3878,6 +3878,10 @@ class SXTOOLS_magic(object):
                         if scene.exportquality == 'HI':
                             tools.apply_modifiers(groupObjs)
                         self.process_trees(groupObjs)
+                    elif category == 'CHARACTERS':
+                        if scene.exportquality == 'HI':
+                            tools.apply_modifiers(groupObjs)
+                        self.process_characters(groupObjs)
                     elif category == 'TRANSPARENT':
                         if scene.exportquality == 'HI':
                             tools.apply_modifiers(groupObjs)
@@ -3977,6 +3981,48 @@ class SXTOOLS_magic(object):
             layer = obj.sxlayers['overlay']
             scene.toolmode = 'CRV'
             scene.curvaturenormalize = True
+
+            tools.apply_tool(objs, layer)
+
+            scene.noisemono = False
+            scene.toolmode = 'NSE'
+            scene.toolopacity = 0.01
+            scene.toolblend = 'MUL'
+
+            tools.apply_tool(objs, layer)
+            for obj in objs:
+                obj.sxlayers['overlay'].blendMode = 'OVR'
+                obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+
+        # Emissives are smooth
+        if scene.enableemission:
+            color = (1.0, 1.0, 1.0, 1.0)
+            masklayer = obj.sxlayers['emission']
+            layer = obj.sxlayers['smoothness']
+            tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+
+
+    def process_characters(self, objs):
+        print('SX Tools: Processing Characters')
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+
+        # Apply occlusion
+        if scene.enableocclusion:
+            layer = obj.sxlayers['occlusion']
+            scene.toolmode = 'OCC'
+            scene.noisemono = True
+            scene.occlusionblend = 0.2
+            scene.occlusionrays = 1000
+            scene.occlusiondistance = 1.0
+
+            tools.apply_tool(objs, layer)
+
+        # Apply custom overlay
+        if scene.numoverlays != 0:
+            layer = obj.sxlayers['overlay']
+            scene.toolmode = 'CRV'
+            scene.curvaturenormalize = False
 
             tools.apply_tool(objs, layer)
 
