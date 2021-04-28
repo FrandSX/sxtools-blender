@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 3),
+    'version': (5, 16, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3379,7 +3379,7 @@ class SXTOOLS_tools(object):
 
 
     # pivotmodes: 0 == no change, 1 == center of mass, 2 == center of bbox,
-    # 3 == base of bbox, 4 == world origin, 5 == pivot of parent, force == set mirror axis to zero
+    # 3 == base of bbox, 4 == world origin, 5 == pivot of parent, force == set mirror axis to mirrorobj
     def set_pivots(self, objs, pivotmode=None, force=False):
         viewlayer = bpy.context.view_layer
         active = viewlayer.objects.active
@@ -3412,27 +3412,33 @@ class SXTOOLS_tools(object):
             elif mode == 1:
                 bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
                 if force:
-                    # pivot_loc = obj.location.copy()
                     pivot_loc = obj.matrix_world.to_translation()
+                    if obj.sxtools.mirrorobject is not None:
+                        mirror_pivot_loc = obj.sxtools.mirrorobject.matrix_world.to_translation()
+                    else:
+                        mirror_pivot_loc = (0.0, 0.0, 0.0)
                     if obj.sxtools.xmirror:
-                        pivot_loc[0] = 0.0
+                        pivot_loc[0] = mirror_pivot_loc[0]
                     if obj.sxtools.ymirror:
-                        pivot_loc[1] = 0.0
+                        pivot_loc[1] = mirror_pivot_loc[1]
                     if obj.sxtools.zmirror:
-                        pivot_loc[2] = 0.0
+                        pivot_loc[2] = mirror_pivot_loc[2]
                     bpy.context.scene.cursor.location = pivot_loc
                     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 2:
                 bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='BOUNDS')
                 if force:
-                    # pivot_loc = obj.location.copy()
                     pivot_loc = obj.matrix_world.to_translation()
+                    if obj.sxtools.mirrorobject is not None:
+                        mirror_pivot_loc = obj.sxtools.mirrorobject.matrix_world.to_translation()
+                    else:
+                        mirror_pivot_loc = (0.0, 0.0, 0.0)
                     if obj.sxtools.xmirror:
-                        pivot_loc[0] = 0.0
+                        pivot_loc[0] = mirror_pivot_loc[0]
                     if obj.sxtools.ymirror:
-                        pivot_loc[1] = 0.0
+                        pivot_loc[1] = mirror_pivot_loc[1]
                     if obj.sxtools.zmirror:
-                        pivot_loc[2] = 0.0
+                        pivot_loc[2] = mirror_pivot_loc[2]
                     bpy.context.scene.cursor.location = pivot_loc
                     bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
             elif mode == 3:
@@ -4022,7 +4028,9 @@ class SXTOOLS_magic(object):
         if scene.numoverlays != 0:
             layer = obj.sxlayers['overlay']
             scene.toolmode = 'CRV'
-            scene.curvaturenormalize = False
+            scene.curvaturenormalize = True
+            scene.toolopacity = 0.2
+            scene.toolblend = 'ALPHA'
 
             tools.apply_tool(objs, layer)
 
@@ -4546,7 +4554,8 @@ class SXTOOLS_export(object):
                         zstring = ''
                         ystring = ''
                         xstring = ''
-                        objLoc = newObj.location
+                        # objLoc = newObj.location
+                        objLoc = newObj.matrix_world.to_translation()
                         if zmirror:
                             if objLoc[2] > refLoc[2]:
                                 zstring = '_top'
