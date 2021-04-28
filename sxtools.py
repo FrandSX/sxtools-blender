@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 2),
+    'version': (5, 16, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3282,7 +3282,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxWeightedNormal'].show_expanded = False
                 obj.modifiers['sxWeightedNormal'].mode = 'FACE_AREA_WITH_ANGLE'
                 obj.modifiers['sxWeightedNormal'].weight = 50
-                if hardmode == 'SMOOTH':
+                if obj.sxtools.hardmode == 'SMOOTH':
                     obj.modifiers['sxWeightedNormal'].keep_sharp = False
                 else:
                     obj.modifiers['sxWeightedNormal'].keep_sharp = True
@@ -5256,7 +5256,7 @@ def update_modifiers(self, context, prop):
         elif prop == 'hardmode':
             for obj in objs:
                 if 'sxWeightedNormal' in obj.modifiers.keys():
-                    if hardmode == 'SMOOTH':
+                    if obj.sxtools.hardmode == 'SMOOTH':
                         obj.modifiers['sxWeightedNormal'].keep_sharp = False
                     else:
                         obj.modifiers['sxWeightedNormal'].keep_sharp = True
