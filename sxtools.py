@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 5),
+    'version': (5, 16, 8),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -295,8 +295,7 @@ class SXTOOLS_files(object):
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
-                    bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
                 bpy.context.view_layer.objects.active = group
 
                 # If linear colorspace exporting is selected
@@ -645,6 +644,17 @@ class SXTOOLS_utils(object):
 
         bm.free
         return min(max_distances)
+
+
+    def clear_parent_inverse_matrix(self, objs):
+        active = bpy.context.view_layer.objects.active
+        for obj in objs:
+            bpy.context.view_layer.objects.active = obj
+            world_loc = obj.matrix_world.to_translation()
+            obj.matrix_parent_inverse.identity()
+            obj.location = obj.parent.matrix_world.inverted() @ world_loc
+
+        bpy.context.view_layer.objects.active = active
 
 
     def __del__(self):
@@ -3800,6 +3810,9 @@ class SXTOOLS_magic(object):
 
         # Place pivots
         tools.set_pivots(objs, force=True)
+
+        # Fix transforms
+        utils.clear_parent_inverse_matrix(objs)
 
         for obj in objs:
             obj.select_set(False)
