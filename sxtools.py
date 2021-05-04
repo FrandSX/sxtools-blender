@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 9),
+    'version': (5, 16, 10),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3763,10 +3763,12 @@ class SXTOOLS_magic(object):
                 if obj.sxtools.smartseparate:
                     if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                         sepObjs.append(obj)
-            partObjs = export.smart_separate(sepObjs)
-            for obj in partObjs:
-                if obj not in objs:
-                    objs.append(obj)
+
+            if len(sepObjs) > 0:
+                partObjs = export.smart_separate(sepObjs)
+                for obj in partObjs:
+                    if obj not in objs:
+                        objs.append(obj)
 
             groups = utils.find_groups(objs)
             for group in groups:
@@ -9119,10 +9121,8 @@ if __name__ == '__main__':
 
 
 # TODO
-# FEAT: Characters category: weighted keep sharp off, bevel harden on
 # FEAT: Select objs that have components selected
 # BUG: Context incorrect error from selectionmonitor at multi-object setup
-# BUG: High-detail export breaking on smart-separate even when disabled
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
