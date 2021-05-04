@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 8),
+    'version': (5, 16, 9),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4540,9 +4540,9 @@ class SXTOOLS_export(object):
                 zmirror = obj.sxtools.zmirror
 
                 if obj.modifiers['sxMirror'].mirror_object is not None:
-                    refLoc = obj.modifiers['sxMirror'].mirror_object.location
+                    refLoc = obj.modifiers['sxMirror'].mirror_object.matrix_world.to_translation()
                 else:
-                    refLoc = obj.location
+                    refLoc = obj.matrix_world.to_translation()
 
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
                 bpy.ops.object.modifier_apply(modifier='sxMirror')
