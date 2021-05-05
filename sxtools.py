@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 10),
+    'version': (5, 16, 11),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -295,6 +295,8 @@ class SXTOOLS_files(object):
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.transform_apply(rotation=True, scale=True)
 
                 bpy.context.view_layer.objects.active = group
 
