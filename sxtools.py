@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 11),
+    'version': (5, 16, 14),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -296,7 +296,7 @@ class SXTOOLS_files(object):
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
                     bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.transform_apply(rotation=True, scale=True)
+                    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
                 bpy.context.view_layer.objects.active = group
 
@@ -5354,6 +5354,9 @@ def update_custom_props(self, context, prop):
             if getattr(obj.sxtools, prop) != value:
                 setattr(obj.sxtools, prop, value)
 
+        if prop == 'category':
+            load_category(self, context)
+
 
 def update_gpu_props(self, context):
     mode = context.scene.sxtools.shadingmode
@@ -5695,7 +5698,7 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Category Presets',
         description='Select object category\nRenames layers to match',
         items=lambda self, context: dict_lister(self, context, sxglobals.categoryDict),
-        update=load_category)
+        update=lambda self, context: update_custom_props(self, context, 'category'))
 
     selectedlayer: bpy.props.IntProperty(
         name='Selected Layer',
