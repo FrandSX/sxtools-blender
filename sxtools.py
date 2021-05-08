@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 14),
+    'version': (5, 16, 15),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5147,16 +5147,11 @@ def load_category(self, context):
         if len(objs) > 0:
             sxglobals.refreshInProgress = True
             categoryData = sxglobals.categoryDict[sxglobals.presetLookup[objs[0].sxtools.category]]
-            for i in range(7):
-                layer = utils.find_layer_from_index(objs[0], i+1)
-                layer.name = categoryData[i]
 
             for obj in objs:
-                if obj.sxtools.category != objs[0].sxtools.category:
-                    obj.sxtools.category = objs[0].sxtools.category
-                    for i in range(7):
-                        layer = utils.find_layer_from_index(obj, i+1)
-                        layer.name = categoryData[i]
+                for i in range(7):
+                    layer = utils.find_layer_from_index(obj, i+1)
+                    layer.name = categoryData[i]
 
                 obj.sxtools.staticvertexcolors = str(categoryData[7])
                 obj.sxtools.smoothness1 = categoryData[8]
@@ -5353,9 +5348,8 @@ def update_custom_props(self, context, prop):
                 obj['staticVertexColors'] = int(objs[0].sxtools.staticvertexcolors)
             if getattr(obj.sxtools, prop) != value:
                 setattr(obj.sxtools, prop, value)
-
-        if prop == 'category':
-            load_category(self, context)
+            if prop == 'category':
+                load_category(self, context)
 
 
 def update_gpu_props(self, context):
