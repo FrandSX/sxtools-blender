@@ -9126,26 +9126,22 @@ if __name__ == '__main__':
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
-# BUG: collision mesh subdivision control not working as intended
-# FEAT: Choose subdivision level for collider generation
-# FEAT: Handle collider mesh active selection, present relevant tools
 # FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
 # BUG: Adding a new object into scene -> setup object -> object is black until refresh
-# FEAT: Pivot to center of mass for convex submeshes
 # BUG: Error after setting up multiple objects
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # FEAT: Generate VisToggle and VisMix nodes only when channels are enabled
 # FEAT: Strip redundant custom props prior to exporting
 #
 # Selection monitor:
-# - Selection changes are noticed only after mouse pointer moves (not at the click)
+# - Selection <changes are noticed only after mouse pointer moves (not at the click)
 # - Lock list and visibility list sync after selection monitor activates
 # - Palette and Material tools should auto-refresh on selection
 # - selection monitor starts only after a layer change following a context loss
 #
 # Performance:
-# - Limit UV4 clear workload (currently 4 passes)
+# - Limit UV4 clear workload (currently 4 New Unity ProTjectpasses)
 # - Full GPU compositing of Layers 1-10
 # - GPU alpha accumulation
 #
@@ -9154,6 +9150,10 @@ if __name__ == '__main__':
 # - "Selected layer. Double click to rename" ???
 #
 # Colliders:
+# FEAT: Choose subdivision level for collider generation
+# FEAT: Handle collider mesh active selection, present relevant tools
+# FEAT: Pivot to center of mass for convex submeshes
+# BUG: collision mesh subdivision control not working as intended
 # - Depend on V-HACD
 #     10000000
 #     32
