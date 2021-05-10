@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 15),
+    'version': (5, 16, 16),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5166,7 +5166,7 @@ def load_category(self, context):
                 bpy.data.materials['SXMaterial'].use_backface_culling = False
 
             sxglobals.refreshInProgress = False
-            update_layers(self, context)
+        update_layers(self, context)
 
 
 def load_ramp(self, context):
@@ -5348,8 +5348,9 @@ def update_custom_props(self, context, prop):
                 obj['staticVertexColors'] = int(objs[0].sxtools.staticvertexcolors)
             if getattr(obj.sxtools, prop) != value:
                 setattr(obj.sxtools, prop, value)
-            if prop == 'category':
-                load_category(self, context)
+
+        if prop == 'category':
+            load_category(self, context)
 
 
 def update_gpu_props(self, context):
