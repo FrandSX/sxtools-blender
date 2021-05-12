@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 16, 16),
+    'version': (5, 19, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -258,9 +258,12 @@ class SXTOOLS_files(object):
             group.select_set(True)
             org_loc = group.location.copy()
             group.location = (0, 0, 0)
-            bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE')
 
-            selArray = bpy.context.view_layer.objects.selected
+            selArray = utils.find_children(group, recursive=True)
+            print('selArray:', selArray)
+            for sel in selArray:
+                sel.select_set(True)
+            group.select_set(False)
 
             # Check for mesh colliders
             collider_array = []
@@ -279,6 +282,7 @@ class SXTOOLS_files(object):
             # Only groups with meshes as children are exported
             objArray = []
             for sel in selArray:
+                print(sel.name, sel.type)
                 if sel.type == 'MESH':
                     objArray.append(sel)
                     sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
@@ -318,15 +322,20 @@ class SXTOOLS_files(object):
 
                 exportPath = path + group.name + '.' + 'fbx'
 
+                if category == 'characters':
+                    export_settings = ['FBX_SCALE_UNITS', False, False, 'Z', '-Y']
+                else:
+                    export_settings = ['FBX_SCALE_NONE', False, False, 'Y', '-Z']
+
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
-                    apply_scale_options='FBX_SCALE_NONE',
+                    apply_scale_options=export_settings[0],
                     use_selection=True,
-                    apply_unit_scale=True,
-                    bake_space_transform=True,
+                    apply_unit_scale=export_settings[1],
+                    bake_space_transform=export_settings[2],
                     use_mesh_modifiers=True,
-                    axis_up='Y',
-                    axis_forward='-Z',
+                    axis_up=export_settings[3],
+                    axis_forward=export_settings[4],
                     use_active_collection=False,
                     add_leaf_bones=False,
                     object_types={'ARMATURE', 'EMPTY', 'MESH'},
@@ -385,13 +394,31 @@ class SXTOOLS_utils(object):
         return set(groups)
 
 
-    def find_children(self, group, objs):
-        children = []
-        for obj in objs:
-            if obj.parent == group:
-                children.append(obj)
+    def find_children(self, group, objs=None, recursive=False):
+        def get_children(parent):
+            children = []
+            for child in objs:
+                if child.parent == parent:
+                    children.append(child)
+            return children
 
-        return children
+        def child_recurse(children):
+            for child in children:
+                child_list = get_children(child)
+                if len(child_list) > 0:
+                    results.extend(child_list)
+                    child_recurse(child_list)
+
+        results = []
+        if objs == None:
+            objs = bpy.data.objects.values()
+
+        if recursive:
+            child_list = [group, ]
+            child_recurse(child_list)
+            return results
+        else:
+            return get_children(group)
 
 
     def find_list_index(self, obj, layer):
@@ -3092,7 +3119,18 @@ class SXTOOLS_tools(object):
             tiler.node_group = bpy.data.node_groups['sx_tiler']
 
             stretch = 100.0
-            if 'roof' in obj.name:
+            if 'road' in obj.name:
+                if 'straight' in obj.name:
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_15'][2] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_17'][0] = obj.sxtools.tilewidth
+                    tiler['Input_17'][1] = obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = 0.0
+                    tiler['Input_21'][1] = 0.0
+                    tiler['Input_21'][2] = 0.0
+
+            elif 'roof' in obj.name:
                 if ('empty' in obj.name) and ('left' in obj.name):
                     tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
                     tiler['Input_7'][0] = -2.0 * stretch
@@ -3198,9 +3236,9 @@ class SXTOOLS_tools(object):
                 tiler['Input_19'][2] = -stretch * obj.dimensions[2]
                 tiler['Input_21'][2] = -(stretch - 1.0)
 
-        else:
-            message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
-            print('SX Tools Error: Invalid tile naming')
+            else:
+                message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
+                print('SX Tools Error: Invalid tile naming')
 
 
     def remove_tiling(self, obj):
@@ -4613,6 +4651,17 @@ class SXTOOLS_export(object):
                         newObj.data.name = newObj.name + '_mesh'
 
                 separatedObjs.extend(newObjArray)
+
+                # Parent new children to their matching parents
+                mirror_pairs = [('_top', '_bottom'), ('_front', '_rear'), ('_left', '_right'), ('_bottom', '_top'), ('_rear', '_front'), ('_right', '_left')]
+                for obj in separatedObjs:
+                    for mirror_pair in mirror_pairs:
+                        if mirror_pair[0] in obj.name:
+                            if mirror_pair[1] in obj.parent.name:
+                                new_parent_name = obj.parent.name.replace(mirror_pair[1], mirror_pair[0])
+                                obj.parent = view_layer.objects[new_parent_name]
+                                obj.matrix_parent_inverse = obj.parent.matrix_world.inverted()
+
             view_layer.objects.active = active
         bpy.ops.object.mode_set(mode=mode)
         return separatedObjs
@@ -7364,6 +7413,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if (mode == 'EDIT') or (len(scene.exportfolder) == 0):
                             split_export.enabled = False
 
+        elif (len(context.view_layer.objects.selected) > 0) and (context.view_layer.objects.selected[0].type == 'EMPTY') and (context.view_layer.objects.selected[0].sxtools.exportready):
+            col = layout.column()
+            col.label(text='Export Folder:')
+            col.prop(context.scene.sxtools, 'exportfolder', text='')
+
+            split = col.split(factor=0.1)
+            split.operator('sxtools.checklist', text='', icon='INFO')
+            split.operator('sxtools.exportgroups', text='Export Selected')
+
         else:
             col = layout.column()
             if sxglobals.librariesLoaded:
@@ -8382,6 +8440,27 @@ class SXTOOLS_OT_resetscene(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class SXTOOLS_OT_exportgroups(bpy.types.Operator):
+    bl_idname = 'sxtools.exportgroups'
+    bl_label = 'Export Group'
+    bl_description = 'Saves FBX file of selected exportready group'
+
+
+    def execute(self, context):
+        return self.invoke(context, None)
+
+
+    def invoke(self, context, event):
+        prefs = context.preferences.addons['sxtools'].preferences
+        group = context.view_layer.objects.selected[0]
+        all_children = utils.find_children(group, recursive=True)
+        export.smart_separate(all_children)
+        files.export_files([group, ])
+        if prefs.removelods:
+            export.remove_exports()
+        return {'FINISHED'}
+
+
 class SXTOOLS_OT_exportfiles(bpy.types.Operator):
     bl_idname = 'sxtools.exportfiles'
     bl_label = 'Export Selected'
@@ -8397,47 +8476,37 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
         viewlayer = context.view_layer
         selected = None
 
-        if (event is not None) and (event.shift):
+        if ((event is not None) and (event.shift)) or bpy.app.background:
             setup.create_sxcollection()
             selected = bpy.data.collections['SXObjects'].all_objects
+        else:
+            selected = selection_validator(self, context)
+
+        if len(selected) > 0:
+            groups = utils.find_groups(selected)
+
             if context.scene.sxtools.exportquality == 'LO':
                 export.smart_separate(selected)
                 setup.create_sxcollection()
-                selected = bpy.data.collections['SXObjects'].all_objects
-        else:
-            selected = selection_validator(self, context)
-            # selected = context.view_layer.objects.selected
 
-            if bpy.app.background:
-                filtered_objs = []
-                for obj in selected:
-                    groups = utils.find_groups([obj, ])
-                    for group in groups:
-                        if (group is not None) and (group.sxtools.exportready):
-                            filtered_objs.append(obj)
-
-                bpy.ops.object.select_all(action='DESELECT')
-                for obj in filtered_objs:
-                    obj.select_set(True)
-
-                selected = filtered_objs
-
-            if (context.scene.sxtools.exportquality == 'LO') and (len(selected) > 0):
-                newObjs = export.smart_separate(selected)
-                for obj in newObjs:
-                    obj.select_set(True)
-                selected = viewlayer.objects.selected
-
-        if len(selected) > 0:
             # Make sure objects are in groups
+            if ((event is not None) and (event.shift)) or bpy.app.background:
+                selected = bpy.data.collections['SXObjects'].all_objects
+
             for obj in selected:
                 if obj.parent is None:
                     obj.hide_viewport = False
-                    # viewlayer.objects.active = obj
                     if obj.type == 'MESH':
                         tools.group_objects([obj, ])
 
-            groups = utils.find_groups(selected)
+            # Batch export only those that are marked ready
+            if bpy.app.background:
+                exportready_groups = []
+                for group in groups:
+                    if (group is not None) and group.sxtools.exportready:
+                        exportready_groups.append(group)
+                groups = exportready_groups
+
             files.export_files(groups)
 
             if prefs.removelods:
@@ -8956,11 +9025,11 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
 
         if bpy.app.background:
             filtered_objs = []
-            for obj in objs:
-                groups = utils.find_groups([obj, ])
-                for group in groups:
-                    if group is not None and group.sxtools.exportready:
-                        filtered_objs.append(obj)
+            groups = utils.find_groups(objs)
+            for group in groups:
+                if group is not None and group.sxtools.exportready:
+                    all_children = utils.find_children(group, recursive=True)
+                    filtered_objs.extend(all_children)
 
             bpy.ops.object.select_all(action='DESELECT')
             for obj in filtered_objs:
@@ -9041,6 +9110,7 @@ classes = (
     SXTOOLS_OT_generatemasks,
     SXTOOLS_OT_enableall,
     SXTOOLS_OT_resetscene,
+    SXTOOLS_OT_exportgroups,
     SXTOOLS_OT_exportfiles,
     SXTOOLS_OT_removeexports,
     SXTOOLS_OT_setpivots,
