@@ -323,19 +323,20 @@ class SXTOOLS_files(object):
                 exportPath = path + group.name + '.' + 'fbx'
 
                 if category == 'characters':
-                    export_settings = ['FBX_SCALE_UNITS', False, False, 'Z', '-Y']
+                    export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
                 else:
-                    export_settings = ['FBX_SCALE_NONE', False, False, 'Y', '-Z']
+                    export_settings = ['FBX_SCALE_NONE', False, False, False, 'Y', '-Z']
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
                     apply_scale_options=export_settings[0],
                     use_selection=True,
                     apply_unit_scale=export_settings[1],
-                    bake_space_transform=export_settings[2],
+                    use_space_transform=export_settings[2],
+                    bake_space_transform=export_settings[3],
                     use_mesh_modifiers=True,
-                    axis_up=export_settings[3],
-                    axis_forward=export_settings[4],
+                    axis_up=export_settings[4],
+                    axis_forward=export_settings[5],
                     use_active_collection=False,
                     add_leaf_bones=False,
                     object_types={'ARMATURE', 'EMPTY', 'MESH'},
