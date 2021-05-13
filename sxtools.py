@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 19, 0),
+    'version': (5, 19, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -411,7 +411,7 @@ class SXTOOLS_utils(object):
                     child_recurse(child_list)
 
         results = []
-        if objs == None:
+        if objs is None:
             objs = bpy.data.objects.values()
 
         if recursive:
@@ -1354,7 +1354,7 @@ class SXTOOLS_setup(object):
 
 
     def create_tiler(self):
-        if not 'sx_tiler' in bpy.data.node_groups.keys():
+        if 'sx_tiler' not in bpy.data.node_groups.keys():
             nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
             group_in = nodetree.nodes.new(type='NodeGroupInput')
             group_out = nodetree.nodes.new(type='NodeGroupOutput')
@@ -1879,7 +1879,7 @@ class SXTOOLS_generate(object):
 
             if groundplane:
                 pivot = utils.find_root_pivot([obj, ])
-                pivot = (pivot[0], pivot[1], -0.5) # pivot[2] - 0.5)
+                pivot = (pivot[0], pivot[1], -0.5)  # pivot[2] - 0.5)
                 ground, groundmesh = self.ground_plane(20, pivot)
 
             for vert_id in vert_dict.keys():
@@ -3249,7 +3249,6 @@ class SXTOOLS_tools(object):
 
 
     def add_modifiers(self, objs):
-        hardmode = objs[0].sxtools.hardmode
         for obj in objs:
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = math.radians(obj.sxtools.smoothangle)
@@ -3595,7 +3594,7 @@ class SXTOOLS_validate(object):
     def validate_objects(self, objs):
         utils.mode_manager(objs, set_mode=True, mode_id='validate_objects')
 
-        self.test_sxmaterial(objs)    
+        self.test_sxmaterial(objs)
 
         ok1 = self.test_palette_layers(objs)
         ok2 = self.test_names(objs)
@@ -3640,7 +3639,7 @@ class SXTOOLS_validate(object):
     # Check for loose geometry
     def test_loose(self, objs):
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.context.tool_settings.mesh_select_mode=(True, False, False)
+        bpy.context.tool_settings.mesh_select_mode = (True, False, False)
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.mesh.select_loose()
 
@@ -4362,7 +4361,6 @@ class SXTOOLS_magic(object):
         # Apply normalized curvature with luma remapping to overlay, clear windows
         scene.curvaturenormalize = False
         scene.ramplist = 'WEARANDTEAR'
-        active = bpy.context.view_layer.objects.active
         for obj in objs:
             layer = obj.sxlayers['overlay']
             colors = generate.curvature_list(obj)
@@ -8474,7 +8472,6 @@ class SXTOOLS_OT_exportfiles(bpy.types.Operator):
 
     def invoke(self, context, event):
         prefs = context.preferences.addons['sxtools'].preferences
-        viewlayer = context.view_layer
         selected = None
 
         if ((event is not None) and (event.shift)) or bpy.app.background:
