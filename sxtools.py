@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 19, 3),
+    'version': (5, 20, 2),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1899,7 +1899,9 @@ class SXTOOLS_generate(object):
                             mod_normal.append(coord)
                         else:
                             mod_normal.append(vertNormal[i])
-                    vertNormal = Vector(mod_normal).normalized()
+
+                    if ((Vector(mod_normal) - vertNormal).length > 0.0):
+                        vertNormal = Vector(mod_normal).normalized()
 
                 # Pass 0: Raycast for bias
                 hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
@@ -3953,6 +3955,10 @@ class SXTOOLS_magic(object):
                         if scene.exportquality == 'HI':
                             tools.apply_modifiers(groupObjs)
                         self.process_characters(groupObjs)
+                    elif category == 'ROADTILES':
+                        if scene.exportquality == 'HI':
+                            tools.apply_modifiers(groupObjs)
+                        self.process_roadtiles(groupObjs)
                     elif category == 'TRANSPARENT':
                         if scene.exportquality == 'HI':
                             tools.apply_modifiers(groupObjs)
@@ -4064,6 +4070,36 @@ class SXTOOLS_magic(object):
             for obj in objs:
                 obj.sxlayers['overlay'].blendMode = 'OVR'
                 obj.sxlayers['overlay'].alpha = obj.sxtools.overlaystrength
+
+        # Emissives are smooth
+        if scene.enableemission:
+            color = (1.0, 1.0, 1.0, 1.0)
+            masklayer = obj.sxlayers['emission']
+            layer = obj.sxlayers['smoothness']
+            tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+
+
+    def process_roadtiles(self, objs):
+        print('SX Tools: Processing Roadtiles')
+        scene = bpy.context.scene.sxtools
+        obj = objs[0]
+
+        # Apply occlusion
+        if scene.enableocclusion:
+            layer = obj.sxlayers['occlusion']
+            scene.toolmode = 'OCC'
+            scene.noisemono = True
+            scene.occlusionblend = 0.0
+            scene.occlusionrays = 1000
+            scene.occlusiondistance = 50.0
+
+            tools.apply_tool(objs, layer)
+
+        # Apply gradient1 to smoothness and metallic
+        colors = layers.get_layer(obj, obj.sxlayers['gradient1'])
+        if colors is not None:
+            layers.set_layer(obj, colors, obj.sxlayers['metallic'])
+            layers.set_layer(obj, colors, obj.sxlayers['smoothness'])
 
         # Emissives are smooth
         if scene.enableemission:
