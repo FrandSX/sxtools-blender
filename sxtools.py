@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 19, 1),
+    'version': (5, 19, 3),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1890,6 +1890,16 @@ class SXTOOLS_generate(object):
                 vertNormal = Vector(vert_dict[vert_id][1])
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
+
+                if obj.sxtools.tiling:
+                    mod_normal = []
+                    for i, coord in enumerate(vertLoc):
+                        if abs(coord) == abs(obj.sxtools.tilewidth*0.5):
+                            coord = 0.0
+                            mod_normal.append(coord)
+                        else:
+                            mod_normal.append(vertNormal[i])
+                    vertNormal = Vector(mod_normal).normalized()
 
                 # Pass 0: Raycast for bias
                 hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
