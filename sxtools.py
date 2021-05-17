@@ -3143,6 +3143,43 @@ class SXTOOLS_tools(object):
                     tiler['Input_21'][1] = 0.0
                     tiler['Input_21'][2] = 0.0
 
+                elif 'corner' in obj.name:
+                    pass
+
+                elif 'end' in obj.name:
+                    pass
+
+                elif '3way' in obj.name:
+                    pass
+
+                elif '4way' in obj.name:
+                    pass
+
+                elif 'end' in obj.name:
+                    pass
+
+                elif 'split' in obj.name:
+                    pass
+
+            elif 'asphalt' in obj.name:
+                if 'corner_inner' in obj.name:
+                    pass
+
+                elif 'corner_outer' in obj.name:
+                    pass
+
+                elif 'corner_diagonal' in obj.name:
+                    pass
+
+                elif 'edge' in obj.name:
+                    pass
+
+                elif 'exit' in obj.name:
+                    pass
+
+                elif 'plain' in obj.name:
+                    pass
+
             elif 'roof' in obj.name:
                 if ('empty' in obj.name) and ('left' in obj.name):
                     tiler['Input_3'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
