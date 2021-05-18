@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 1),
+    'version': (5, 21, 4),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3215,10 +3215,25 @@ class SXTOOLS_tools(object):
                     tiler['Input_21'][1] = obj.sxtools.tilewidth
 
                 elif 'merge' in obj.name:
-                    pass
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_15'][0] = -obj.sxtools.tilewidth
+                    tiler['Input_17'][0] = -1.0
+                    tiler['Input_19'][2] = -2.0 * obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = obj.sxtools.tilewidth
+                    tiler['Input_21'][1] = obj.sxtools.tilewidth
 
                 elif 'funnel' in obj.name:
-                    pass
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth
+                    tiler['Input_7'][1] = -1.0
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_13'][1] = -1.0
+                    tiler['Input_15'][2] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_17'][0] = obj.sxtools.tilewidth
+                    tiler['Input_17'][1] = obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = 0.0
+                    tiler['Input_21'][1] = 0.0
+                    tiler['Input_21'][2] = 0.0
 
             elif 'asphalt' in obj.name:
                 if 'corner_inner' in obj.name:
@@ -4189,11 +4204,10 @@ class SXTOOLS_magic(object):
     def process_roadtiles(self, objs):
         print('SX Tools: Processing Roadtiles')
         scene = bpy.context.scene.sxtools
-        obj = objs[0]
 
         # Apply occlusion
         if scene.enableocclusion:
-            layer = obj.sxlayers['occlusion']
+            layer = objs[0].sxlayers['occlusion']
             scene.toolmode = 'OCC'
             scene.noisemono = True
             scene.occlusionblend = 0.0
@@ -4203,25 +4217,30 @@ class SXTOOLS_magic(object):
             tools.apply_tool(objs, layer)
 
         # Apply gradient1 to smoothness and metallic
-        colors = layers.get_layer(obj, obj.sxlayers['gradient1'])
-        if colors is not None:
-            layers.set_layer(obj, colors, obj.sxlayers['metallic'])
-            layers.set_layer(obj, colors, obj.sxlayers['smoothness'])
+        for obj in objs:
+            colors = layers.get_layer(obj, obj.sxlayers['gradient1'])
+            if colors is not None:
+                layers.set_layer(obj, colors, obj.sxlayers['metallic'])
+                layers.set_layer(obj, colors, obj.sxlayers['smoothness'])
 
-        # Painted roads are smoother
+        # Painted roads are smooth-ish
         color = (0.5, 0.5, 0.5, 1.0)
-        masklayer = utils.find_layer_from_index(obj, 3)
-        layer = obj.sxlayers['metallic']
+        masklayer = utils.find_layer_from_index(objs[0], 3)
+        layer = objs[0].sxlayers['metallic']
         tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
-        layer = obj.sxlayers['smoothness']
+        layer = objs[0].sxlayers['smoothness']
         tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
         # Emissives are smooth
         if scene.enableemission:
             color = (1.0, 1.0, 1.0, 1.0)
-            masklayer = obj.sxlayers['emission']
-            layer = obj.sxlayers['smoothness']
+            masklayer = objs[0].sxlayers['emission']
+            layer = objs[0].sxlayers['smoothness']
             tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+
+        # Tone down gradient1 contribution
+        for obj in objs:
+            obj.sxlayers['gradient1'].alpha = 0.15
 
 
     def process_characters(self, objs):
