@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 4),
+    'version': (5, 21, 5),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4218,6 +4218,7 @@ class SXTOOLS_magic(object):
 
         # Apply gradient1 to smoothness and metallic
         for obj in objs:
+            obj.sxlayers['gradient1'].alpha = 1.0
             colors = layers.get_layer(obj, obj.sxlayers['gradient1'])
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
