@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 20, 2),
+    'version': (5, 21, 0),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -580,7 +580,7 @@ class SXTOOLS_utils(object):
         return difference.length <= tolerance
 
 
-    def get_object_bounding_box(self, objs):
+    def get_object_bounding_box(self, objs, local=False):
         bbx_x = []
         bbx_y = []
         bbx_z = []
@@ -593,6 +593,15 @@ class SXTOOLS_utils(object):
         xmin, xmax = min(bbx_x), max(bbx_x)
         ymin, ymax = min(bbx_y), max(bbx_y)
         zmin, zmax = min(bbx_z), max(bbx_z)
+
+        if local:
+            pos = obj.matrix_world.to_translation()
+            xmin -= pos[0]
+            xmax -= pos[0]
+            ymin -= pos[1]
+            ymax -= pos[1]
+            zmin -= pos[2]
+            zmax -= pos[2]
 
         return xmin, xmax, ymin, ymax, zmin, zmax
 
@@ -1867,7 +1876,16 @@ class SXTOOLS_generate(object):
             tools.add_tiling(obj)
             blend = 0.0
             groundplane = False
-            # bpy.context.view_layer.update()
+            dist = 5.0 * obj.sxtools.tilewidth
+            xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
+
+            # Include only grid-matching bounds
+            bbx = [xmin, xmax, ymin, ymax]
+            bounds = []
+            for coord in bbx:
+                if (2.0 * round(coord, 3)) % obj.sxtools.tilewidth == 0:
+                    bounds.append(round(coord, 3))
+            print('SX Tools: Tiling object grid bounds', bounds)
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -1887,14 +1905,15 @@ class SXTOOLS_generate(object):
                 occValue = 1.0
                 scnOccValue = 1.0
                 vertLoc = Vector(vert_dict[vert_id][0])
-                vertNormal = Vector(vert_dict[vert_id][1])
+                vertNormal = Vector(vert_dict[vert_id][1])  
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
 
                 if obj.sxtools.tiling:
                     mod_normal = []
                     for i, coord in enumerate(vertLoc):
-                        if abs(coord) == abs(obj.sxtools.tilewidth*0.5):
+                        if round(coord, 3) in bounds:
+                            obj.data.vertices[vert_id].select = True
                             coord = 0.0
                             mod_normal.append(coord)
                         else:
@@ -3144,7 +3163,16 @@ class SXTOOLS_tools(object):
                     tiler['Input_21'][2] = 0.0
 
                 elif 'corner' in obj.name:
-                    pass
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth * stretch + 0.5 * obj.sxtools.tilewidth
+                    tiler['Input_7'][1] = -2.0 * stretch
+                    tiler['Input_9'][0] = -1.0 * (obj.sxtools.tilewidth * stretch + 0.5 * obj.sxtools.tilewidth)
+                    tiler['Input_13'][0] = -2.0 * stretch
+                    tiler['Input_15'][2] = -2.0 * obj.sxtools.tilewidth
+                    tiler['Input_17'][0] = obj.sxtools.tilewidth
+                    tiler['Input_17'][1] = obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = 0.0
+                    tiler['Input_21'][1] = 0.0
+                    tiler['Input_21'][2] = 0.0
 
                 elif 'end' in obj.name:
                     pass
@@ -3159,7 +3187,14 @@ class SXTOOLS_tools(object):
                     pass
 
                 elif 'split' in obj.name:
-                    pass
+                    tiler['Input_3'][1] = -obj.sxtools.tilewidth
+                    tiler['Input_7'][1] = -1.0
+                    tiler['Input_9'][0] = 2.0 * obj.sxtools.tilewidth
+                    tiler['Input_15'][0] = -4.0 * obj.sxtools.tilewidth
+                    tiler['Input_19'][1] = 8.0 * obj.sxtools.tilewidth
+                    tiler['Input_19'][2] = -2.0 * obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = obj.sxtools.tilewidth
+                    tiler['Input_21'][1] = obj.sxtools.tilewidth
 
             elif 'asphalt' in obj.name:
                 if 'corner_inner' in obj.name:
@@ -3174,11 +3209,22 @@ class SXTOOLS_tools(object):
                 elif 'edge' in obj.name:
                     pass
 
+                elif 'double' in obj.name:
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth
+                    tiler['Input_9'][1] = obj.sxtools.tilewidth * -2.0
+
                 elif 'exit' in obj.name:
                     pass
 
                 elif 'plain' in obj.name:
                     pass
+
+                tiler['Input_15'][2] = obj.sxtools.tilewidth * -2.0
+                tiler['Input_17'][0] = obj.sxtools.tilewidth
+                tiler['Input_17'][1] = obj.sxtools.tilewidth
+                tiler['Input_21'][0] = 0.0
+                tiler['Input_21'][1] = 0.0
+                tiler['Input_21'][2] = 0.0
 
             elif 'roof' in obj.name:
                 if ('empty' in obj.name) and ('left' in obj.name):
@@ -4137,6 +4183,14 @@ class SXTOOLS_magic(object):
         if colors is not None:
             layers.set_layer(obj, colors, obj.sxlayers['metallic'])
             layers.set_layer(obj, colors, obj.sxlayers['smoothness'])
+
+        # Painted roads are smoother
+        color = (0.5, 0.5, 0.5, 1.0)
+        masklayer = utils.find_layer_from_index(obj, 3)
+        layer = obj.sxlayers['metallic']
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+        layer = obj.sxlayers['smoothness']
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
         # Emissives are smooth
         if scene.enableemission:
