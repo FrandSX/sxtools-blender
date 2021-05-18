@@ -324,6 +324,8 @@ class SXTOOLS_files(object):
 
                 if category == 'characters':
                     export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
+                elif category == 'roadtiles':
+                    export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
                 else:
                     export_settings = ['FBX_SCALE_NONE', False, False, False, 'Y', '-Z']
 
