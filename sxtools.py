@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 0),
+    'version': (5, 21, 1),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3174,17 +3174,33 @@ class SXTOOLS_tools(object):
                     tiler['Input_21'][1] = 0.0
                     tiler['Input_21'][2] = 0.0
 
-                elif 'end' in obj.name:
-                    pass
-
                 elif '3way' in obj.name:
-                    pass
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth
+                    tiler['Input_9'][0] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_15'][1] = -obj.sxtools.tilewidth
+                    tiler['Input_17'][1] = -1.0
+                    tiler['Input_19'][2] = -2.0 * obj.sxtools.tilewidth
+                    tiler['Input_21'][0] = obj.sxtools.tilewidth
+                    tiler['Input_21'][1] = obj.sxtools.tilewidth
 
                 elif '4way' in obj.name:
-                    pass
+                    tiler['Input_3'][0] = obj.sxtools.tilewidth
+                    tiler['Input_9'][0] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_15'][1] = -obj.sxtools.tilewidth
+                    tiler['Input_19'][1] = obj.sxtools.tilewidth
 
                 elif 'end' in obj.name:
-                    pass
+                    tiler['Input_3'][1] = obj.sxtools.tilewidth
+                    tiler['Input_7'][1] = -1.0
+                    tiler['Input_9'][2] = obj.sxtools.tilewidth * -2.0
+                    tiler['Input_13'][0] = obj.sxtools.tilewidth
+                    tiler['Input_13'][1] = obj.sxtools.tilewidth
+                    tiler['Input_17'][0] = 0.0
+                    tiler['Input_17'][1] = 0.0
+                    tiler['Input_17'][2] = 0.0
+                    tiler['Input_21'][0] = 0.0
+                    tiler['Input_21'][1] = 0.0
+                    tiler['Input_21'][2] = 0.0
 
                 elif 'split' in obj.name:
                     tiler['Input_3'][1] = -obj.sxtools.tilewidth
@@ -3195,6 +3211,12 @@ class SXTOOLS_tools(object):
                     tiler['Input_19'][2] = -2.0 * obj.sxtools.tilewidth
                     tiler['Input_21'][0] = obj.sxtools.tilewidth
                     tiler['Input_21'][1] = obj.sxtools.tilewidth
+
+                elif 'merge' in obj.name:
+                    pass
+
+                elif 'funnel' in obj.name:
+                    pass
 
             elif 'asphalt' in obj.name:
                 if 'corner_inner' in obj.name:
