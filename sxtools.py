@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 5),
+    'version': (5, 21, 8),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4721,130 +4721,111 @@ class SXTOOLS_export(object):
 
 
     def smart_separate(self, objs):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
-        scene = bpy.context.scene.sxtools
-        view_layer = bpy.context.view_layer
-        mode = objs[0].mode
-        objs = objs[:]
+        if len(objs) > 0:
+            mirror_pairs = [('_top', '_bottom'), ('_front', '_rear'), ('_left', '_right'), ('_bottom', '_top'), ('_rear', '_front'), ('_right', '_left')]
+            prefs = bpy.context.preferences.addons['sxtools'].preferences
+            scene = bpy.context.scene.sxtools
+            view_layer = bpy.context.view_layer
+            mode = objs[0].mode
+            objs = objs[:]
 
-        sepObjs = []
-        for obj in objs:
-            if obj.sxtools.smartseparate:
-                if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
-                    sepObjs.append(obj)
+            sepObjs = []
+            for obj in objs:
+                if obj.sxtools.smartseparate:
+                    if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
+                        sepObjs.append(obj)
 
-        if 'ExportObjects' not in bpy.data.collections.keys():
-            exportObjects = bpy.data.collections.new('ExportObjects')
-        else:
-            exportObjects = bpy.data.collections['ExportObjects']
+            if 'ExportObjects' not in bpy.data.collections.keys():
+                exportObjects = bpy.data.collections.new('ExportObjects')
+            else:
+                exportObjects = bpy.data.collections['ExportObjects']
 
-        if 'SourceObjects' not in bpy.data.collections.keys():
-            sourceObjects = bpy.data.collections.new('SourceObjects')
-        else:
-            sourceObjects = bpy.data.collections['SourceObjects']
+            if 'SourceObjects' not in bpy.data.collections.keys():
+                sourceObjects = bpy.data.collections.new('SourceObjects')
+            else:
+                sourceObjects = bpy.data.collections['SourceObjects']
 
-        if len(sepObjs) > 0:
-            for obj in sepObjs:
-                if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
-                    sourceObjects.objects.link(obj)
+            if len(sepObjs) > 0:
+                for obj in sepObjs:
+                    if (scene.exportquality == 'LO') and (obj.name not in sourceObjects.objects.keys()) and (obj.name not in exportObjects.objects.keys()) and (obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror):
+                        sourceObjects.objects.link(obj)
 
-        separatedObjs = []
-        if len(sepObjs) > 0:
-            active = view_layer.objects.active
-            bpy.ops.object.select_all(action='DESELECT')
-            for obj in sepObjs:
-                obj.select_set(True)
-                view_layer.objects.active = obj
-                refObjs = view_layer.objects[:]
-                orgname = obj.name[:]
-                xmirror = obj.sxtools.xmirror
-                ymirror = obj.sxtools.ymirror
-                zmirror = obj.sxtools.zmirror
+            separatedObjs = []
+            if len(sepObjs) > 0:
+                active = view_layer.objects.active
+                bpy.ops.object.select_all(action='DESELECT')
+                for obj in sepObjs:
+                    obj.select_set(True)
+                    view_layer.objects.active = obj
+                    refObjs = view_layer.objects[:]
+                    orgname = obj.name[:]
+                    xmirror = obj.sxtools.xmirror
+                    ymirror = obj.sxtools.ymirror
+                    zmirror = obj.sxtools.zmirror
 
-                if obj.modifiers['sxMirror'].mirror_object is not None:
-                    refLoc = obj.modifiers['sxMirror'].mirror_object.matrix_world.to_translation()
-                else:
-                    refLoc = obj.matrix_world.to_translation()
+                    if obj.modifiers['sxMirror'].mirror_object is not None:
+                        refLoc = obj.modifiers['sxMirror'].mirror_object.matrix_world.to_translation()
+                    else:
+                        refLoc = obj.matrix_world.to_translation()
 
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                bpy.ops.object.modifier_apply(modifier='sxMirror')
+                    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                    bpy.ops.object.modifier_apply(modifier='sxMirror')
 
-                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.mesh.separate(type='LOOSE')
+                    bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.mesh.separate(type='LOOSE')
 
-                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-                newObjArray = [view_layer.objects[orgname], ]
+                    bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+                    newObjArray = [view_layer.objects[orgname], ]
 
-                for vlObj in view_layer.objects:
-                    if vlObj not in refObjs:
-                        newObjArray.append(vlObj)
-                        exportObjects.objects.link(vlObj)
+                    for vlObj in view_layer.objects:
+                        if vlObj not in refObjs:
+                            newObjArray.append(vlObj)
+                            exportObjects.objects.link(vlObj)
 
-                if len(newObjArray) > 1:
-                    tools.set_pivots(newObjArray)
-                    suffixDict = {}
-                    for newObj in newObjArray:
-                        view_layer.objects.active = newObj
-                        zstring = ''
-                        ystring = ''
-                        xstring = ''
-                        # objLoc = newObj.location
-                        objLoc = newObj.matrix_world.to_translation()
-                        if zmirror:
-                            if objLoc[2] > refLoc[2]:
-                                zstring = '_top'
-                            elif objLoc[2] < refLoc[2]:
-                                zstring = '_bottom'
-                        if ymirror:
-                            if objLoc[1] > refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_rear'
+                    if len(newObjArray) > 1:
+                        tools.set_pivots(newObjArray)
+                        suffixDict = {}
+                        for newObj in newObjArray:
+                            view_layer.objects.active = newObj
+                            zstring = ystring = xstring = ''
+                            xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([newObj, ])
+
+                            # 1) compare bounding box max to reference pivot
+                            # 2) flip result with xor according to SX Tools prefs
+                            # 3) look up matching sub-string from mirror_pairs
+                            if zmirror:
+                                zstring = mirror_pairs[0][int(zmax < refLoc[2])]
+                            if ymirror:
+                                ystring = mirror_pairs[1][int((ymax < refLoc[1]) ^ prefs.flipsmarty)]
+                            if xmirror:
+                                xstring = mirror_pairs[2][int((xmax < refLoc[0]) ^ prefs.flipsmartx)]
+
+                            if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
+                                if zstring+ystring+xstring not in suffixDict:
+                                    suffixDict[zstring+ystring+xstring] = 0
                                 else:
-                                    ystring = '_front'
-                            elif objLoc[1] < refLoc[1]:
-                                if prefs.flipsmarty:
-                                    ystring = '_front'
-                                else:
-                                    ystring = '_rear'
-                        if xmirror:
-                            if objLoc[0] > refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_left'
-                                else:
-                                    xstring = '_right'
-                            elif objLoc[0] < refLoc[0]:
-                                if prefs.flipsmartx:
-                                    xstring = '_right'
-                                else:
-                                    xstring = '_left'
-
-                        if len(newObjArray) > 2 ** (zmirror + ymirror + xmirror):
-                            if zstring+ystring+xstring not in suffixDict:
-                                suffixDict[zstring+ystring+xstring] = 0
+                                    suffixDict[zstring+ystring+xstring] += 1
+                                newObj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
                             else:
-                                suffixDict[zstring+ystring+xstring] += 1
-                            newObj.name = orgname + str(suffixDict[zstring+ystring+xstring]) + zstring + ystring + xstring
-                        else:
-                            newObj.name = orgname + zstring + ystring + xstring
+                                newObj.name = orgname + zstring + ystring + xstring
 
-                        newObj.data.name = newObj.name + '_mesh'
+                            newObj.data.name = newObj.name + '_mesh'
 
-                separatedObjs.extend(newObjArray)
+                    separatedObjs.extend(newObjArray)
 
-                # Parent new children to their matching parents
-                mirror_pairs = [('_top', '_bottom'), ('_front', '_rear'), ('_left', '_right'), ('_bottom', '_top'), ('_rear', '_front'), ('_right', '_left')]
-                for obj in separatedObjs:
-                    for mirror_pair in mirror_pairs:
-                        if mirror_pair[0] in obj.name:
-                            if mirror_pair[1] in obj.parent.name:
-                                new_parent_name = obj.parent.name.replace(mirror_pair[1], mirror_pair[0])
-                                obj.parent = view_layer.objects[new_parent_name]
-                                obj.matrix_parent_inverse = obj.parent.matrix_world.inverted()
+                    # Parent new children to their matching parents
+                    for obj in separatedObjs:
+                        for mirror_pair in mirror_pairs:
+                            if mirror_pair[0] in obj.name:
+                                if mirror_pair[1] in obj.parent.name:
+                                    new_parent_name = obj.parent.name.replace(mirror_pair[1], mirror_pair[0])
+                                    obj.parent = view_layer.objects[new_parent_name]
+                                    obj.matrix_parent_inverse = obj.parent.matrix_world.inverted()
 
-            view_layer.objects.active = active
-        bpy.ops.object.mode_set(mode=mode)
-        return separatedObjs
+                view_layer.objects.active = active
+            bpy.ops.object.mode_set(mode=mode)
+            return separatedObjs
 
 
     # LOD levels:
@@ -9155,7 +9136,11 @@ class SXTOOLS_OT_smart_separate(bpy.types.Operator):
             if obj.sxtools.smartseparate:
                 if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                     sep_objs.append(obj)
-        export.smart_separate(sep_objs)
+
+        if len(sep_objs) > 0:
+            export.smart_separate(sep_objs)
+        else:
+            message_box('No objects selected with Smart Separate enabled!')
 
         return {'FINISHED'}
 
