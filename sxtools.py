@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 8),
+    'version': (5, 21, 9),
     'blender': (2, 92, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -321,13 +321,7 @@ class SXTOOLS_files(object):
                         collider.select_set(True)
 
                 exportPath = path + group.name + '.' + 'fbx'
-
-                if category == 'characters':
-                    export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
-                elif category == 'roadtiles':
-                    export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
-                else:
-                    export_settings = ['FBX_SCALE_NONE', False, False, False, 'Y', '-Z']
+                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
