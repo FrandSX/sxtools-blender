@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 9),
-    'blender': (2, 92, 0),
+    'version': (5, 21, 11),
+    'blender': (2, 93, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -1377,7 +1377,7 @@ class SXTOOLS_setup(object):
 
                 if i == 0:
                     output = transform.outputs['Geometry']
-                    input = join.inputs[1]
+                    input = join.inputs[0]
                     nodetree.links.new(input, output)
                 elif i == 1:
                     output = nodetree.nodes['join0'].outputs['Geometry']
@@ -1386,7 +1386,7 @@ class SXTOOLS_setup(object):
                     input = join.inputs[0]
                     nodetree.links.new(input, output)
                     output = transform.outputs['Geometry']
-                    input = join.inputs[1]
+                    input = join.inputs[0]
                     nodetree.links.new(input, output)
                 elif i == 2:
                     output = nodetree.nodes['join1'].outputs['Geometry']
@@ -1395,7 +1395,7 @@ class SXTOOLS_setup(object):
                     input = join.inputs[0]
                     nodetree.links.new(input, output)
                     output = transform.outputs['Geometry']
-                    input = join.inputs[1]
+                    input = join.inputs[0]
                     nodetree.links.new(input, output)
                 elif i == 3:
                     output = nodetree.nodes['join1'].outputs['Geometry']
@@ -1405,7 +1405,7 @@ class SXTOOLS_setup(object):
                     input = join.inputs[0]
                     nodetree.links.new(input, output)
                     output = transform.outputs['Geometry']
-                    input = join.inputs[1]
+                    input = join.inputs[0]
                     nodetree.links.new(input, output)
 
             output = group_in.outputs[0]
@@ -3362,7 +3362,7 @@ class SXTOOLS_tools(object):
 
                 tiler['Input_15'][2] = stretch * obj.dimensions[2]
                 tiler['Input_17'][2] = -(stretch - 1.0)
-                tiler['Input_19'][2] = -stretch * obj.dimensions[2]
+                tiler['Input_19'][2] = -(stretch - 1.0) * obj.dimensions[2]
                 tiler['Input_21'][2] = -(stretch - 1.0)
 
             else:
