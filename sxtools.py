@@ -8343,9 +8343,8 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
                 layer0 = utils.find_layer_from_index(objs[0], 1)
                 layer1 = utils.find_layer_from_index(objs[0], 1)
                 layers.blend_layers(objs, compLayers, layer1, layer0, uv_as_alpha=True)
-                # clrLayers = compLayers.remove(layer1)
-                # for layer in clrLayers:
-                #     layers.clear_layers(objs, layer)
+                for layer in compLayers:
+                    layers.clear_layers(objs, layer)
             else:
                 if event.shift:
                     layer = None
