@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 21, 11),
+    'version': (5, 22, 0),
     'blender': (2, 93, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7131,6 +7131,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                 elif scene.alt:
                     paste_text = 'Merge Into'
                 elif scene.ctrl:
+                    clr_text = 'Flatten'
                     sel_text = 'Select Color'
                     paste_text = 'Paste Alpha'
 
@@ -8329,7 +8330,7 @@ class SXTOOLS_OT_pastelayer(bpy.types.Operator):
 class SXTOOLS_OT_clearlayers(bpy.types.Operator):
     bl_idname = 'sxtools.clear'
     bl_label = 'Clear Layer'
-    bl_description = 'Shift-click to clear all layers\non selected objects or components'
+    bl_description = 'Shift-click to clear all layers\non selected objects or components\nCtrl-click to flatten all color layers to Layer 1'
     bl_options = {'UNDO'}
 
 
@@ -8337,14 +8338,22 @@ class SXTOOLS_OT_clearlayers(bpy.types.Operator):
         objs = selection_validator(self, context)
         if len(objs) > 0:
             utils.mode_manager(objs, set_mode=True, mode_id='clearlayers')
-
-            if event.shift:
-                layer = None
+            if event.ctrl:
+                compLayers = utils.find_comp_layers(objs[0])
+                layer0 = utils.find_layer_from_index(objs[0], 1)
+                layer1 = utils.find_layer_from_index(objs[0], 1)
+                layers.blend_layers(objs, compLayers, layer1, layer0, uv_as_alpha=True)
+                # clrLayers = compLayers.remove(layer1)
+                # for layer in clrLayers:
+                #     layers.clear_layers(objs, layer)
             else:
-                idx = objs[0].sxtools.selectedlayer
-                layer = utils.find_layer_from_index(objs[0], idx)
+                if event.shift:
+                    layer = None
+                else:
+                    idx = objs[0].sxtools.selectedlayer
+                    layer = utils.find_layer_from_index(objs[0], idx)
 
-            layers.clear_layers(objs, layer)
+                layers.clear_layers(objs, layer)
 
             utils.mode_manager(objs, revert=True, mode_id='clearlayers')
             sxglobals.composite = True
