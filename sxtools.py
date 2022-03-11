@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 22, 0),
-    'blender': (2, 93, 0),
+    'version': (5, 25, 0),
+    'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -3013,6 +3013,72 @@ class SXTOOLS_tools(object):
         if mode == 'EDIT':
             for obj in objs:
                 mesh = obj.data
+
+                if bpy.context.tool_settings.mesh_select_mode[0]:
+                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+                    for vert in mesh.vertices:
+                        if vert.select:
+                            if weight == -1.0:
+                                weight = 0.0
+                            mesh.vertex_creases[0].data[vert.index].value = weight
+                    utils.mode_manager(objs, revert=True, mode_id='assign_set')
+                else:
+                    bm = bmesh.from_edit_mesh(mesh)
+
+                    if setmode == 'CRS':
+                        if modename in bm.edges.layers.crease.keys():
+                            bmlayer = bm.edges.layers.crease[modename]
+                        else:
+                            bmlayer = bm.edges.layers.crease.new(modename)
+                    else:
+                        if modename in bm.edges.layers.bevel_weight.keys():
+                            bmlayer = bm.edges.layers.bevel_weight[modename]
+                        else:
+                            bmlayer = bm.edges.layers.bevel_weight.new(modename)
+
+                    selectedEdges = [edge for edge in bm.edges if edge.select]
+                    for edge in selectedEdges:
+                        edge[bmlayer] = weight
+                        if setmode == 'CRS':
+                            mesh.edges[edge.index].crease = weight
+                            if weight == 1.0:
+                                edge.smooth = False
+                                mesh.edges[edge.index].use_edge_sharp = True
+                            else:
+                                edge.smooth = True
+                                mesh.edges[edge.index].use_edge_sharp = False
+
+                    bmesh.update_edit_mesh(mesh)
+
+
+    def select_set(self, objs, setvalue, setmode, clearsel=False):
+        modeDict = {
+            'CRS': 'SubSurfCrease',
+            'BEV': 'BevelWeight'}
+        weight = setvalue
+        modename = modeDict[setmode]
+
+        bpy.context.view_layer.objects.active = objs[0]
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        if bpy.context.tool_settings.mesh_select_mode[0]:
+            bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='VERT')
+        else:
+            bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
+        if clearsel:
+            bpy.ops.mesh.select_all(action='DESELECT')
+
+        for obj in objs:
+            mesh = obj.data
+
+            if bpy.context.tool_settings.mesh_select_mode[0]:
+                utils.mode_manager(objs, set_mode=True, mode_id='select_set')
+                for vert in mesh.vertices:
+                    creaseweight = mesh.vertex_creases[0].data[vert.index].value
+                    if math.isclose(creaseweight, weight, abs_tol=0.1):
+                        vert.select = True
+                utils.mode_manager(objs, revert=True, mode_id='select_set')
+            else:
                 bm = bmesh.from_edit_mesh(mesh)
 
                 if setmode == 'CRS':
@@ -3026,55 +3092,11 @@ class SXTOOLS_tools(object):
                     else:
                         bmlayer = bm.edges.layers.bevel_weight.new(modename)
 
-                selectedEdges = [edge for edge in bm.edges if edge.select]
-                for edge in selectedEdges:
-                    edge[bmlayer] = weight
-                    if setmode == 'CRS':
-                        mesh.edges[edge.index].crease = weight
-                        if weight == 1.0:
-                            edge.smooth = False
-                            mesh.edges[edge.index].use_edge_sharp = True
-                        else:
-                            edge.smooth = True
-                            mesh.edges[edge.index].use_edge_sharp = False
+                for edge in bm.edges:
+                    if math.isclose(edge[bmlayer], weight, abs_tol=0.1):
+                        edge.select = True
 
                 bmesh.update_edit_mesh(mesh)
-
-
-    def select_set(self, objs, setvalue, setmode, clearsel=False):
-        modeDict = {
-            'CRS': 'SubSurfCrease',
-            'BEV': 'BevelWeight'}
-        weight = setvalue
-        modename = modeDict[setmode]
-
-        bpy.context.view_layer.objects.active = objs[0]
-
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='EDGE')
-        if clearsel:
-            bpy.ops.mesh.select_all(action='DESELECT')
-
-        for obj in objs:
-            mesh = obj.data
-            bm = bmesh.from_edit_mesh(mesh)
-
-            if setmode == 'CRS':
-                if modename in bm.edges.layers.crease.keys():
-                    bmlayer = bm.edges.layers.crease[modename]
-                else:
-                    bmlayer = bm.edges.layers.crease.new(modename)
-            else:
-                if modename in bm.edges.layers.bevel_weight.keys():
-                    bmlayer = bm.edges.layers.bevel_weight[modename]
-                else:
-                    bmlayer = bm.edges.layers.bevel_weight.new(modename)
-
-            for edge in bm.edges:
-                if math.isclose(edge[bmlayer], weight, abs_tol=0.1):
-                    edge.select = True
-
-            bmesh.update_edit_mesh(mesh)
 
 
     def apply_palette(self, objs, palette):
@@ -8390,7 +8412,7 @@ class SXTOOLS_OT_selmask(bpy.types.Operator):
 class SXTOOLS_OT_setgroup(bpy.types.Operator):
     bl_idname = 'sxtools.setgroup'
     bl_label = 'Set Value'
-    bl_description = 'Click to apply modifier weight to selected edges\nShift-click to add edges to selection\nAlt-click to clear selection and select edges'
+    bl_description = 'Click to apply modifier weight to selected edges\nShift-click to add edges to selection\nAlt-click to clear selection and select verts or edges'
     bl_options = {'UNDO'}
 
     setmode: bpy.props.StringProperty()
