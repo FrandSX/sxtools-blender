@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 25, 0),
+    'version': (5, 26, 3),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3014,14 +3014,28 @@ class SXTOOLS_tools(object):
             for obj in objs:
                 mesh = obj.data
 
+                # vertex creasing
                 if bpy.context.tool_settings.mesh_select_mode[0]:
+                    if not bpy.context.object.data.use_customdata_vertex_crease:
+                        utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+                        bpy.context.object.data.use_customdata_vertex_crease = True
+                        utils.mode_manager(objs, revert=True, mode_id='assign_set')
+
                     utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
-                    for vert in mesh.vertices:
-                        if vert.select:
+                    weight_values = [None] * len(mesh.vertices)
+                    select_values = [None] * len(mesh.vertices)
+                    mesh.vertex_creases[0].data.foreach_get('value', weight_values)
+                    mesh.vertices.foreach_get("select", select_values)
+
+                    for i, sel in enumerate(select_values):
+                        if sel:
                             if weight == -1.0:
                                 weight = 0.0
-                            mesh.vertex_creases[0].data[vert.index].value = weight
+                            weight_values[i] = weight
+
+                    mesh.vertex_creases[0].data.foreach_set('value', weight_values)
                     utils.mode_manager(objs, revert=True, mode_id='assign_set')
+                # edge creasing and beveling
                 else:
                     bm = bmesh.from_edit_mesh(mesh)
 
