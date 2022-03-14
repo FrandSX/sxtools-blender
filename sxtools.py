@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 26, 3),
+    'version': (5, 27, 3),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3010,10 +3010,10 @@ class SXTOOLS_tools(object):
         weight = setvalue
         modename = modeDict[setmode]
 
-        if mode == 'EDIT':
-            for obj in objs:
-                mesh = obj.data
+        for obj in objs:
+            mesh = obj.data
 
+            if mode == 'EDIT':
                 # vertex creasing
                 if bpy.context.tool_settings.mesh_select_mode[0]:
                     if not bpy.context.object.data.use_customdata_vertex_crease:
@@ -3063,6 +3063,51 @@ class SXTOOLS_tools(object):
                                 mesh.edges[edge.index].use_edge_sharp = False
 
                     bmesh.update_edit_mesh(mesh)
+            else:
+                # vertex creasing
+                if (bpy.context.tool_settings.mesh_select_mode[0]) and (setmode == 'CRS'):
+                    if not bpy.context.object.data.use_customdata_vertex_crease:
+                        utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+                        bpy.context.object.data.use_customdata_vertex_crease = True
+                        utils.mode_manager(objs, revert=True, mode_id='assign_set')
+
+                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+                    if weight == -1.0:
+                        weight = 0.0
+                    weight_values = [weight] * len(mesh.vertices)
+                    mesh.vertex_creases[0].data.foreach_set('value', weight_values)
+                # edge creasing and beveling
+                else:
+                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+                    bm = bmesh.new()
+                    bm.from_mesh(mesh)
+
+                    if setmode == 'CRS':
+                        if modename in bm.edges.layers.crease.keys():
+                            bmlayer = bm.edges.layers.crease[modename]
+                        else:
+                            bmlayer = bm.edges.layers.crease.new(modename)
+                    else:
+                        if modename in bm.edges.layers.bevel_weight.keys():
+                            bmlayer = bm.edges.layers.bevel_weight[modename]
+                        else:
+                            bmlayer = bm.edges.layers.bevel_weight.new(modename)
+
+                    for edge in bm.edges:
+                        edge[bmlayer] = weight
+                        if setmode == 'CRS':
+                            mesh.edges[edge.index].crease = weight
+                            if weight == 1.0:
+                                edge.smooth = False
+                                mesh.edges[edge.index].use_edge_sharp = True
+                            else:
+                                edge.smooth = True
+                                mesh.edges[edge.index].use_edge_sharp = False
+
+                    bm.to_mesh(mesh)
+
+                utils.mode_manager(objs, revert=True, mode_id='assign_set')
+                mesh.update()
 
 
     def select_set(self, objs, setvalue, setmode, clearsel=False):
@@ -7394,7 +7439,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         setbutton.setmode = scene.creasemode
                         setbutton.setvalue = 1.0
                         col_sets = box_crease.column(align=True)
-                        setbutton = col_sets.operator('sxtools.setgroup', text='Clear Weights')
+                        if (bpy.context.tool_settings.mesh_select_mode[0]) and (scene.creasemode == 'CRS'):
+                            clear_text = 'Clear Vertex Weights'
+                        else:
+                            clear_text = 'Clear Edge Weights'
+                        setbutton = col_sets.operator('sxtools.setgroup', text=clear_text)
                         setbutton.setmode = scene.creasemode
                         setbutton.setvalue = -1.0
                 elif scene.creasemode == 'SDS':
