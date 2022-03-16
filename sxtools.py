@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 28, 11),
+    'version': (5, 29, 0),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7211,8 +7211,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     layer = utils.find_layer_from_index(obj, sel_idx)
                     message_box('Invalid layer selected!', 'SX Tools Error', 'ERROR')
 
-                row_shading = layout.row(align=True)
+                row_shading = layout.row()
                 row_shading.prop(scene, 'shadingmode', expand=True)
+                row_shading.operator("wm.url_open", text='', icon='QUESTION').url = 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6'
 
                 # Layer Controls -----------------------------------------------
                 box_layer = layout.box()
@@ -9521,7 +9522,6 @@ if __name__ == '__main__':
 # TODO
 # FEAT: Select objs that have components selected
 # FEAT: validate modifier settings, control cage, all meshes have single user?
-# FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
