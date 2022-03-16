@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 27, 3),
+    'version': (5, 28, 11),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -10,6 +10,8 @@ bl_info = {
     'category': 'Development',
 }
 
+from doctest import TestResults
+from locale import normalize
 import bpy
 import time
 import random
@@ -35,6 +37,7 @@ class SXTOOLS_sxglobals(object):
         self.refreshInProgress = False
         self.hslUpdate = False
         self.matUpdate = False
+        self.curvatureUpdate = False
         self.modalStatus = False
         self.composite = False
         self.copyLayer = None
@@ -260,7 +263,6 @@ class SXTOOLS_files(object):
             group.location = (0, 0, 0)
 
             selArray = utils.find_children(group, recursive=True)
-            print('selArray:', selArray)
             for sel in selArray:
                 sel.select_set(True)
             group.select_set(False)
@@ -282,7 +284,6 @@ class SXTOOLS_files(object):
             # Only groups with meshes as children are exported
             objArray = []
             for sel in selArray:
-                print(sel.name, sel.type)
                 if sel.type == 'MESH':
                     objArray.append(sel)
                     sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
@@ -651,7 +652,6 @@ class SXTOOLS_utils(object):
         for vert in vert_pos_list:
             vert_id_list.append(vert[1])
 
-        print(len(vert_pos_list), len(vert_id_list))
         return vert_id_list
 
 
@@ -1604,13 +1604,14 @@ class SXTOOLS_generate(object):
         return None
 
 
-    def curvature_list(self, obj, masklayer=None):
+    def curvature_list(self, obj, masklayer=None, returndict=False):
         scene = bpy.context.scene.sxtools
         normalize = scene.curvaturenormalize
         vert_curv_dict = {}
-
+        mesh = obj.data
         bm = bmesh.new()
-        bm.from_mesh(obj.data)
+        bm.from_mesh(mesh)
+        bm.normal_update()
 
         for vert in bm.verts:
             numConnected = len(vert.link_edges)
@@ -1635,6 +1636,8 @@ class SXTOOLS_generate(object):
             else:
                 vert_curv_dict[vert.index] = 0.0
 
+        bm.free()
+
         # Normalize convex and concave separately
         # to maximize artist ability to crease
 
@@ -1653,27 +1656,31 @@ class SXTOOLS_generate(object):
             for vert, vtxCurvature in vert_curv_dict.items():
                 vert_curv_dict[vert] = (vtxCurvature + 0.5)
 
-        # Clear the border edges if the object is tiling
-        if obj.sxtools.tiling:
-            bpy.context.view_layer.objects.active = obj
+        if returndict:
+            return vert_curv_dict
 
-            bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-            bpy.context.tool_settings.mesh_select_mode = (False, False, True)
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.region_to_loop()
-            bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        else:
+            # Clear the border edges if the object is tiling
+            if obj.sxtools.tiling:
+                bpy.context.view_layer.objects.active = obj
 
-            sel_verts = [None] * len(obj.data.vertices)
-            obj.data.vertices.foreach_get('select', sel_verts)
+                bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+                bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.region_to_loop()
+                bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
-            for i, sel in enumerate(sel_verts):
-                if sel:
-                    vert_curv_dict[i] = 0.5
+                sel_verts = [None] * len(obj.data.vertices)
+                obj.data.vertices.foreach_get('select', sel_verts)
 
-        vert_curv_list = self.vert_dict_to_loop_list(obj, vert_curv_dict, 1, 4)
-        curv_list = self.mask_list(obj, vert_curv_list, masklayer)
+                for i, sel in enumerate(sel_verts):
+                    if sel:
+                        vert_curv_dict[i] = 0.5
 
-        return curv_list
+            vert_curv_list = self.vert_dict_to_loop_list(obj, vert_curv_dict, 1, 4)
+            curv_list = self.mask_list(obj, vert_curv_list, masklayer)
+
+            return curv_list
 
 
     def direction_list(self, obj, masklayer=None):
@@ -1721,8 +1728,6 @@ class SXTOOLS_generate(object):
 
         def make_noise(amplitude, offset, mono):
             col = [None, None, None, 1.0]
-            random.seed(sxglobals.randomseed)
-
             if mono:
                 monoval = offset+random.uniform(-amplitude, amplitude)
                 for i in range(3):
@@ -1732,6 +1737,7 @@ class SXTOOLS_generate(object):
                     col[i] = offset+random.uniform(-amplitude, amplitude)
             return col
 
+        random.seed(sxglobals.randomseed)
         vert_ids = self.vertex_id_list(obj)
 
         noise_dict = {}
@@ -2095,7 +2101,6 @@ class SXTOOLS_generate(object):
         count = len(mesh.vertices)
         ids = [None] * count
         mesh.vertices.foreach_get('index', ids)
-
         return ids
 
 
@@ -3010,18 +3015,24 @@ class SXTOOLS_tools(object):
         weight = setvalue
         modename = modeDict[setmode]
 
+        utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
         for obj in objs:
             mesh = obj.data
+            if not mesh.use_customdata_vertex_crease:
+                mesh.use_customdata_vertex_crease = True
 
-            if mode == 'EDIT':
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+        utils.mode_manager(objs, revert=True, mode_id='assign_set')
+
+        # EDIT mode vertex creasing
+        if (mode == 'EDIT') and (bpy.context.tool_settings.mesh_select_mode[0]):
+            utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+            for obj in objs:
+                mesh = obj.data
+
                 # vertex creasing
                 if bpy.context.tool_settings.mesh_select_mode[0]:
-                    if not bpy.context.object.data.use_customdata_vertex_crease:
-                        utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
-                        bpy.context.object.data.use_customdata_vertex_crease = True
-                        utils.mode_manager(objs, revert=True, mode_id='assign_set')
-
-                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
                     weight_values = [None] * len(mesh.vertices)
                     select_values = [None] * len(mesh.vertices)
                     mesh.vertex_creases[0].data.foreach_get('value', weight_values)
@@ -3034,51 +3045,55 @@ class SXTOOLS_tools(object):
                             weight_values[i] = weight
 
                     mesh.vertex_creases[0].data.foreach_set('value', weight_values)
-                    utils.mode_manager(objs, revert=True, mode_id='assign_set')
-                # edge creasing and beveling
-                else:
-                    bm = bmesh.from_edit_mesh(mesh)
+                mesh.update()
+            utils.mode_manager(objs, revert=True, mode_id='assign_set')
 
-                    if setmode == 'CRS':
-                        if modename in bm.edges.layers.crease.keys():
-                            bmlayer = bm.edges.layers.crease[modename]
-                        else:
-                            bmlayer = bm.edges.layers.crease.new(modename)
+        # EDIT mode edge creasing and beveling
+        elif (mode == 'EDIT') and (bpy.context.tool_settings.mesh_select_mode[1] or bpy.context.tool_settings.mesh_select_mode[2]):
+            for obj in objs:
+                mesh = obj.data
+                bm = bmesh.from_edit_mesh(mesh)
+
+                if setmode == 'CRS':
+                    if modename in bm.edges.layers.crease.keys():
+                        bmlayer = bm.edges.layers.crease[modename]
                     else:
-                        if modename in bm.edges.layers.bevel_weight.keys():
-                            bmlayer = bm.edges.layers.bevel_weight[modename]
+                        bmlayer = bm.edges.layers.crease.new(modename)
+                else:
+                    if modename in bm.edges.layers.bevel_weight.keys():
+                        bmlayer = bm.edges.layers.bevel_weight[modename]
+                    else:
+                        bmlayer = bm.edges.layers.bevel_weight.new(modename)
+
+                selectedEdges = [edge for edge in bm.edges if edge.select]
+                for edge in selectedEdges:
+                    edge[bmlayer] = weight
+                    if setmode == 'CRS':
+                        mesh.edges[edge.index].crease = weight
+                        if weight == 1.0:
+                            edge.smooth = False
+                            mesh.edges[edge.index].use_edge_sharp = True
                         else:
-                            bmlayer = bm.edges.layers.bevel_weight.new(modename)
+                            edge.smooth = True
+                            mesh.edges[edge.index].use_edge_sharp = False
 
-                    selectedEdges = [edge for edge in bm.edges if edge.select]
-                    for edge in selectedEdges:
-                        edge[bmlayer] = weight
-                        if setmode == 'CRS':
-                            mesh.edges[edge.index].crease = weight
-                            if weight == 1.0:
-                                edge.smooth = False
-                                mesh.edges[edge.index].use_edge_sharp = True
-                            else:
-                                edge.smooth = True
-                                mesh.edges[edge.index].use_edge_sharp = False
+                bmesh.update_edit_mesh(mesh)
+                bm.free()
 
-                    bmesh.update_edit_mesh(mesh)
-            else:
+        # OBJECT mode 
+        else:
+            utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+            for obj in objs:
+                mesh = obj.data
                 # vertex creasing
                 if (bpy.context.tool_settings.mesh_select_mode[0]) and (setmode == 'CRS'):
-                    if not bpy.context.object.data.use_customdata_vertex_crease:
-                        utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
-                        bpy.context.object.data.use_customdata_vertex_crease = True
-                        utils.mode_manager(objs, revert=True, mode_id='assign_set')
-
-                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
                     if weight == -1.0:
                         weight = 0.0
                     weight_values = [weight] * len(mesh.vertices)
                     mesh.vertex_creases[0].data.foreach_set('value', weight_values)
+                    mesh.update()
                 # edge creasing and beveling
                 else:
-                    utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
                     bm = bmesh.new()
                     bm.from_mesh(mesh)
 
@@ -3105,9 +3120,9 @@ class SXTOOLS_tools(object):
                                 mesh.edges[edge.index].use_edge_sharp = False
 
                     bm.to_mesh(mesh)
+                    bm.free()
 
-                utils.mode_manager(objs, revert=True, mode_id='assign_set')
-                mesh.update()
+            utils.mode_manager(objs, revert=True, mode_id='assign_set')
 
 
     def select_set(self, objs, setvalue, setmode, clearsel=False):
@@ -3156,6 +3171,11 @@ class SXTOOLS_tools(object):
                         edge.select = True
 
                 bmesh.update_edit_mesh(mesh)
+                bm.free()
+
+
+    def select_curvature_set(self, objs, limitvalue):
+        pass
 
 
     def apply_palette(self, objs, palette):
@@ -3786,6 +3806,7 @@ class SXTOOLS_tools(object):
                     vert.co.z = 0.0 - obj.location.z
 
             bmesh.update_edit_mesh(obj.data)
+            bm.free()
 
 
     def __del__(self):
@@ -5840,6 +5861,39 @@ def update_scene_configuration(self, context):
         scene.enableemission = True
 
 
+def update_curvature_selection(self, context):
+    if not sxglobals.curvatureUpdate:
+        sxglobals.curvatureUpdate = True
+
+        objs = selection_validator(self, context)
+        sel_mode = context.tool_settings.mesh_select_mode[:]
+        limitvalue = context.scene.sxtools.curvaturelimit
+        tolerance = context.scene.sxtools.curvaturetolerance
+        scene = context.scene.sxtools
+        normalize = scene.curvaturenormalize
+        scene.curvaturenormalize = True
+        context.tool_settings.mesh_select_mode = (True, False, False)
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+
+        for obj in objs:
+            vert_curv_dict = generate.curvature_list(obj, returndict=True)
+            mesh = obj.data
+
+            for vert in mesh.vertices:
+                if math.isclose(limitvalue, vert_curv_dict[vert.index], abs_tol=tolerance):
+                    vert.select = True
+                else:
+                    vert.select = False
+
+        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+        context.tool_settings.mesh_select_mode = sel_mode 
+        scene.curvaturenormalize = normalize
+        sxglobals.curvatureUpdate = False
+
+
 @persistent
 def load_post_handler(dummy):
     sxglobals.prevShadingMode = 'FULL'
@@ -6576,6 +6630,20 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
         name='Normalize Curvature',
         description='Normalize convex and concave ranges\nfor improved artistic control',
         default=False)
+
+    curvaturelimit: bpy.props.FloatProperty(
+        name='Curvature Limit',
+        min=0.0,
+        max=1.0,
+        default=0.5,
+        update=update_curvature_selection)
+
+    curvaturetolerance: bpy.props.FloatProperty(
+        name='Curvature Tolerance',
+        min=0.0,
+        max=1.0,
+        default=0.1,
+        update=update_curvature_selection)
 
     palettecategories: bpy.props.EnumProperty(
         name='Category',
@@ -7438,6 +7506,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         setbutton = row_sets.operator('sxtools.setgroup', text='100%')
                         setbutton.setmode = scene.creasemode
                         setbutton.setvalue = 1.0
+                        col_sel = box_crease.column(align=True)
+                        col_sel.prop(scene, 'curvaturelimit', slider=True, text='Curvature Selector')
+                        col_sel.prop(scene, 'curvaturetolerance', slider=True, text='Curvature Tolerance')
                         col_sets = box_crease.column(align=True)
                         if (bpy.context.tool_settings.mesh_select_mode[0]) and (scene.creasemode == 'CRS'):
                             clear_text = 'Clear Vertex Weights'
@@ -7788,7 +7859,8 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.active_object is not None
+        if context.area.type == 'VIEW_3D':
+            return context.active_object is not None
 
 
     def modal(self, context, event):
@@ -8243,6 +8315,8 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
             context.scene.view_settings.view_transform = 'Standard'
 
             sxglobals.refreshInProgress = False
+            sxglobals.composite = True
+            context.scene.sxtools.shadingmode = 'FULL'
             refresh_actives(self, context)
         return {'FINISHED'}
 
@@ -8494,7 +8568,10 @@ class SXTOOLS_OT_setgroup(bpy.types.Operator):
             else:
                 tools.assign_set(objs, setvalue, setmode)
                 if (scene.autocrease) and (setmode == 'BEV') and (setvalue != -1.0):
+                    mode = bpy.context.tool_settings.mesh_select_mode[:]
+                    bpy.context.tool_settings.mesh_select_mode = (False, True, False)
                     tools.assign_set(objs, 1.0, 'CRS')
+                    bpy.context.tool_settings.mesh_select_mode = mode
         return {'FINISHED'}
 
 
@@ -9443,14 +9520,11 @@ if __name__ == '__main__':
 
 # TODO
 # FEAT: Select objs that have components selected
-# BUG: Context incorrect error from selectionmonitor at multi-object setup
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # FEAT: Open doc links from SX Tools
 # BUG: Export selected fails if empty is selected
 # FEAT: Smart Separate should respect user-generated _front, _rear etc. strings
 # BUG: Modifying per-edge bevel values affects non-selected edges
-# BUG: Adding a new object into scene -> setup object -> object is black until refresh
-# BUG: Error after setting up multiple objects
 # BUG: Enabling Simple mode forces subsequent PBR scenes into Simple material / Simple mode leaves traces that mess up PBR scenes
 # FEAT: Generate VisToggle and VisMix nodes only when channels are enabled
 # FEAT: Strip redundant custom props prior to exporting
