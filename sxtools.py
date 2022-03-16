@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 29, 0),
+    'version': (5, 29, 1),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7213,7 +7213,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
 
                 row_shading = layout.row()
                 row_shading.prop(scene, 'shadingmode', expand=True)
-                row_shading.operator("wm.url_open", text='', icon='QUESTION').url = 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6'
+                row_shading.operator("wm.url_open", text='', icon='URL').url = 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6'
 
                 # Layer Controls -----------------------------------------------
                 box_layer = layout.box()
