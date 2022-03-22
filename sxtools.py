@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 29, 1),
+    'version': (5, 29, 2),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7860,7 +7860,10 @@ class SXTOOLS_OT_selectionmonitor(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        if context.area.type == 'VIEW_3D':
+        if not bpy.app.background:
+            if context.area.type == 'VIEW_3D':
+                return context.active_object is not None
+        else:
             return context.active_object is not None
 
 
