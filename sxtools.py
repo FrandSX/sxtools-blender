@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 29, 2),
+    'version': (5, 30, 1),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -7697,6 +7697,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_batchexport.label(text='Batch Export Settings')
                             if scene.expandbatchexport:
                                 col_batchexport = box_export.column(align=True)
+                                col_cataloguebuttons = box_export.column(align=True)
                                 groups = utils.find_groups(objs, all_groups=True)
                                 if len(groups) == 0:
                                     col_batchexport.label(text='No Groups Selected')
@@ -7707,8 +7708,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                                         row_group.prop(group.sxtools, 'exportready', text='')
                                         row_group.label(text='  ' + group.name)
 
-                                col_batchexport.operator('sxtools.catalogue_add', text='Add to Catalogue', icon='ADD')
-                                col_batchexport.operator('sxtools.catalogue_remove', text='Remove from Catalogue', icon='REMOVE')
+                                col_cataloguebuttons.operator('sxtools.catalogue_add', text='Add to Catalogue', icon='ADD')
+                                col_cataloguebuttons.operator('sxtools.catalogue_remove', text='Remove from Catalogue', icon='REMOVE')
+                                export_ready_groups = False
+                                for group in groups:
+                                    if group.sxtools.exportready:
+                                        export_ready_groups = True
+
+                                if not export_ready_groups:
+                                    col_cataloguebuttons.enabled = False
 
                         col2_export = box_export.column(align=True)
                         col2_export.label(text='Export Folder:')
@@ -9159,21 +9167,28 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
 
 
     def execute(self, context):
+        catalogue_dict = {}
         asset_dict = {}
         prefs = context.preferences.addons['sxtools'].preferences
         objs = selection_validator(self, context)
-        result, asset_dict = self.load_asset_data(prefs.cataloguepath)
+        result, catalogue_dict = self.load_asset_data(prefs.cataloguepath)
         if not result:
             return {'FINISHED'}
+
+        for obj in objs:
+            obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
         asset_category = objs[0].sxtools.category.lower()
         asset_tags = self.assetTags.split(' ')
 
+        groups = []
         export_groups = utils.find_groups(objs, all_groups=True)
         if len(export_groups) > 0:
             for export_group in export_groups:
                 if export_group.sxtools.exportready:
-                    asset_tags.insert(0, export_group.name)
+                    groups.append(export_group.name)
+
+        cost = utils.calculate_triangles(objs)
 
         file_path = bpy.data.filepath
 
@@ -9192,20 +9207,24 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
             return {'FINISHED'}
 
         # Check if file already in catalogue
-        for category in asset_dict.keys():
-            for key in asset_dict[category].keys():
+        for category in catalogue_dict.keys():
+            for key in catalogue_dict[category].keys():
                 key_path = key.replace('//', os.path.sep)
                 if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
                     message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
                     return {'FINISHED'}
 
         # Check if the Catalogue already contains the asset category
-        if asset_category not in asset_dict.keys():
-            asset_dict[asset_category] = {}
+        if asset_category not in catalogue_dict.keys():
+            catalogue_dict[asset_category] = {}
 
         # Save entry with a platform-independent path separator
-        asset_dict[asset_category][file_rel_path.replace(os.path.sep, '//')] = asset_tags
-        self.save_asset_data(prefs.cataloguepath, asset_dict)
+        asset_dict['tags'] = asset_tags
+        asset_dict['objects'] = groups
+        asset_dict['cost'] = cost
+
+        catalogue_dict[asset_category][file_rel_path.replace(os.path.sep, '//')] = asset_dict
+        self.save_asset_data(prefs.cataloguepath, catalogue_dict)
         return {'FINISHED'}
 
 
@@ -9523,6 +9542,9 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Refresh modifiers when saving to catalogue to update cost value
+# BUG: Tri count calculator does not update upon adding modifiers
+# BUG: Invalid clnors in fan?
 # FEAT: Select objs that have components selected
 # FEAT: validate modifier settings, control cage, all meshes have single user?
 # BUG: Export selected fails if empty is selected
