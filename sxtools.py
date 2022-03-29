@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 30, 1),
+    'version': (5, 30, 2),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1887,7 +1887,7 @@ class SXTOOLS_generate(object):
             for coord in bbx:
                 if (2.0 * round(coord, 3)) % obj.sxtools.tilewidth == 0:
                     bounds.append(round(coord, 3))
-            print('SX Tools: Tiling object grid bounds', bounds)
+            # print('SX Tools: Tiling object grid bounds', bounds)
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
