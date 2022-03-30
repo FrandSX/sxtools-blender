@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 30, 2),
+    'version': (5, 31, 1),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -281,7 +281,7 @@ class SXTOOLS_files(object):
                         collider_array.append(collider)
                         collider['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
 
-            # Only groups with meshes as children are exported
+            # Only groups with meshes and armatures as children are exported
             objArray = []
             for sel in selArray:
                 if sel.type == 'MESH':
@@ -376,6 +376,7 @@ class SXTOOLS_utils(object):
 
     # Finds groups to be exported,
     # only EMPTY objects with no parents
+    # treat ARMATURE objects as a special case
     def find_groups(self, objs, all_groups=False):
         groups = []
         if all_groups:
@@ -388,15 +389,20 @@ class SXTOOLS_utils(object):
             parent = obj.parent
             if (parent is not None) and (parent.type == 'EMPTY') and (parent.parent is None):
                 groups.append(obj.parent)
+            elif (parent is not None) and (parent.type == 'ARMATURE') and (parent.parent is not None) and (parent.parent.type == 'EMPTY'):
+                groups.append(parent.parent)
 
-        return set(groups)
+        return list(set(groups))
 
 
+    # ARMATUREs check for grandparent
     def find_children(self, group, objs=None, recursive=False):
         def get_children(parent):
             children = []
             for child in objs:
                 if child.parent == parent:
+                    children.append(child)
+                elif (child.parent is not None) and (child.parent.type == 'ARMATURE') and (child.parent.parent == parent):
                     children.append(child)
             return children
 
@@ -3978,8 +3984,6 @@ class SXTOOLS_magic(object):
         org_dircone = scene.dirCone
 
         utils.mode_manager(objs, set_mode=True, mode_id='process_objects')
-        # sxglobals.mode = 'OBJECT'
-        # bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
         scene.toolopacity = 1.0
         scene.toolblend = 'ALPHA'
 
@@ -4117,10 +4121,14 @@ class SXTOOLS_magic(object):
 
             if len(categoryObjs) > 0:
                 groupList = utils.find_groups(categoryObjs)
-
                 for group in groupList:
                     createLODs = False
                     groupObjs = utils.find_children(group, categoryObjs)
+                    filter_list = []
+                    for groupObj in groupObjs:
+                        if groupObj.type == 'MESH':
+                            filter_list.append(groupObj)
+                    groupObjs = filter_list
                     viewlayer.objects.active = groupObjs[0]
                     for obj in groupObjs:
                         if obj.sxtools.lodmeshes:
@@ -5416,12 +5424,19 @@ def shading_mode(self, context):
             sxglobals.prevShadingMode = mode
 
 
+# ARMATURE objects pass a more complex validation, return value eliminates duplicates
 def selection_validator(self, context):
     selObjs = []
     for obj in context.view_layer.objects.selected:
         if obj.type == 'MESH' and obj.hide_viewport is False:
             selObjs.append(obj)
-    return selObjs
+        elif obj.type == 'ARMATURE':
+            all_children = utils.find_children(obj, recursive=True)
+            for child in all_children:
+                if child.type == 'MESH':
+                    selObjs.append(child)
+
+    return list(set(selObjs))
 
 
 def dict_lister(self, context, data_dict):
@@ -9380,7 +9395,9 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             for group in groups:
                 if group is not None and group.sxtools.exportready:
                     all_children = utils.find_children(group, recursive=True)
-                    filtered_objs.extend(all_children)
+                    for child in all_children:
+                        if child.type == 'MESH':
+                            filtered_objs.append(child)
 
             bpy.ops.object.select_all(action='DESELECT')
             for obj in filtered_objs:
@@ -9600,5 +9617,4 @@ if __name__ == '__main__':
 # - Run from direct github zip download
 #   - Split to multiple python files
 #   - Default path to find libraries in the zip?
-# - Skinning support
 # - Submesh support
