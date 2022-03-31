@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 31, 1),
+    'version': (5, 32, 3),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5942,6 +5942,56 @@ def load_post_handler(dummy):
     setup.start_modal()
 
 
+# Update revision IDs and save in asset catalogue
+@persistent
+def save_pre_handler(dummy):
+    for obj in bpy.data.objects:
+        if (len(obj.sxtools.keys()) > 0):
+            obj['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
+            if ('revision' not in obj.keys()):
+                obj['revision'] = 1
+            else:
+                revision = obj['revision']
+                obj['revision'] = revision + 1
+
+
+@persistent
+def save_post_handler(dummy):
+    catalogue_dict = {}
+    revision = 1
+    prefs = bpy.context.preferences.addons['sxtools'].preferences
+
+    for obj in bpy.data.objects:
+        if len(obj.sxtools.keys()) > 0:
+            revision = obj['revision']
+            break
+
+    if len(prefs.cataloguepath) > 0:
+        try:
+            with open(prefs.cataloguepath, 'r') as input:
+                catalogue_dict = json.load(input)
+                input.close()
+
+            file_path = bpy.data.filepath
+            asset_path = os.path.split(prefs.cataloguepath)[0]
+            # prefix = os.path.commonpath([asset_path, file_path])
+            # file_rel_path = os.path.relpath(file_path, asset_path)
+
+            for category in catalogue_dict.keys():
+                for key in catalogue_dict[category].keys():
+                    key_path = key.replace('//', os.path.sep)
+                    if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
+                        catalogue_dict[category][key]['revision'] = str(revision)
+
+            with open(prefs.cataloguepath, 'w') as output:
+                json.dump(catalogue_dict, output, indent=4)
+                output.close()
+
+        except (ValueError, IOError) as error:
+            message_box('Failed to update file revision in Asset Catalogue file.', 'SX Tools Error', 'ERROR')
+            return False, None
+
+
 # ------------------------------------------------------------------------
 #    Settings and preferences
 # ------------------------------------------------------------------------
@@ -9514,6 +9564,8 @@ def register():
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_material)
 
     bpy.app.handlers.load_post.append(load_post_handler)
+    bpy.app.handlers.save_pre.append(save_pre_handler)    
+    bpy.app.handlers.save_post.append(save_post_handler)
 
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
@@ -9539,6 +9591,8 @@ def unregister():
     del bpy.types.Scene.sxmaterials
 
     bpy.app.handlers.load_post.remove(load_post_handler)
+    bpy.app.handlers.save_pre.remove(save_pre_handler)
+    bpy.app.handlers.save_post.remove(save_post_handler)
 
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
