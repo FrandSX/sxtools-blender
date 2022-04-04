@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 3),
+    'version': (5, 32, 4),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -347,6 +347,8 @@ class SXTOOLS_files(object):
             message_box('No objects exported!')
         else:
             message_box('Exported:\n' + str('\n').join(groupNames))
+            for group_name in groupNames:
+                print('Completed:', group_name)
 
 
 # ------------------------------------------------------------------------
