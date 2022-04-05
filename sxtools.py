@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 5),
+    'version': (5, 32, 6),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -198,7 +198,7 @@ class SXTOOLS_files(object):
             sxlist = bpy.context.scene.sxpalettes
 
         for categoryDict in swatcharray:
-            for category in categoryDict.keys():
+            for category in categoryDict:
                 if len(categoryDict[category]) == 0:
                     item = sxlist.add()
                     item.name = 'Empty'
@@ -249,7 +249,7 @@ class SXTOOLS_files(object):
         colorspace = prefs.colorspace
         empty = True
 
-        if 'ExportObjects' not in bpy.data.collections.keys():
+        if 'ExportObjects' not in bpy.data.collections:
             exportObjects = bpy.data.collections.new('ExportObjects')
         else:
             exportObjects = bpy.data.collections['ExportObjects']
@@ -269,7 +269,7 @@ class SXTOOLS_files(object):
 
             # Check for mesh colliders
             collider_array = []
-            if 'SXColliders' in bpy.data.collections.keys():
+            if 'SXColliders' in bpy.data.collections:
                 colliders = bpy.data.collections['SXColliders'].objects
                 if group.name.endswith('_root'):
                     collider_id = group.name[:-5]
@@ -642,7 +642,7 @@ class SXTOOLS_utils(object):
     def calculate_triangles(self, objs):
         count = 0
         for obj in objs:
-            if 'sxDecimate2' in obj.modifiers.keys():
+            if 'sxDecimate2' in obj.modifiers:
                 count += obj.modifiers['sxDecimate2'].face_count
 
         return str(count)
@@ -749,7 +749,7 @@ class SXTOOLS_setup(object):
         for obj in objs:
             initArray = sorted(sxglobals.layerInitArray, key=lambda tup: tup[2])
             for values in initArray:
-                if values[0] in obj.sxlayers.keys():
+                if values[0] in obj.sxlayers:
                     item = obj.sxlayers[values[0]]
                 else:
                     item = obj.sxlayers.add()
@@ -804,12 +804,12 @@ class SXTOOLS_setup(object):
 
             # Check if vertex color layers exist,
             # and delete if legacy data is found
-            for vertexColor in mesh.vertex_colors.keys():
+            for vertexColor in mesh.vertex_colors:
                 if 'VertexColor' not in vertexColor:
                     mesh.vertex_colors.remove(mesh.vertex_colors[vertexColor])
 
             for sxLayer in colorArray:
-                if sxLayer.vertexColorLayer not in mesh.vertex_colors.keys():
+                if sxLayer.vertexColorLayer not in mesh.vertex_colors:
                     mesh.vertex_colors.new(name=sxLayer.vertexColorLayer)
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
@@ -822,7 +822,7 @@ class SXTOOLS_setup(object):
                     # Delete old UV sets if necessary for material channels
                     slotsNeeded = len(uvs)
                     slotsAvailable = 8 - len(mesh.uv_layers.keys())
-                    for uvLayer in mesh.uv_layers.keys():
+                    for uvLayer in mesh.uv_layers:
                         if uvLayer in uvs:
                             slotsNeeded -= 1
                             uvs.remove(uvLayer)
@@ -1356,7 +1356,7 @@ class SXTOOLS_setup(object):
 
 
     def create_sxcollection(self):
-        if 'SXObjects' not in bpy.data.collections.keys():
+        if 'SXObjects' not in bpy.data.collections:
             sxObjects = bpy.data.collections.new('SXObjects')
         else:
             sxObjects = bpy.data.collections['SXObjects']
@@ -1364,12 +1364,12 @@ class SXTOOLS_setup(object):
             if (len(obj.sxtools.keys()) > 0) and (obj.name not in sxObjects.objects) and (obj.type == 'MESH'):
                 sxObjects.objects.link(obj)
 
-        if sxObjects.name not in bpy.context.scene.collection.children.keys():
+        if sxObjects.name not in bpy.context.scene.collection.children:
             bpy.context.scene.collection.children.link(sxObjects)
 
 
     def create_tiler(self):
-        if 'sx_tiler' not in bpy.data.node_groups.keys():
+        if 'sx_tiler' not in bpy.data.node_groups:
             nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
             group_in = nodetree.nodes.new(type='NodeGroupInput')
             group_out = nodetree.nodes.new(type='NodeGroupOutput')
@@ -1708,7 +1708,7 @@ class SXTOOLS_generate(object):
         vert_dict = self.vertex_data_dict(obj, masklayer)
 
         if len(vert_dict.keys()) > 0:
-            for vert_id in vert_dict.keys():
+            for vert_id in vert_dict:
                 vert_dir_dict[vert_id] = 0.0
 
             for i in range(samples):
@@ -1717,7 +1717,7 @@ class SXTOOLS_generate(object):
 
                 direction = Vector((math.sin(inclination) * math.cos(angle), math.sin(inclination) * math.sin(angle), math.cos(inclination)))
 
-                for vert_id in vert_dict.keys():
+                for vert_id in vert_dict:
                     vertWorldNormal = Vector(vert_dict[vert_id][3])
                     vert_dir_dict[vert_id] += max(min(vertWorldNormal @ direction, 1.0), 0.0)
 
@@ -1816,7 +1816,7 @@ class SXTOOLS_generate(object):
         def ray_caster(obj, raycount, vert_dict, hitfunction, raydistance=1.70141e+38):
             hemiSphere = self.ray_randomizer(raycount)
 
-            for vert_id in vert_dict.keys():
+            for vert_id in vert_dict:
                 vert_occ_dict[vert_id] = 0.0
                 vertLoc = Vector(vert_dict[vert_id][0])
                 vertNormal = Vector(vert_dict[vert_id][1])
@@ -1912,7 +1912,7 @@ class SXTOOLS_generate(object):
                 pivot = (pivot[0], pivot[1], -0.5)  # pivot[2] - 0.5)
                 ground, groundmesh = self.ground_plane(20, pivot)
 
-            for vert_id in vert_dict.keys():
+            for vert_id in vert_dict:
                 bias = 0.001
                 occValue = 1.0
                 scnOccValue = 1.0
@@ -2062,7 +2062,7 @@ class SXTOOLS_generate(object):
         vertPosDict = self.vertex_data_dict(obj, masklayer)
         ramp_dict = {}
 
-        for vert_id in vertPosDict.keys():
+        for vert_id in vertPosDict:
             ratioRaw = None
             ratio = None
             fvPos = vertPosDict[vert_id][2]
@@ -2494,7 +2494,7 @@ class SXTOOLS_layers(object):
 
     def composite_layers(self, objs):
         if sxglobals.composite:
-            # then = time.time()
+            # then = time.perf_counter()
             compLayers = utils.find_comp_layers(objs[0])
             shadingmode = bpy.context.scene.sxtools.shadingmode
             idx = objs[0].sxtools.selectedlayer
@@ -2508,7 +2508,7 @@ class SXTOOLS_layers(object):
                 self.blend_debug(objs, layer, shadingmode)
 
             sxglobals.composite = False
-            # now = time.time()
+            # now = time.perf_counter()
             # print('Compositing duration: ', now-then, ' seconds')
 
 
@@ -2847,7 +2847,7 @@ class SXTOOLS_tools(object):
 
 
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
-        # then = time.time()
+        # then = time.perf_counter()
         utils.mode_manager(objs, set_mode=True, mode_id='apply_tool')
         scene = bpy.context.scene.sxtools
         amplitude = scene.noiseamplitude
@@ -2893,7 +2893,7 @@ class SXTOOLS_tools(object):
                 layers.set_layer(obj, colors, targetlayer)
 
         utils.mode_manager(objs, revert=True, mode_id='apply_tool')
-        # now = time.time()
+        # now = time.perf_counter()
         # print('Apply tool ', scene.toolmode, ' duration: ', now-then, ' seconds')
 
 
@@ -3065,12 +3065,12 @@ class SXTOOLS_tools(object):
                 bm = bmesh.from_edit_mesh(mesh)
 
                 if setmode == 'CRS':
-                    if modename in bm.edges.layers.crease.keys():
+                    if modename in bm.edges.layers.crease:
                         bmlayer = bm.edges.layers.crease[modename]
                     else:
                         bmlayer = bm.edges.layers.crease.new(modename)
                 else:
-                    if modename in bm.edges.layers.bevel_weight.keys():
+                    if modename in bm.edges.layers.bevel_weight:
                         bmlayer = bm.edges.layers.bevel_weight[modename]
                     else:
                         bmlayer = bm.edges.layers.bevel_weight.new(modename)
@@ -3108,12 +3108,12 @@ class SXTOOLS_tools(object):
                     bm.from_mesh(mesh)
 
                     if setmode == 'CRS':
-                        if modename in bm.edges.layers.crease.keys():
+                        if modename in bm.edges.layers.crease:
                             bmlayer = bm.edges.layers.crease[modename]
                         else:
                             bmlayer = bm.edges.layers.crease.new(modename)
                     else:
-                        if modename in bm.edges.layers.bevel_weight.keys():
+                        if modename in bm.edges.layers.bevel_weight:
                             bmlayer = bm.edges.layers.bevel_weight[modename]
                         else:
                             bmlayer = bm.edges.layers.bevel_weight.new(modename)
@@ -3166,12 +3166,12 @@ class SXTOOLS_tools(object):
                 bm = bmesh.from_edit_mesh(mesh)
 
                 if setmode == 'CRS':
-                    if modename in bm.edges.layers.crease.keys():
+                    if modename in bm.edges.layers.crease:
                         bmlayer = bm.edges.layers.crease[modename]
                     else:
                         bmlayer = bm.edges.layers.crease.new(modename)
                 else:
-                    if modename in bm.edges.layers.bevel_weight.keys():
+                    if modename in bm.edges.layers.bevel_weight:
                         bmlayer = bm.edges.layers.bevel_weight[modename]
                     else:
                         bmlayer = bm.edges.layers.bevel_weight.new(modename)
@@ -3246,12 +3246,12 @@ class SXTOOLS_tools(object):
         setup.create_tiler()
 
         if 'sx_tiler' in bpy.data.node_groups:
-            if 'sxGeometryNodes' not in obj.modifiers.keys():
+            if 'sxGeometryNodes' not in obj.modifiers:
                 tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
             else:
                 tiler = obj.modifiers['sxGeometryNodes']
 
-            if 'sxMirror' in obj.modifiers.keys():
+            if 'sxMirror' in obj.modifiers:
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
 
@@ -3482,7 +3482,7 @@ class SXTOOLS_tools(object):
 
 
     def remove_tiling(self, obj):
-        if 'sxGeometryNodes' in obj.modifiers.keys():
+        if 'sxGeometryNodes' in obj.modifiers:
             bpy.context.view_layer.objects.active = obj
             bpy.ops.object.modifier_remove(modifier='sxGeometryNodes')
 
@@ -3493,7 +3493,7 @@ class SXTOOLS_tools(object):
             obj.data.auto_smooth_angle = math.radians(obj.sxtools.smoothangle)
 
         for obj in objs:
-            if 'sxMirror' not in obj.modifiers.keys():
+            if 'sxMirror' not in obj.modifiers:
                 obj.modifiers.new(type='MIRROR', name='sxMirror')
                 if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                     obj.modifiers['sxMirror'].show_viewport = True
@@ -3509,7 +3509,7 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxMirror'].mirror_object = None
                 obj.modifiers['sxMirror'].use_clip = True
                 obj.modifiers['sxMirror'].use_mirror_merge = True
-            if 'sxSubdivision' not in obj.modifiers.keys():
+            if 'sxSubdivision' not in obj.modifiers:
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxSubdivision'].show_expanded = False
@@ -3518,7 +3518,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxSubdivision'].uv_smooth = 'NONE'
                 obj.modifiers['sxSubdivision'].show_only_control_edges = True
                 obj.modifiers['sxSubdivision'].show_on_cage = True
-            if 'sxBevel' not in obj.modifiers.keys():
+            if 'sxBevel' not in obj.modifiers:
                 obj.modifiers.new(type='BEVEL', name='sxBevel')
                 obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxBevel'].show_expanded = False
@@ -3532,7 +3532,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxBevel'].offset_type = obj.sxtools.beveltype
                 obj.modifiers['sxBevel'].limit_method = 'WEIGHT'
                 obj.modifiers['sxBevel'].miter_outer = 'MITER_ARC'
-            if 'sxWeld' not in obj.modifiers.keys():
+            if 'sxWeld' not in obj.modifiers:
                 obj.modifiers.new(type='WELD', name='sxWeld')
                 if obj.sxtools.weldthreshold == 0:
                     obj.modifiers['sxWeld'].show_viewport = False
@@ -3541,7 +3541,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
                 obj.modifiers['sxWeld'].show_expanded = False
                 obj.modifiers['sxWeld'].merge_threshold = obj.sxtools.weldthreshold
-            if 'sxDecimate' not in obj.modifiers.keys():
+            if 'sxDecimate' not in obj.modifiers:
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate')
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     obj.modifiers['sxDecimate'].show_viewport = False
@@ -3552,7 +3552,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxDecimate'].angle_limit = math.radians(obj.sxtools.decimation)
                 obj.modifiers['sxDecimate'].use_dissolve_boundaries = True
                 obj.modifiers['sxDecimate'].delimit = {'SHARP', 'UV'}
-            if 'sxDecimate2' not in obj.modifiers.keys():
+            if 'sxDecimate2' not in obj.modifiers:
                 obj.modifiers.new(type='DECIMATE', name='sxDecimate2')
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     obj.modifiers['sxDecimate2'].show_viewport = False
@@ -3562,7 +3562,7 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxDecimate2'].decimate_type = 'COLLAPSE'
                 obj.modifiers['sxDecimate2'].ratio = 0.99
                 obj.modifiers['sxDecimate2'].use_collapse_triangulate = True
-            if 'sxWeightedNormal' not in obj.modifiers.keys():
+            if 'sxWeightedNormal' not in obj.modifiers:
                 obj.modifiers.new(type='WEIGHTED_NORMAL', name='sxWeightedNormal')
                 if not obj.sxtools.weightednormals:
                     obj.modifiers['sxWeightedNormal'].show_viewport = False
@@ -3580,37 +3580,37 @@ class SXTOOLS_tools(object):
     def apply_modifiers(self, objs):
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
-            if 'sxMirror' in obj.modifiers.keys():
+            if 'sxMirror' in obj.modifiers:
                 if obj.modifiers['sxMirror'].show_viewport is False:
                     bpy.ops.object.modifier_remove(modifier='sxMirror')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxMirror')
-            if 'sxSubdivision' in obj.modifiers.keys():
+            if 'sxSubdivision' in obj.modifiers:
                 if obj.modifiers['sxSubdivision'].levels == 0:
                     bpy.ops.object.modifier_remove(modifier='sxSubdivision')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxSubdivision')
-            if 'sxBevel' in obj.modifiers.keys():
+            if 'sxBevel' in obj.modifiers:
                 if obj.sxtools.bevelsegments == 0:
                     bpy.ops.object.modifier_remove(modifier='sxBevel')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxBevel')
-            if 'sxWeld' in obj.modifiers.keys():
+            if 'sxWeld' in obj.modifiers:
                 if obj.sxtools.weldthreshold == 0:
                     bpy.ops.object.modifier_remove(modifier='sxWeld')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxWeld')
-            if 'sxDecimate' in obj.modifiers.keys():
+            if 'sxDecimate' in obj.modifiers:
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxDecimate')
-            if 'sxDecimate2' in obj.modifiers.keys():
+            if 'sxDecimate2' in obj.modifiers:
                 if (obj.sxtools.subdivisionlevel == 0) or (obj.sxtools.decimation == 0.0):
                     bpy.ops.object.modifier_remove(modifier='sxDecimate2')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxDecimate2')
-            if 'sxWeightedNormal' in obj.modifiers.keys():
+            if 'sxWeightedNormal' in obj.modifiers:
                 if not obj.sxtools.weightednormals:
                     bpy.ops.object.modifier_remove(modifier='sxWeightedNormal')
                 else:
@@ -3621,7 +3621,7 @@ class SXTOOLS_tools(object):
         modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
         for obj in objs:
             for modifier in modifiers:
-                if modifier in obj.modifiers.keys():
+                if modifier in obj.modifiers:
                     obj.modifiers.remove(obj.modifiers.get(modifier))
 
             if reset:
@@ -3973,7 +3973,7 @@ class SXTOOLS_magic(object):
         if not sxglobals.refreshInProgress:
             sxglobals.refreshInProgress = True
 
-        then = time.time()
+        then = time.perf_counter()
         scene = bpy.context.scene.sxtools
         viewlayer = bpy.context.view_layer
         orgObjNames = {}
@@ -3996,12 +3996,12 @@ class SXTOOLS_magic(object):
                 layer.locked = False
 
         # Make sure export and source Collections exist
-        if 'ExportObjects' not in bpy.data.collections.keys():
+        if 'ExportObjects' not in bpy.data.collections:
             exportObjects = bpy.data.collections.new('ExportObjects')
         else:
             exportObjects = bpy.data.collections['ExportObjects']
 
-        if 'SourceObjects' not in bpy.data.collections.keys():
+        if 'SourceObjects' not in bpy.data.collections:
             sourceObjects = bpy.data.collections.new('SourceObjects')
         else:
             sourceObjects = bpy.data.collections['SourceObjects']
@@ -4061,7 +4061,7 @@ class SXTOOLS_magic(object):
                 exportObjects.objects.link(group)
 
             for obj in objs:
-                if obj.name not in sourceObjects.objects.keys():
+                if obj.name not in sourceObjects.objects:
                     sourceObjects.objects.link(obj)
                 orgObjNames[obj] = [obj.name, obj.data.name][:]
                 obj.data.name = obj.data.name + '_org'
@@ -4202,7 +4202,7 @@ class SXTOOLS_magic(object):
                         obj.select_set(False)
                         obj.hide_viewport = True
 
-                now = time.time()
+                now = time.perf_counter()
                 print('SX Tools: ', category, ' / ', len(groupList), ' groups duration: ', now-then, ' seconds')
 
         for obj in viewlayer.objects:
@@ -4244,7 +4244,7 @@ class SXTOOLS_magic(object):
 
             # self.apply_modifiers(objs)
 
-        now = time.time()
+        now = time.perf_counter()
         print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
 
         scene.toolmode = org_toolmode
@@ -4260,7 +4260,7 @@ class SXTOOLS_magic(object):
         for obj in objs:
             obj.sxtools.modifiervisibility = True
 
-        now = time.time()
+        now = time.perf_counter()
         print('SX Tools: Modifier stack duration: ', now-then, ' seconds')
 
         utils.mode_manager(objs, revert=True, mode_id='process_objects')
@@ -4843,12 +4843,12 @@ class SXTOOLS_export(object):
                     if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
                         sepObjs.append(obj)
 
-            if 'ExportObjects' not in bpy.data.collections.keys():
+            if 'ExportObjects' not in bpy.data.collections:
                 exportObjects = bpy.data.collections.new('ExportObjects')
             else:
                 exportObjects = bpy.data.collections['ExportObjects']
 
-            if 'SourceObjects' not in bpy.data.collections.keys():
+            if 'SourceObjects' not in bpy.data.collections:
                 sourceObjects = bpy.data.collections.new('SourceObjects')
             else:
                 sourceObjects = bpy.data.collections['SourceObjects']
@@ -4958,12 +4958,12 @@ class SXTOOLS_export(object):
         bbxheight = zmax - zmin
 
         # Make sure source and export Collections exist
-        if 'ExportObjects' not in bpy.data.collections.keys():
+        if 'ExportObjects' not in bpy.data.collections:
             exportObjects = bpy.data.collections.new('ExportObjects')
         else:
             exportObjects = bpy.data.collections['ExportObjects']
 
-        if 'SourceObjects' not in bpy.data.collections.keys():
+        if 'SourceObjects' not in bpy.data.collections:
             sourceObjects = bpy.data.collections.new('SourceObjects')
         else:
             sourceObjects = bpy.data.collections['SourceObjects']
@@ -5036,22 +5036,22 @@ class SXTOOLS_export(object):
         active_obj = bpy.context.view_layer.objects.active
         scene = bpy.context.scene.sxtools
 
-        if 'ExportObjects' not in bpy.data.collections.keys():
+        if 'ExportObjects' not in bpy.data.collections:
             exportObjects = bpy.data.collections.new('ExportObjects')
         else:
             exportObjects = bpy.data.collections['ExportObjects']
 
-        if 'SXColliders' not in bpy.data.collections.keys():
+        if 'SXColliders' not in bpy.data.collections:
             colliders = bpy.data.collections.new('SXColliders')
         else:
             colliders = bpy.data.collections['SXColliders']
 
-        if 'CollisionSourceObjects' not in bpy.data.collections.keys():
+        if 'CollisionSourceObjects' not in bpy.data.collections:
             collisionSourceObjects = bpy.data.collections.new('CollisionSourceObjects')
         else:
             collisionSourceObjects = bpy.data.collections['CollisionSourceObjects']
 
-        if colliders.name not in bpy.context.scene.collection.children.keys():
+        if colliders.name not in bpy.context.scene.collection.children:
             bpy.context.scene.collection.children.link(colliders)
 
         for obj in org_objs:
@@ -5142,12 +5142,12 @@ class SXTOOLS_export(object):
 
 
     def remove_exports(self):
-        if 'ExportObjects' in bpy.data.collections.keys():
+        if 'ExportObjects' in bpy.data.collections:
             exportObjects = bpy.data.collections['ExportObjects'].objects
             for obj in exportObjects:
                 bpy.data.objects.remove(obj, do_unlink=True)
 
-        if 'SourceObjects' in bpy.data.collections.keys():
+        if 'SourceObjects' in bpy.data.collections:
             sourceObjects = bpy.data.collections['SourceObjects'].objects
             tags = sxglobals.keywords
             for obj in sourceObjects:
@@ -5182,7 +5182,7 @@ def update_layers(self, context):
     if not sxglobals.refreshInProgress:
         update_gpu_props(self, context)
 
-        if 'SXMaterial' not in bpy.data.materials.keys():
+        if 'SXMaterial' not in bpy.data.materials:
             setup.create_sxmaterial()
 
         shading_mode(self, context)
@@ -5458,7 +5458,7 @@ def ext_category_lister(self, context, category):
     categories = []
     for item in items:
         categoryEnum = item.category.replace(" ", "").upper()
-        if categoryEnum not in sxglobals.presetLookup.keys():
+        if categoryEnum not in sxglobals.presetLookup:
             sxglobals.presetLookup[categoryEnum] = item.category
         enumItem = (categoryEnum, item.category, '')
         categories.append(enumItem)
@@ -5549,34 +5549,34 @@ def update_modifiers(self, context, prop):
     if len(objs) > 0:
         if prop == 'modifiervisibility':
             for obj in objs:
-                if 'sxMirror' in obj.modifiers.keys():
+                if 'sxMirror' in obj.modifiers:
                     obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxSubdivision' in obj.modifiers.keys():
+                if 'sxSubdivision' in obj.modifiers:
                     if (obj.sxtools.subdivisionlevel == 0):
                         obj.modifiers['sxSubdivision'].show_viewport = False
                     else:
                         obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxDecimate' in obj.modifiers.keys():
+                if 'sxDecimate' in obj.modifiers:
                     if (obj.sxtools.subdivisionlevel == 0.0):
                         obj.modifiers['sxDecimate'].show_viewport = False
                     else:
                         obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxDecimate2' in obj.modifiers.keys():
+                if 'sxDecimate2' in obj.modifiers:
                     if (obj.sxtools.subdivisionlevel == 0.0):
                         obj.modifiers['sxDecimate2'].show_viewport = False
                     else:
                         obj.modifiers['sxDecimate2'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxBevel' in obj.modifiers.keys():
+                if 'sxBevel' in obj.modifiers:
                     if obj.sxtools.bevelsegments == 0:
                         obj.modifiers['sxBevel'].show_viewport = False
                     else:
                         obj.modifiers['sxBevel'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxWeld' in obj.modifiers.keys():
+                if 'sxWeld' in obj.modifiers:
                     if (obj.sxtools.weldthreshold == 0.0):
                         obj.modifiers['sxWeld'].show_viewport = False
                     else:
                         obj.modifiers['sxWeld'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxWeightedNormal' in obj.modifiers.keys():
+                if 'sxWeightedNormal' in obj.modifiers:
                     if not obj.sxtools.weightednormals:
                         obj.modifiers['sxWeightedNormal'].show_viewport = False
                     else:
@@ -5584,7 +5584,7 @@ def update_modifiers(self, context, prop):
 
         elif (prop == 'xmirror') or (prop == 'ymirror') or (prop == 'zmirror') or (prop == 'mirrorobject'):
             for obj in objs:
-                if 'sxMirror' in obj.modifiers.keys():
+                if 'sxMirror' in obj.modifiers:
                     obj.modifiers['sxMirror'].use_axis[0] = obj.sxtools.xmirror
                     obj.modifiers['sxMirror'].use_axis[1] = obj.sxtools.ymirror
                     obj.modifiers['sxMirror'].use_axis[2] = obj.sxtools.zmirror
@@ -5601,7 +5601,7 @@ def update_modifiers(self, context, prop):
 
         elif prop == 'hardmode':
             for obj in objs:
-                if 'sxWeightedNormal' in obj.modifiers.keys():
+                if 'sxWeightedNormal' in obj.modifiers:
                     if obj.sxtools.hardmode == 'SMOOTH':
                         obj.modifiers['sxWeightedNormal'].keep_sharp = False
                     else:
@@ -5609,18 +5609,18 @@ def update_modifiers(self, context, prop):
 
         elif prop == 'subdivisionlevel':
             for obj in objs:
-                if 'sxSubdivision' in obj.modifiers.keys():
+                if 'sxSubdivision' in obj.modifiers:
                     obj.modifiers['sxSubdivision'].levels = obj.sxtools.subdivisionlevel
                     if obj.sxtools.subdivisionlevel == 0:
                         obj.modifiers['sxSubdivision'].show_viewport = False
                     else:
                         obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxDecimate' in obj.modifiers.keys():
+                if 'sxDecimate' in obj.modifiers:
                     if obj.sxtools.subdivisionlevel == 0:
                         obj.modifiers['sxDecimate'].show_viewport = False
                     else:
                         obj.modifiers['sxDecimate'].show_viewport = obj.sxtools.modifiervisibility
-                if 'sxDecimate2' in obj.modifiers.keys():
+                if 'sxDecimate2' in obj.modifiers:
                     if obj.sxtools.subdivisionlevel == 0:
                         obj.modifiers['sxDecimate2'].show_viewport = False
                     else:
@@ -5628,7 +5628,7 @@ def update_modifiers(self, context, prop):
 
         elif (prop == 'bevelwidth') or (prop == 'bevelsegments') or (prop == 'beveltype'):
             for obj in objs:
-                if 'sxBevel' in obj.modifiers.keys():
+                if 'sxBevel' in obj.modifiers:
                     if obj.sxtools.bevelsegments == 0:
                         obj.modifiers['sxBevel'].show_viewport = False
                     else:
@@ -5640,7 +5640,7 @@ def update_modifiers(self, context, prop):
 
         elif prop == 'weldthreshold':
             for obj in objs:
-                if 'sxWeld' in obj.modifiers.keys():
+                if 'sxWeld' in obj.modifiers:
                     obj.modifiers['sxWeld'].merge_threshold = obj.sxtools.weldthreshold
                     if obj.sxtools.weldthreshold == 0:
                         obj.modifiers['sxWeld'].show_viewport = False
@@ -5649,7 +5649,7 @@ def update_modifiers(self, context, prop):
 
         elif prop == 'decimation':
             for obj in objs:
-                if 'sxDecimate' in obj.modifiers.keys():
+                if 'sxDecimate' in obj.modifiers:
                     obj.modifiers['sxDecimate'].angle_limit = math.radians(obj.sxtools.decimation)
                     if obj.sxtools.decimation == 0.0:
                         obj.modifiers['sxDecimate'].show_viewport = False
@@ -5660,7 +5660,7 @@ def update_modifiers(self, context, prop):
 
         elif prop == 'weightednormals':
             for obj in objs:
-                if 'sxWeightedNormal' in obj.modifiers.keys():
+                if 'sxWeightedNormal' in obj.modifiers:
                     obj.modifiers['sxWeightedNormal'].show_viewport = obj.sxtools.weightednormals
 
 
@@ -5925,7 +5925,7 @@ def load_post_handler(dummy):
         if (len(obj.sxtools.keys()) > 0):
             if obj.sxtools.hardmode == '':
                 obj.sxtools.hardmode = 'SHARP'
-        if 'sxlayers' in obj.keys():
+        if 'sxlayers' in obj:
             if (len(obj.sxlayers) > 7):
                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'PBR'
                 obj['occlusion_visibility'] = True
@@ -5981,8 +5981,8 @@ def save_post_handler(dummy):
             # prefix = os.path.commonpath([asset_path, file_path])
             # file_rel_path = os.path.relpath(file_path, asset_path)
 
-            for category in catalogue_dict.keys():
-                for key in catalogue_dict[category].keys():
+            for category in catalogue_dict:
+                for key in catalogue_dict[category]:
                     key_path = key.replace('//', os.path.sep)
                     if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
                         catalogue_dict[category][key]['revision'] = str(revision)
@@ -7265,7 +7265,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                     col.prop(scene, 'enableemission', text='Emission (UV)')
                     col.separator()
                     col.prop(scene, 'eraseuvs', text='Erase Existing UV Sets')
-                if 'SXMaterial' in bpy.data.materials.keys():
+                if 'SXMaterial' in bpy.data.materials:
                     col.enabled = False
                 col2 = layout.column(align=True)
                 if (len(objs) == 1):
@@ -8123,7 +8123,7 @@ class SXTOOLS_OT_addpalettecategory(bpy.types.Operator):
     def execute(self, context):
         found = False
         for i, categoryDict in enumerate(sxglobals.masterPaletteArray):
-            for category in categoryDict.keys():
+            for category in categoryDict:
                 if category == self.paletteCategoryName.replace(" ", ""):
                     message_box('Palette Category Exists!')
                     found = True
@@ -8152,7 +8152,7 @@ class SXTOOLS_OT_delpalettecategory(bpy.types.Operator):
         categoryName = sxglobals.presetLookup[context.scene.sxtools.palettecategories]
 
         for i, categoryDict in enumerate(sxglobals.masterPaletteArray):
-            for category in categoryDict.keys():
+            for category in categoryDict:
                 if category == categoryName:
                     sxglobals.masterPaletteArray.remove(categoryDict)
                     del sxglobals.presetLookup[categoryEnum]
@@ -8184,7 +8184,7 @@ class SXTOOLS_OT_addmaterialcategory(bpy.types.Operator):
     def execute(self, context):
         found = False
         for i, categoryDict in enumerate(sxglobals.materialArray):
-            for category in categoryDict.keys():
+            for category in categoryDict:
                 if category == self.materialCategoryName.replace(" ", ""):
                     message_box('Palette Category Exists!')
                     found = True
@@ -8213,7 +8213,7 @@ class SXTOOLS_OT_delmaterialcategory(bpy.types.Operator):
         categoryName = sxglobals.presetLookup[context.scene.sxtools.materialcategories]
 
         for i, categoryDict in enumerate(sxglobals.materialArray):
-            for category in categoryDict.keys():
+            for category in categoryDict:
                 if category == categoryName:
                     sxglobals.materialArray.remove(categoryDict)
                     del sxglobals.presetLookup[categoryEnum]
@@ -8297,7 +8297,7 @@ class SXTOOLS_OT_delpalette(bpy.types.Operator):
         category = context.scene.sxpalettes[paletteName].category
 
         for i, categoryDict in enumerate(sxglobals.masterPaletteArray):
-            if category in categoryDict.keys():
+            if category in categoryDict:
                 del categoryDict[category][paletteName]
 
         files.save_file('palettes')
@@ -8368,7 +8368,7 @@ class SXTOOLS_OT_delmaterial(bpy.types.Operator):
         category = context.scene.sxmaterials[materialName].category
 
         for i, categoryDict in enumerate(sxglobals.materialArray):
-            if category in categoryDict.keys():
+            if category in categoryDict:
                 del categoryDict[category][materialName]
 
         files.save_file('materials')
@@ -9023,8 +9023,8 @@ class SXTOOLS_OT_resetmaterial(bpy.types.Operator):
     def invoke(self, context, event):
         sxMatObjs = []
         sxMats = []
-        if 'SXMaterial' in bpy.data.materials.keys():
-            for mat in bpy.data.materials.keys():
+        if 'SXMaterial' in bpy.data.materials:
+            for mat in bpy.data.materials:
                 if 'SXMaterial' in mat:
                     sxMats.append(mat)
 
@@ -9276,15 +9276,15 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
             return {'FINISHED'}
 
         # Check if file already in catalogue
-        for category in catalogue_dict.keys():
-            for key in catalogue_dict[category].keys():
+        for category in catalogue_dict:
+            for key in catalogue_dict[category]:
                 key_path = key.replace('//', os.path.sep)
                 if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
                     message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
                     return {'FINISHED'}
 
         # Check if the Catalogue already contains the asset category
-        if asset_category not in catalogue_dict.keys():
+        if asset_category not in catalogue_dict:
             catalogue_dict[asset_category] = {}
 
         # Save entry with a platform-independent path separator
@@ -9354,7 +9354,7 @@ class SXTOOLS_OT_catalogue_remove(bpy.types.Operator):
             message_box('File not located under asset folders!', 'SX Tools Error', 'ERROR')
             return {'FINISHED'}
 
-        for asset_category in asset_dict.keys():
+        for asset_category in asset_dict:
             asset_dict[asset_category].pop(file_rel_path.replace(os.path.sep, '//'), None)
 
         self.save_asset_data(prefs.cataloguepath, asset_dict)
