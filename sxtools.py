@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 4),
+    'version': (5, 32, 5),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -322,7 +322,7 @@ class SXTOOLS_files(object):
                         collider.select_set(True)
 
                 exportPath = path + group.name + '.' + 'fbx'
-                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y']
+                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y', 'Z', 'X']
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
@@ -336,6 +336,8 @@ class SXTOOLS_files(object):
                     axis_forward=export_settings[5],
                     use_active_collection=False,
                     add_leaf_bones=False,
+                    primary_bone_axis=export_settings[6],
+                    secondary_bone_axis=export_settings[7],
                     object_types={'ARMATURE', 'EMPTY', 'MESH'},
                     use_custom_props=True,
                     use_metadata=False)
