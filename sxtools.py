@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 7),
+    'version': (5, 32, 8),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -139,16 +139,16 @@ class SXTOOLS_files(object):
                         sxglobals.categoryDict = tempDict
 
                     input.close()
-                print('SX Tools: ' + mode + ' loaded from ' + filePath)
+                print(f'SX Tools: {mode} loaded from {filePath}')
             except ValueError:
-                print('SX Tools Error: Invalid ' + mode + ' file.')
+                print(f'SX Tools Error: Invalid {mode} file.')
                 prefs.libraryfolder = ''
                 return False
             except IOError:
-                print('SX Tools Error: ' + mode + ' file not found!')
+                print(f'SX Tools Error: {mode} file not found!')
                 return False
         else:
-            print('SX Tools: No ' + mode + ' file found')
+            print(f'SX Tools: No {mode} file found')
             return False
 
         if mode == 'palettes':
@@ -313,7 +313,7 @@ class SXTOOLS_files(object):
                     path = scene.exportfolder
                 else:
                     category = objArray[0].sxtools.category.lower()
-                    print('Determining path: ', objArray[0].name, category)
+                    print(f'Determining path: {objArray[0].name} {category}')
                     path = scene.exportfolder + category + os.path.sep
                     pathlib.Path(path).mkdir(exist_ok=True)
 
@@ -350,7 +350,7 @@ class SXTOOLS_files(object):
         else:
             message_box('Exported:\n' + str('\n').join(groupNames))
             for group_name in groupNames:
-                print('Completed:', group_name)
+                print(f'Completed: {group_name}')
 
 
 # ------------------------------------------------------------------------
@@ -3756,11 +3756,11 @@ class SXTOOLS_tools(object):
             bpy.context.view_layer.objects.active = obj
             setCount = len(obj.data.uv_layers)
             if setCount == 0:
-                print('SX Tools Error: ', obj.name, ' has no UV Sets')
+                print(f'SX Tools Error: {obj.name} has no UV Sets')
             elif setCount > 6:
                 base = obj.data.uv_layers[0]
                 if base.name != 'UVSet0':
-                    print('SX Tools Error: ', obj.name, ' does not have enough free UV Set slots for the operation (2 free slots needed)')
+                    print(f'SX Tools Error: {obj.name} does not have enough free UV Set slots for the operation (2 free slots needed)')
             else:
                 base = obj.data.uv_layers[0]
                 if 'UVSet' not in base.name:
@@ -3775,7 +3775,7 @@ class SXTOOLS_tools(object):
                         bpy.ops.mesh.uv_texture_remove()
                         obj.data.uv_layers[setCount].name = uvName
                 else:
-                    print('SX Tools Error: ', obj.name, ' has an unknown UV Set configuration')
+                    print(f'SX Tools Error: {obj.name} has an unknown UV Set configuration')
 
         bpy.context.view_layer.objects.active = active
 
@@ -3855,7 +3855,7 @@ class SXTOOLS_validate(object):
         try:
             sxmaterial = bpy.data.materials['SXMaterial'].node_tree
         except:
-            print('SX Tools Error: Invalid SX Material on', objs, 'Performing SX Material reset.')
+            print(f'SX Tools Error: Invalid SX Material on {objs}. \nPerforming SX Material reset.')
             bpy.ops.sxtools.resetmaterial('EXEC_DEFAULT')
 
 
@@ -3864,13 +3864,13 @@ class SXTOOLS_validate(object):
         for obj in objs:
             if len(obj.data.uv_layers) != 7:
                 message_box('Objects contain an invalid number of UV Sets!')
-                print('SX Tools Error:', obj.name, 'has invalid UV Sets')
+                print(f'SX Tools Error: {obj.name} has invalid UV Sets')
                 return False
 
             for i, uv_layer in enumerate(obj.data.uv_layers):
                 if uv_layer.name != 'UVSet'+str(i):
                     message_box('Objects contain incorrectly named UV Sets!')
-                    print('SX Tools Error:', obj.name, 'has incorrect UV Set naming')
+                    print(f'SX Tools Error: {obj.name} has incorrect UV Set naming')
                     return False
 
         return True
@@ -3891,7 +3891,7 @@ class SXTOOLS_validate(object):
 
             if True in selection:
                 message_box('Objects contain loose geometry!')
-                print('SX Tools Error:', obj.name, 'contains loose geometry')
+                print(f'SX Tools Error: {obj.name} contains loose geometry')
                 return False
 
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
@@ -3903,7 +3903,7 @@ class SXTOOLS_validate(object):
         for obj in objs:
             if obj.parent is None:
                 message_box('Object is not in a group: ' + obj.name)
-                print('SX Tools Error:', obj.name, 'is not in a group')
+                print(f'SX Tools Error: {obj.name} is not in a group')
                 return False
 
         return True
@@ -3927,12 +3927,12 @@ class SXTOOLS_validate(object):
 
                     if i == 0:
                         if len(colorSet) > 1:
-                            print('SX Tools Error: Multiple colors in ' + obj.name + ' layer' + str(i+1))
+                            print(f'SX Tools Error: Multiple colors in {obj.name} layer {i+1}')
                             message_box('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             return False
                     else:
                         if len(colorSet) > 2:
-                            print('SX Tools Error: Multiple colors in ' + obj.name + ' layer' + str(i+1))
+                            print(f'SX Tools Error: Multiple colors in {obj.name} layer {i+1}')
                             message_box('Multiple colors in ' + obj.name + ' layer' + str(i+1))
                             return False
         return True
@@ -4203,7 +4203,7 @@ class SXTOOLS_magic(object):
                         obj.hide_viewport = True
 
                 now = time.perf_counter()
-                print('SX Tools: ', category, ' / ', len(groupList), ' groups duration: ', now-then, ' seconds')
+                print(f'SX Tools: {category} / {len(groupList)} groups duration: {now-then} seconds')
 
         for obj in viewlayer.objects:
             if (scene.exportquality == 'HI') and ('_org' in obj.name):
@@ -4245,7 +4245,7 @@ class SXTOOLS_magic(object):
             # self.apply_modifiers(objs)
 
         now = time.perf_counter()
-        print('SX Tools: Mesh processing duration: ', now-then, ' seconds')
+        print(f'SX Tools: Mesh processing duration: {now-then} seconds')
 
         scene.toolmode = org_toolmode
         scene.toolopacity = org_toolopacity
@@ -4261,7 +4261,7 @@ class SXTOOLS_magic(object):
             obj.sxtools.modifiervisibility = True
 
         now = time.perf_counter()
-        print('SX Tools: Modifier stack duration: ', now-then, ' seconds')
+        print(f'SX Tools: Modifier stack duration: {now-then} seconds')
 
         utils.mode_manager(objs, revert=True, mode_id='process_objects')
         sxglobals.refreshInProgress = False
@@ -4978,7 +4978,7 @@ class SXTOOLS_export(object):
 
         if lodCount > 1:
             for i in range(lodCount):
-                print('SX Tools: Generating LOD' + str(i))
+                print(f'SX Tools: Generating LOD {i}')
                 if i == 0:
                     for obj in orgObjArray:
                         obj.data.name = obj.data.name + '_LOD' + str(i)
