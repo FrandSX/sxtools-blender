@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 6),
+    'version': (5, 32, 7),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -322,7 +322,7 @@ class SXTOOLS_files(object):
                         collider.select_set(True)
 
                 exportPath = path + group.name + '.' + 'fbx'
-                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y', 'Z', 'X']
+                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y', '-Y', '-X']
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
@@ -9617,6 +9617,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Grouping of objs with armatures
 # BUG: Cost calculation missing for subdiv 0
 # BUG: Refresh modifiers when saving to catalogue to update cost value
 # BUG: Tri count calculator does not update upon adding modifiers
