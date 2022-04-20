@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 8),
+    'version': (5, 32, 10),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5967,8 +5967,8 @@ def save_post_handler(dummy):
 
     for obj in bpy.data.objects:
         if len(obj.sxtools.keys()) > 0:
-            revision = obj['revision']
-            break
+            if obj['revision'] > revision:
+                revision = obj['revision']
 
     if len(prefs.cataloguepath) > 0:
         try:
@@ -9259,6 +9259,14 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
 
         cost = utils.calculate_triangles(objs)
 
+        revision = 1
+        for obj in bpy.data.objects:
+            if (len(obj.sxtools.keys()) > 0):
+                if ('revision' not in obj.keys()):
+                    obj['revision'] = 1
+                elif obj['revision'] > revision:
+                    revision = obj['revision']
+
         file_path = bpy.data.filepath
 
         # Check if the open scene has been saved to a file
@@ -9275,14 +9283,6 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
             message_box('File not located under asset folders!', 'SX Tools Error', 'ERROR')
             return {'FINISHED'}
 
-        # Check if file already in catalogue
-        for category in catalogue_dict:
-            for key in catalogue_dict[category]:
-                key_path = key.replace('//', os.path.sep)
-                if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
-                    message_box('File already in catalogue!', 'SX Tools Error', 'ERROR')
-                    return {'FINISHED'}
-
         # Check if the Catalogue already contains the asset category
         if asset_category not in catalogue_dict:
             catalogue_dict[asset_category] = {}
@@ -9291,6 +9291,7 @@ class SXTOOLS_OT_catalogue_add(bpy.types.Operator):
         asset_dict['tags'] = asset_tags
         asset_dict['objects'] = groups
         asset_dict['cost'] = cost
+        asset_dict['revision'] = revision
 
         catalogue_dict[asset_category][file_rel_path.replace(os.path.sep, '//')] = asset_dict
         self.save_asset_data(prefs.cataloguepath, catalogue_dict)
