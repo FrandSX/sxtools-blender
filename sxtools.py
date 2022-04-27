@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 10),
+    'version': (5, 32, 11),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5965,10 +5965,18 @@ def save_post_handler(dummy):
     revision = 1
     prefs = bpy.context.preferences.addons['sxtools'].preferences
 
+    objs = []
     for obj in bpy.data.objects:
         if len(obj.sxtools.keys()) > 0:
+            objs.append(obj)
             if obj['revision'] > revision:
                 revision = obj['revision']
+
+    cost = str(utils.calculate_triangles(objs))
+    if cost == '0':
+        s = bpy.context.scene.statistics(bpy.context.view_layer)
+        cost = s.split("Tris:")[1].split(' ')[0].replace(',', '')
+
 
     if len(prefs.cataloguepath) > 0:
         try:
@@ -5986,6 +5994,7 @@ def save_post_handler(dummy):
                     key_path = key.replace('//', os.path.sep)
                     if os.path.samefile(file_path, os.path.join(asset_path, key_path)):
                         catalogue_dict[category][key]['revision'] = str(revision)
+                        catalogue_dict[category][key]['cost'] = cost
 
             with open(prefs.cataloguepath, 'w') as output:
                 json.dump(catalogue_dict, output, indent=4)
