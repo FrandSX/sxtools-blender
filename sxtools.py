@@ -9618,6 +9618,7 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Merge layers in edge mode gives an error message
 # BUG: Grouping of objs with armatures
 # BUG: Cost calculation missing for subdiv 0
 # BUG: Refresh modifiers when saving to catalogue to update cost value
