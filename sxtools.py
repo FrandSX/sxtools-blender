@@ -300,8 +300,10 @@ class SXTOOLS_files(object):
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
+
                     bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                    # bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
                 bpy.context.view_layer.objects.active = group
 
