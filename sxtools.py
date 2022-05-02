@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 11),
+    'version': (5, 32, 15),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -695,11 +695,21 @@ class SXTOOLS_utils(object):
 
     def clear_parent_inverse_matrix(self, objs):
         active = bpy.context.view_layer.objects.active
+        mtx_dict = {}
         for obj in objs:
             bpy.context.view_layer.objects.active = obj
-            world_loc = obj.matrix_world.to_translation()
-            obj.matrix_parent_inverse.identity()
-            obj.location = obj.parent.matrix_world.inverted() @ world_loc
+            mtx_dict[obj] = obj.matrix_world.copy()
+
+        task_list = objs[:]
+        while len(task_list) > 0:
+            for obj in objs:
+                if (obj.parent not in task_list) and (obj in task_list):
+                    bpy.context.view_layer.objects.active = obj
+                    obj.matrix_parent_inverse.identity()
+                    obj.matrix_world = mtx_dict[obj]
+                    task_list.remove(obj)
+                    if len(task_list) == 0:
+                        break
 
         bpy.context.view_layer.objects.active = active
 
@@ -3661,10 +3671,11 @@ class SXTOOLS_tools(object):
         group.sxtools.exportready = False
 
         for obj in objs:
-            obj.parent = group
-            obj.location.x -= group.location.x
-            obj.location.y -= group.location.y
-            obj.location.z -= group.location.z
+            if obj.parent is None:
+                obj.parent = group
+                obj.location.x -= group.location.x
+                obj.location.y -= group.location.y
+                obj.location.z -= group.location.z
 
         utils.mode_manager(objs, revert=True, mode_id='group_objects')
 
