@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 15),
+    'version': (5, 32, 16),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -8460,6 +8460,8 @@ class SXTOOLS_OT_mergeup(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         enabled = False
+        if sxglobals.mode == 'EDIT':
+            return enabled
         objs = context.view_layer.objects.selected
         meshObjs = []
         for obj in objs:
@@ -8497,6 +8499,8 @@ class SXTOOLS_OT_mergedown(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         enabled = False
+        if sxglobals.mode == 'EDIT':
+            return enabled
         objs = context.view_layer.objects.selected
         meshObjs = []
         for obj in objs:
