@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 16),
+    'version': (5, 32, 17),
     'blender': (3, 1, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -4742,12 +4742,15 @@ class SXTOOLS_magic(object):
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['metallic'])
 
-            # Windows are smooth
+            # Windows are smooth and emissive
             colors = generate.color_list(obj, color=(1.0, 1.0, 1.0, 1.0), masklayer=utils.find_layer_from_index(obj, 7))
             base = layers.get_layer(obj, obj.sxlayers['smoothness'])
-            colors = colors = tools.blend_values(colors, base, 'ALPHA', 1.0)
+            colors = tools.blend_values(colors, base, 'ALPHA', 1.0)
             if colors is not None:
                 layers.set_layer(obj, colors, obj.sxlayers['smoothness'])
+            emission = generate.color_list(obj, color=(0.1, 0.1, 0.1, 0.1), masklayer=utils.find_layer_from_index(obj, 7))
+            if emission is not None:
+                layers.set_layer(obj, emission, obj.sxlayers['emission'])
 
 
         for obj in objs_windows:
