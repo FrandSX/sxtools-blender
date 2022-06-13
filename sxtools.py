@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (5, 32, 16),
-    'blender': (3, 1, 0),
+    'version': (6, 0, 1),
+    'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -25,7 +25,7 @@ import os
 import numpy as np
 from bpy.app.handlers import persistent
 from collections import Counter
-from mathutils import Vector
+from mathutils import Vector, Color
 
 
 # ------------------------------------------------------------------------
@@ -84,6 +84,28 @@ class SXTOOLS_sxglobals(object):
             ['texture', False, 16, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U', False],
             ['masks', False, 17, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
  
+        self.layer_init_dict = {
+            0:  {'index': 0,  'name': 'composite',    'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor0',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            1:  {'index': 1,  'name': 'layer1',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor1',  'default_color': (0.5, 0.5, 0.5, 1.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            2:  {'index': 2,  'name': 'layer2',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor2',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            3:  {'index': 3,  'name': 'layer3',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor3',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            4:  {'index': 4,  'name': 'layer4',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor4',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            5:  {'index': 5,  'name': 'layer5',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor5',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            6:  {'index': 6,  'name': 'layer6',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor6',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            7:  {'index': 7,  'name': 'layer7',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor7',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            8:  {'index': 8,  'name': 'gradient1',    'enabled': False, 'layer_type': 'UV',    'export_data': ('U4', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            9:  {'index': 9,  'name': 'gradient2',    'enabled': False, 'layer_type': 'UV',    'export_data': ('V4', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            10: {'index': 10, 'name': 'overlay',      'enabled': False, 'layer_type': 'UV4',   'export_data': ('U5', 'V5', 'U6', 'V6'), 'default_color': (0.5, 0.5, 0.5, 1.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'OVR', 'locked': False},
+            11: {'index': 11, 'name': 'occlusion',    'enabled': False, 'layer_type': 'UV',    'export_data': ('V1', ),        'default_color': (1.0, 1.0, 1.0, 1.0), 'default_value': 1.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            12: {'index': 12, 'name': 'metallic',     'enabled': False, 'layer_type': 'UV',    'export_data': ('U3', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            13: {'index': 13, 'name': 'smoothness',   'enabled': False, 'layer_type': 'UV',    'export_data': ('V3', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            14: {'index': 14, 'name': 'transmission', 'enabled': False, 'layer_type': 'UV',    'export_data': ('U2', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            15: {'index': 15, 'name': 'emission',     'enabled': False, 'layer_type': 'UV',    'export_data': ('V2', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            16: {'index': 16, 'name': 'texture',      'enabled': False, 'layer_type': 'UV',    'export_data': ('U0', 'V0'),    'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
+            17: {'index': 17, 'name': 'masks',        'enabled': False, 'layer_type': 'UV',    'export_data': ('U1', ),        'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False}
+        }
+
+
         # Brush tools may leave low alpha values that break
         # palettemasks, alphaTolerance can be used to fix this.
         # The default setting accepts only fully opaque values.
@@ -246,7 +268,7 @@ class SXTOOLS_files(object):
     def export_files(self, groups):
         scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences.addons['sxtools'].preferences
-        colorspace = prefs.colorspace
+        exportspace = prefs.exportspace
         empty = True
 
         if 'ExportObjects' not in bpy.data.collections:
@@ -307,9 +329,9 @@ class SXTOOLS_files(object):
 
                 bpy.context.view_layer.objects.active = group
 
-                # If linear colorspace exporting is selected
-                if colorspace == 'LIN':
-                    export.convert_to_linear(objArray)
+                # If srgb colorspace exporting is selected
+                if exportspace == 'SRGB':
+                    export.convert_to_srgb(objArray)
 
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
@@ -454,6 +476,7 @@ class SXTOOLS_utils(object):
         for value_array in sxglobals.layerInitArray:
             if value_array[2] == idx:
                 return value_array[4]
+
 
     def find_default_values(self, obj, mode):
         sxLayerArray = []
@@ -785,6 +808,8 @@ class SXTOOLS_setup(object):
                 item.uvChannel3 = values[17]
                 item.locked = values[18]
 
+    # TODO: switch from vertexcolors to color attributes, migrate existing value sets
+    # C.view_layer.objects['Cube'].data.attributes.new(name='Liibadaaba', type='FLOAT_COLOR', domain='CORNER')
 
     def setup_geometry(self, objs):
         changed = False
@@ -866,6 +891,15 @@ class SXTOOLS_setup(object):
             bpy.context.scene.sxtools.shadingmode = 'FULL'
 
 
+    def set_colorspace(self):
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
+        if prefs.colorspace == 'SRGB':
+            bpy.context.scene.display_settings.display_device = 'sRGB'
+        else:
+            bpy.context.scene.display_settings.display_device = 'None'
+        bpy.context.scene.view_settings.view_transform = 'Standard'
+
+
     def create_sxmaterial(self):
         prefs = bpy.context.preferences.addons['sxtools'].preferences
         if prefs.materialtype == 'SMP':
@@ -896,11 +930,13 @@ class SXTOOLS_setup(object):
             pCol.name = 'PaletteColor' + str(i)
             pCol.location = (-1000+(200*i), -400)
 
-        sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
-        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
-        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 0)
+        comp_node = sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
+        comp_node.name = 'CompositeColor'
+        comp_node.attribute_name = compositeUVSet
+        comp_node.attribute_type = 'GEOMETRY'
+        comp_node.location = (-600, 0)
 
-        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+        output = comp_node.outputs['Color']
         input = sxmaterial.node_tree.nodes['Material Output'].inputs['Surface']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -1058,9 +1094,10 @@ class SXTOOLS_setup(object):
         # Vertex color and alpha sources
         # for i in range(numlayers + numgradients + numoverlays - 1):
         #     if i < numlayers:
-        #         colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
+        #         colornode = sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
         #         colornode.name = 'VertexColor' + str(i + 1)
-        #         colornode.layer_name = 'VertexColor' + str(i + 1)
+        #         colornode.attribute_name = 'VertexColor' + str(i + 1)
+        #         colornode.attribute_type = 'GEOMETRY'
         #         colornode.location = (i*200-1400, 650)
 
         #     mixnode = sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
@@ -1137,9 +1174,13 @@ class SXTOOLS_setup(object):
 
         #         mixnode.name = 'Final Step'
 
-        sxmaterial.node_tree.nodes.new(type='ShaderNodeVertexColor')
-        sxmaterial.node_tree.nodes['Vertex Color'].layer_name = compositeUVSet
-        sxmaterial.node_tree.nodes['Vertex Color'].location = (-600, 200)
+
+        comp_node = sxmaterial.node_tree.nodes.new(type='ShaderNodeAttribute')
+        comp_node.name = 'CompositeColor'
+        comp_node.attribute_name = compositeUVSet
+        comp_node.attribute_type = 'GEOMETRY'
+        comp_node.location = (-600, 200)
+
 
         sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
         sxmaterial.node_tree.nodes['Mix'].inputs[0].default_value = 1
@@ -1197,12 +1238,12 @@ class SXTOOLS_setup(object):
 
         # Node connections
         # Vertex alpha to shader alpha
-        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Alpha']
+        output = sxmaterial.node_tree.nodes['CompositeColor'].outputs['Alpha']
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Alpha']
         sxmaterial.node_tree.links.new(input, output)
 
         # Vertex color to mixer
-        output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+        output = sxmaterial.node_tree.nodes['CompositeColor'].outputs['Color']
         input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -1323,7 +1364,7 @@ class SXTOOLS_setup(object):
             removeColList = []
             removeUVList = []
             if obj.type == 'MESH':
-                for vertexColor in obj.data.vertex_colors:
+                for vertexColor in obj.data.attributes:
                     if 'VertexColor' in vertexColor.name:
                         removeColList.append(vertexColor.name)
                 for uvLayer in obj.data.uv_layers:
@@ -1337,7 +1378,7 @@ class SXTOOLS_setup(object):
             obj.sxtools.selectedlayer = 1
 
             for vertexColor in removeColList:
-                obj.data.vertex_colors.remove(obj.data.vertex_colors[vertexColor])
+                obj.data.attributes.remove(obj.data.attributes[vertexColor])
             for uvLayer in removeUVList:
                 obj.data.uv_layers.remove(obj.data.uv_layers[uvLayer])
 
@@ -1488,16 +1529,16 @@ class SXTOOLS_convert(object):
         return None
 
 
-    def color_to_luminance(self, color):
+    def color_to_luminance(self, in_rgba):
         lumR = 0.212655
         lumG = 0.715158
         lumB = 0.072187
+        alpha = in_rgba[3]
 
-        linColor = self.srgb_to_linear(color)
+        linColor = convert.srgb_to_linear(in_rgba)
         linLum = lumR * linColor[0] + lumG * linColor[1] + lumB * linColor[2]
-        luminance = self.linear_to_srgb([linLum, linLum, linLum, 1.0])[0]
-        # luminance = ((color[0] + color[0] + color[2] + color[1] + color[1] + color[1]) / float(6.0))
-        return luminance * color[3]
+        luminance = convert.linear_to_srgb((linLum, linLum, linLum, alpha))[0]
+        return luminance * alpha
 
 
     def luminance_to_color(self, value):
@@ -1508,40 +1549,40 @@ class SXTOOLS_convert(object):
         return (1.0, 1.0, 1.0, value)
 
 
-    def srgb_to_linear(self, inColor):
-        outColor = []
+    def srgb_to_linear(self, in_rgba):
+        out_rgba = []
         for i in range(4):
-            if inColor[i] < 0.0:
-                outColor.append(0.0)
-            elif 0.0 <= inColor[i] <= 0.0404482362771082:
-                outColor.append(float(inColor[i]) / 12.92)
-            elif 0.0404482362771082 < inColor[i] <= 1.0:
-                outColor.append(((inColor[i] + 0.055) / 1.055) ** 2.4)
-            elif inColor[i] > 1.0:
-                outColor.append(1.0)
+            if in_rgba[i] < 0.0:
+                out_rgba.append(0.0)
+            elif 0.0 <= in_rgba[i] <= 0.0404482362771082:
+                out_rgba.append(float(in_rgba[i]) / 12.92)
+            elif 0.0404482362771082 < in_rgba[i] <= 1.0:
+                out_rgba.append(((in_rgba[i] + 0.055) / 1.055) ** 2.4)
+            elif in_rgba[i] > 1.0:
+                out_rgba.append(1.0)
 
-        return tuple(outColor)
+        return out_rgba
 
 
-    def linear_to_srgb(self, inColor):
-        outColor = []
+    def linear_to_srgb(self, in_rgba):
+        out_rgba = []
         for i in range(4):
-            if inColor[i] < 0.0:
-                outColor.append(0.0)
-            elif 0.0 <= inColor[i] <= 0.00313066844250063:
-                outColor.append(float(inColor[i]) * 12.92)
-            elif 0.00313066844250063 < inColor[i] <= 1.0:
-                outColor.append(1.055 * inColor[i] ** (float(1.0)/2.4) - 0.055)
-            elif inColor[i] > 1.0:
-                outColor.append(1.0)
+            if in_rgba[i] < 0.0:
+                out_rgba.append(0.0)
+            elif 0.0 <= in_rgba[i] <= 0.00313066844250063:
+                out_rgba.append(float(in_rgba[i]) * 12.92)
+            elif 0.00313066844250063 < in_rgba[i] <= 1.0:
+                out_rgba.append(1.055 * in_rgba[i] ** (float(1.0)/2.4) - 0.055)
+            elif in_rgba[i] > 1.0:
+                out_rgba.append(1.0)
 
-        return tuple(outColor)
+        return out_rgba
 
 
-    def rgb_to_hsl(self, inColor):
-        R = inColor[0]
-        G = inColor[1]
-        B = inColor[2]
+    def rgb_to_hsl(self, in_rgba):
+        R = in_rgba[0]
+        G = in_rgba[1]
+        B = in_rgba[2]
         Cmax = max(R, G, B)
         Cmin = min(R, G, B)
 
@@ -1567,8 +1608,8 @@ class SXTOOLS_convert(object):
         return [H/360.0, S, L]
 
 
-    def hsl_to_rgb(self, inValue):
-        H, S, L = inValue
+    def hsl_to_rgb(self, in_value):
+        H, S, L = in_value
 
         v1 = 0.0
         v2 = 0.0
@@ -2051,7 +2092,7 @@ class SXTOOLS_generate(object):
 
 
     def color_list(self, obj, color, masklayer=None, as_tuple=False):
-        count = len(obj.data.vertex_colors[0].data)
+        count = len(obj.data.attributes[0].data)
         colors = [color[0], color[1], color[2], color[3]] * count
 
         return self.mask_list(obj, colors, masklayer, as_tuple)
@@ -2342,7 +2383,7 @@ class SXTOOLS_layers(object):
 
 
     def get_colors(self, obj, source):
-        sourceColors = obj.data.vertex_colors[source].data
+        sourceColors = obj.data.attributes[source].data
         colors = [None] * len(sourceColors) * 4
         sourceColors.foreach_get('color', colors)
 
@@ -2350,7 +2391,7 @@ class SXTOOLS_layers(object):
 
 
     def set_colors(self, obj, target, colors):
-        targetColors = obj.data.vertex_colors[target].data
+        targetColors = obj.data.attributes[target].data
         targetColors.foreach_set('color', colors)
 
 
@@ -2573,7 +2614,7 @@ class SXTOOLS_layers(object):
         channels = {'R': 0, 'G': 1, 'B': 2, 'A': 3, 'U': 0, 'V': 1}
 
         for obj in objs:
-            vertexColors = obj.data.vertex_colors
+            vertexColors = obj.data.attributes
             uvValues = obj.data.uv_layers
             layers = utils.find_color_layers(obj)
             del layers[0]
@@ -2695,6 +2736,7 @@ class SXTOOLS_layers(object):
 
     def update_layer_panel(self, objs, layer):
         scene = bpy.context.scene.sxtools
+        prefs = bpy.context.preferences.addons['sxtools'].preferences
         colors = utils.find_colors_by_frequency(objs, layer, 8)
         # Update layer HSL elements
         hArray = []
@@ -2717,7 +2759,11 @@ class SXTOOLS_layers(object):
 
         # Update layer palette elements
         for i, color in enumerate(colors):
-            palettecolor = [color[0], color[1], color[2], 1.0]
+            if prefs.colorspace == 'SRGB':
+                pcol = convert.linear_to_srgb(color)
+            else:
+                pcol = color
+            palettecolor = (pcol[0], pcol[1], pcol[2], 1.0)
             setattr(scene, 'layerpalette' + str(i + 1), palettecolor)
 
         # Update SXMaterial color
@@ -2858,6 +2904,7 @@ class SXTOOLS_tools(object):
         return colors
 
 
+    # NOTE: Make sure color parameter is always provided in linear color space!
     def apply_tool(self, objs, targetlayer, masklayer=None, invertmask=False, color=None):
         # then = time.perf_counter()
         utils.mode_manager(objs, set_mode=True, mode_id='apply_tool')
@@ -2881,7 +2928,6 @@ class SXTOOLS_tools(object):
             if color is not None:
                 colors = generate.color_list(obj, color, masklayer)
             elif scene.toolmode == 'COL':
-                color = scene.fillcolor
                 colors = generate.color_list(obj, color, masklayer)
             elif scene.toolmode == 'GRD':
                 colors = generate.ramp_list(obj, objs, rampmode, masklayer, mergebbx)
@@ -3216,7 +3262,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             for idx in range(1, 6):
                 layer = utils.find_layer_from_index(objs[0], idx)
-                palette_color = palette[idx - 1]  # convert.srgb_to_linear(palette[idx - 1])
+                palette_color = convert.srgb_to_linear(palette[idx - 1]) # palette[idx - 1]
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
@@ -3226,6 +3272,7 @@ class SXTOOLS_tools(object):
         utils.mode_manager(objs, revert=True, mode_id='apply_palette')
 
 
+    # NOTE: Material library file contains all entries in srgb color change by default
     def apply_material(self, objs, targetlayer, material):
         utils.mode_manager(objs, set_mode=True, mode_id='apply_material')
         if not sxglobals.refreshInProgress:
@@ -3237,14 +3284,14 @@ class SXTOOLS_tools(object):
         for obj in objs:
             scene.toolopacity = 1.0
             scene.toolblend = 'ALPHA'
-            self.apply_tool([obj, ], targetlayer, color=material.color0)
+            self.apply_tool([obj, ], targetlayer, color=convert.srgb_to_linear(material.color0))
 
             if sxglobals.mode == 'EDIT':
-                self.apply_tool([obj, ], obj.sxlayers['metallic'], color=material.color1)
-                self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=material.color2)
+                self.apply_tool([obj, ], obj.sxlayers['metallic'], color=convert.srgb_to_linear(material.color1))
+                self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=convert.srgb_to_linear(material.color2))
             else:
-                self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
-                self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
+                self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color1))
+                self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color2))
 
         setattr(scene, 'newmaterial0', material.color0)
         setattr(scene, 'newmaterial1', material.color1)
@@ -4349,9 +4396,9 @@ class SXTOOLS_magic(object):
         color = (0.5, 0.5, 0.5, 1.0)
         masklayer = utils.find_layer_from_index(objs[0], 3)
         layer = objs[0].sxlayers['metallic']
-        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=convert.srgb_to_linear(color))
         layer = objs[0].sxlayers['smoothness']
-        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=convert.srgb_to_linear(color))
 
         # Emissives are smooth
         if scene.enableemission:
@@ -5147,11 +5194,20 @@ class SXTOOLS_export(object):
 
     def convert_to_linear(self, objs):
         for obj in objs:
-            vertexColors = obj.data.vertex_colors
+            vertexColors = obj.data.attributes
             for poly in obj.data.polygons:
                 for idx in poly.loop_indices:
                     vCol = vertexColors['VertexColor0'].data[idx].color
                     vertexColors['VertexColor0'].data[idx].color = convert.srgb_to_linear(vCol)
+
+
+    def convert_to_srgb(self, objs):
+        for obj in objs:
+            vertexColors = obj.data.attributes
+            for poly in obj.data.polygons:
+                for idx in poly.loop_indices:
+                    vCol = vertexColors['VertexColor0'].data[idx].color
+                    vertexColors['VertexColor0'].data[idx].color = convert.linear_to_srgb(vCol)
 
 
     def remove_exports(self):
@@ -5269,7 +5325,7 @@ def refresh_actives(self, context):
             for obj in objs:
                 setattr(obj.sxtools, 'selectedlayer', idx)
                 if vcols != '':
-                    obj.data.vertex_colors.active = obj.data.vertex_colors[vcols]
+                    obj.data.attributes.active = obj.data.attributes[vcols]
                 alphaVal = getattr(obj.sxlayers[idx], 'alpha')
                 blendVal = getattr(obj.sxlayers[idx], 'blendMode')
 
@@ -5307,8 +5363,8 @@ def shading_mode(self, context):
     prefs = bpy.context.preferences.addons['sxtools'].preferences
     mode = context.scene.sxtools.shadingmode
     objs = selection_validator(self, context)
-    context.scene.display_settings.display_device = 'sRGB'
-    context.scene.view_settings.view_transform = 'Standard'
+
+    setup.set_colorspace()
 
     if len(objs) > 0:
         sxmaterial = bpy.data.materials['SXMaterial']
@@ -5350,11 +5406,11 @@ def shading_mode(self, context):
                 sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.5
 
                 # Disconnect vertex color output from emission
-                attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
+                attrLink = sxmaterial.node_tree.nodes['CompositeColor'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
 
                 # Reconnect vertex color to mixer
-                output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+                output = sxmaterial.node_tree.nodes['CompositeColor'].outputs['Color']
                 input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
                 sxmaterial.node_tree.links.new(input, output)
 
@@ -5412,7 +5468,7 @@ def shading_mode(self, context):
                 sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Specular'].default_value = 0.0
 
                 # Disconnect base color, metallic and roughness
-                attrLink = sxmaterial.node_tree.nodes['Vertex Color'].outputs[0].links[0]
+                attrLink = sxmaterial.node_tree.nodes['CompositeColor'].outputs[0].links[0]
                 sxmaterial.node_tree.links.remove(attrLink)
 
                 # Check if already debug
@@ -5434,7 +5490,7 @@ def shading_mode(self, context):
                             sxmaterial.node_tree.links.remove(attrLink)
 
                 # Connect vertex color source to emission
-                output = sxmaterial.node_tree.nodes['Vertex Color'].outputs['Color']
+                output = sxmaterial.node_tree.nodes['CompositeColor'].outputs['Color']
                 input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Emission']
                 sxmaterial.node_tree.links.new(input, output)
 
@@ -5859,7 +5915,7 @@ def export_validator(self, context):
 
 def compositing_mode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial'].node_tree
-    sw_output = sxmaterial.nodes['Vertex Color'].outputs['Color']
+    sw_output = sxmaterial.nodes['CompositeColor'].outputs['Color']
     hw_output = sxmaterial.nodes['Final Step'].outputs['Color']
     input = sxmaterial.nodes['Mix'].inputs['Color1']
 
@@ -6052,6 +6108,14 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         default=True)
 
     colorspace: bpy.props.EnumProperty(
+        name='Viewport Color Space',
+        description='Color space for viewing vertex colors',
+        items=[
+            ('SRGB', 'sRGB', ''),
+            ('LIN', 'Linear', '')],
+        default='SRGB')
+
+    exportspace: bpy.props.EnumProperty(
         name='Color Space for Exports',
         description='Color space for exported vertex colors',
         items=[
@@ -6097,25 +6161,28 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
             layout_split2.prop(self, 'materialsubsurface')
             layout_split2.prop(self, 'materialtransmission')
         layout_split3 = layout.split()
-        layout_split3.label(text='Color Space for Exports:')
+        layout_split3.label(text='Viewport Color Space:')
         layout_split3.prop(self, 'colorspace', text='')
         layout_split4 = layout.split()
-        layout_split4.label(text='LOD Mesh Preview Z-Offset')
-        layout_split4.prop(self, 'lodoffset', text='')
+        layout_split4.label(text='FBX Export Color Space:')
+        layout_split4.prop(self, 'exportspace', text='')
         layout_split5 = layout.split()
-        layout_split5.label(text='Clear LOD Meshes After Export')
-        layout_split5.prop(self, 'removelods', text='')
+        layout_split5.label(text='LOD Mesh Preview Z-Offset')
+        layout_split5.prop(self, 'lodoffset', text='')
         layout_split6 = layout.split()
-        layout_split6.label(text='Reverse Smart Mirror Naming:')
-        layout_split7 = layout_split6.split()
-        layout_split7.prop(self, 'flipsmartx', text='X-Axis')
-        layout_split7.prop(self, 'flipsmarty', text='Y-Axis')
-        layout_split8 = layout.split()
-        layout_split8.label(text='Library Folder:')
-        layout_split8.prop(self, 'libraryfolder', text='')
+        layout_split6.label(text='Clear LOD Meshes After Export')
+        layout_split6.prop(self, 'removelods', text='')
+        layout_split7 = layout.split()
+        layout_split7.label(text='Reverse Smart Mirror Naming:')
+        layout_split8 = layout_split6.split()
+        layout_split8.prop(self, 'flipsmartx', text='X-Axis')
+        layout_split8.prop(self, 'flipsmarty', text='Y-Axis')
         layout_split9 = layout.split()
-        layout_split9.label(text='Catalogue File (Optional):')
-        layout_split9.prop(self, 'cataloguepath', text='')
+        layout_split9.label(text='Library Folder:')
+        layout_split9.prop(self, 'libraryfolder', text='')
+        layout_split10 = layout.split()
+        layout_split10.label(text='Catalogue File (Optional):')
+        layout_split10.prop(self, 'cataloguepath', text='')
 
 
 class SXTOOLS_objectprops(bpy.types.PropertyGroup):
@@ -6601,7 +6668,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
 
     fillcolor: bpy.props.FloatVectorProperty(
         name='Fill Color',
-        description='This color is applied tools\nthe selected objects or components',
+        description='This color is applied to\nthe selected objects or components',
         subtype='COLOR_GAMMA',
         size=4,
         min=0.0,
@@ -8414,8 +8481,7 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
             setup.create_sxmaterial()
             setup.setup_geometry(objs)
 
-            context.scene.display_settings.display_device = 'sRGB'
-            context.scene.view_settings.view_transform = 'Standard'
+            setup.set_colorspace()
 
             sxglobals.refreshInProgress = False
             sxglobals.composite = True
@@ -8436,7 +8502,11 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
         if len(objs) > 0:
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
-            color = context.scene.sxtools.fillcolor  # convert.srgb_to_linear(context.scene.sxtools.fillcolor)
+            prefs = bpy.context.preferences.addons['sxtools'].preferences
+            if prefs.colorspace == 'SRGB':
+                color = convert.srgb_to_linear(context.scene.sxtools.fillcolor)
+            else:
+                color = context.scene.sxtools.fillcolor
 
             if objs[0].mode == 'EDIT':
                 context.scene.sxtools.rampalpha = True
@@ -9455,8 +9525,10 @@ class SXTOOLS_OT_macro(bpy.types.Operator):
             modeString += 'Buildings batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
         elif category == 'TREES':
             modeString += 'Trees batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+        elif category == 'PARTICLES':
+            modeString += 'Particle batch process:\n1) Bake static vtx colors\n2) Strip all UV channels and additional vertex color sets'
         elif category == 'TRANSPARENT':
-            modeString += 'Buildings batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
+            modeString += 'Transparent batch process:\n1) Overlay bake\n2) Occlusion bake\nNOTE: Overwrites existing overlay and occlusion'
         else:
             modeString += 'Batch process:\nCalculates material channels according to category'
         return modeString
@@ -9644,6 +9716,9 @@ if __name__ == '__main__':
 
 
 # TODO
+# FEAT: Create custom color attributes instead of vertex colors
+# FEAT: Migrate all compositing functions to custom attributes
+# FEAT: Migrate exporting to custom attributes
 # BUG: Grouping of objs with armatures
 # BUG: Refresh modifiers when saving to catalogue to update cost value
 # BUG: Tri count calculator does not update upon adding modifiers
