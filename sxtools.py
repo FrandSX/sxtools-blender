@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 0, 5),
+    'version': (6, 1, 0),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -237,7 +237,7 @@ class SXTOOLS_files(object):
                             incolor[0] = categoryDict[category][entry][i][0]
                             incolor[1] = categoryDict[category][entry][i][1]
                             incolor[2] = categoryDict[category][entry][i][2]
-                            setattr(item, 'color'+str(i), incolor[:])
+                            setattr(item, 'color'+str(i), convert.srgb_to_linear(incolor))
 
 
     def save_ramp(self, rampName):
@@ -330,7 +330,7 @@ class SXTOOLS_files(object):
 
                 # If srgb colorspace exporting is selected
                 if exportspace == 'SRGB':
-                    export.convert_to_srgb(objArray)
+                    export.export_to_srgb(objArray)
 
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
@@ -888,15 +888,6 @@ class SXTOOLS_setup(object):
 
         if changed:
             bpy.context.scene.sxtools.shadingmode = 'FULL'
-
-
-    def set_colorspace(self):
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
-        if prefs.colorspace == 'SRGB':
-            bpy.context.scene.display_settings.display_device = 'sRGB'
-        else:
-            bpy.context.scene.display_settings.display_device = 'None'
-        bpy.context.scene.view_settings.view_transform = 'Standard'
 
 
     def create_sxmaterial(self):
@@ -1557,10 +1548,9 @@ class SXTOOLS_convert(object):
         lumB = 0.072187
         alpha = in_rgba[3]
 
-        linColor = convert.srgb_to_linear(in_rgba)
-        linLum = lumR * linColor[0] + lumG * linColor[1] + lumB * linColor[2]
-        luminance = convert.linear_to_srgb((linLum, linLum, linLum, alpha))[0]
-        return luminance * alpha
+        linLum = lumR * in_rgba[0] + lumG * in_rgba[1] + lumB * in_rgba[2]
+        # luminance = convert.linear_to_srgb((linLum, linLum, linLum, alpha))[0]
+        return linLum * alpha  # luminance * alpha
 
 
     def luminance_to_color(self, value):
@@ -2757,7 +2747,6 @@ class SXTOOLS_layers(object):
 
     def update_layer_panel(self, objs, layer):
         scene = bpy.context.scene.sxtools
-        prefs = bpy.context.preferences.addons['sxtools'].preferences
         colors = utils.find_colors_by_frequency(objs, layer, 8)
         # Update layer HSL elements
         hArray = []
@@ -2779,11 +2768,7 @@ class SXTOOLS_layers(object):
         sxglobals.hslUpdate = False
 
         # Update layer palette elements
-        for i, color in enumerate(colors):
-            if prefs.colorspace == 'SRGB':
-                pcol = convert.linear_to_srgb(color)
-            else:
-                pcol = color
+        for i, pcol in enumerate(colors):
             palettecolor = (pcol[0], pcol[1], pcol[2], 1.0)
             setattr(scene, 'layerpalette' + str(i + 1), palettecolor)
 
@@ -2816,7 +2801,7 @@ class SXTOOLS_layers(object):
             else:
                 masklayer = utils.find_layer_from_index(objs[0], layers[0])
             layercolors = utils.find_colors_by_frequency(objs, layer, 8, masklayer=masklayer)
-            tabcolor = convert.srgb_to_linear(getattr(scene, 'newmaterial' + str(i)))
+            tabcolor = getattr(scene, 'newmaterial' + str(i))
 
             if tabcolor in layercolors:
                 palettecolor = tabcolor
@@ -2949,8 +2934,7 @@ class SXTOOLS_tools(object):
             if color is not None:
                 colors = generate.color_list(obj, color, masklayer)
             elif scene.toolmode == 'COL':
-                color = convert.srgb_to_linear(scene.fillcolor)
-                colors = generate.color_list(obj, color, masklayer)
+                colors = generate.color_list(obj, scene.fillcolor, masklayer)
             elif scene.toolmode == 'GRD':
                 colors = generate.ramp_list(obj, objs, rampmode, masklayer, mergebbx)
             elif scene.toolmode == 'NSE':
@@ -3284,7 +3268,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             for idx in range(1, 6):
                 layer = utils.find_layer_from_index(objs[0], idx)
-                palette_color = convert.srgb_to_linear(palette[idx - 1])  # palette[idx - 1]
+                palette_color = palette[idx - 1]
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
@@ -3306,14 +3290,14 @@ class SXTOOLS_tools(object):
         # for obj in objs:
         #     scene.toolopacity = 1.0
         #     scene.toolblend = 'ALPHA'
-        #     self.apply_tool([obj, ], targetlayer, color=convert.srgb_to_linear(material.color0))
+        #     self.apply_tool([obj, ], targetlayer, color=material.color0)
 
         #     if sxglobals.mode == 'EDIT':
-        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], color=convert.srgb_to_linear(material.color1))
-        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=convert.srgb_to_linear(material.color2))
+        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], color=material.color1)
+        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=material.color2)
         #     else:
-        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color1))
-        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color2))
+        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=material.color1)
+        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=material.color2)
 
         setattr(scene, 'newmaterial0', material.color0)
         setattr(scene, 'newmaterial1', material.color1)
@@ -4418,9 +4402,9 @@ class SXTOOLS_magic(object):
         color = (0.5, 0.5, 0.5, 1.0)
         masklayer = utils.find_layer_from_index(objs[0], 3)
         layer = objs[0].sxlayers['metallic']
-        tools.apply_tool(objs, layer, masklayer=masklayer, color=convert.srgb_to_linear(color))
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
         layer = objs[0].sxlayers['smoothness']
-        tools.apply_tool(objs, layer, masklayer=masklayer, color=convert.srgb_to_linear(color))
+        tools.apply_tool(objs, layer, masklayer=masklayer, color=color)
 
         # Emissives are smooth
         if scene.enableemission:
@@ -5217,7 +5201,7 @@ class SXTOOLS_export(object):
         bpy.context.view_layer.objects.active = active_obj
 
 
-    def convert_to_linear(self, objs):
+    def export_to_linear(self, objs):
         for obj in objs:
             vcolors = layers.get_colors(obj, 'VertexColor0')
             for i, vcolor in enumerate(vcolors):
@@ -5225,7 +5209,7 @@ class SXTOOLS_export(object):
             layers.set_colors(obj, 'VerteColor0', vcolors)
 
 
-    def convert_to_srgb(self, objs):
+    def export_to_srgb(self, objs):
         for obj in objs:
             vcolors = layers.get_colors(obj, 'VertexColor0')
             for i, vcolor in enumerate(vcolors):
@@ -5386,8 +5370,6 @@ def shading_mode(self, context):
     prefs = bpy.context.preferences.addons['sxtools'].preferences
     mode = context.scene.sxtools.shadingmode
     objs = selection_validator(self, context)
-
-    setup.set_colorspace()
 
     if len(objs) > 0:
         sxmaterial = bpy.data.materials['SXMaterial']
@@ -5870,11 +5852,11 @@ def update_material_layer(self, context, index):
         else:
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
 
-        if not utils.color_compare(convert.srgb_to_linear(modecolor), pbr_values[index]):
+        if not utils.color_compare(modecolor, pbr_values[index]):
             if sxglobals.mode == 'EDIT':
-                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], color=convert.srgb_to_linear(pbr_values[index]))
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], color=pbr_values[index])
             else:
-                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], masklayer=objs[0].sxlayers[layer_ids[0]], color=convert.srgb_to_linear(pbr_values[index]))
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], masklayer=objs[0].sxlayers[layer_ids[0]], color=pbr_values[index])
 
             setattr(scene, 'newmaterial' + str(index), pbr_values[index])
 
@@ -6130,14 +6112,6 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         description='Connect Transmission Layer to SXMaterial Transmission',
         default=True)
 
-    colorspace: bpy.props.EnumProperty(
-        name='Viewport Color Space',
-        description='Color space for viewing vertex colors',
-        items=[
-            ('SRGB', 'sRGB', ''),
-            ('LIN', 'Linear', '')],
-        default='SRGB')
-
     exportspace: bpy.props.EnumProperty(
         name='Color Space for Exports',
         description='Color space for exported vertex colors',
@@ -6183,9 +6157,6 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
             layout_split2 = layout_split1.split()
             layout_split2.prop(self, 'materialsubsurface')
             layout_split2.prop(self, 'materialtransmission')
-        layout_split3 = layout.split()
-        layout_split3.label(text='Viewport Color Space:')
-        layout_split3.prop(self, 'colorspace', text='')
         layout_split4 = layout.split()
         layout_split4.label(text='FBX Export Color Space:')
         layout_split4.prop(self, 'exportspace', text='')
@@ -6197,7 +6168,7 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         layout_split6.prop(self, 'removelods', text='')
         layout_split7 = layout.split()
         layout_split7.label(text='Reverse Smart Mirror Naming:')
-        layout_split8 = layout_split6.split()
+        layout_split8 = layout_split7.split()
         layout_split8.prop(self, 'flipsmartx', text='X-Axis')
         layout_split8.prop(self, 'flipsmarty', text='Y-Axis')
         layout_split9 = layout.split()
@@ -6490,7 +6461,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette1: bpy.props.FloatVectorProperty(
         name='Layer Palette 1',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6499,7 +6470,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette2: bpy.props.FloatVectorProperty(
         name='Layer Palette 2',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6508,7 +6479,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette3: bpy.props.FloatVectorProperty(
         name='Layer Palette 3',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6517,7 +6488,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette4: bpy.props.FloatVectorProperty(
         name='Layer Palette 4',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6526,7 +6497,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette5: bpy.props.FloatVectorProperty(
         name='Layer Palette 5',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6535,7 +6506,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette6: bpy.props.FloatVectorProperty(
         name='Layer Palette 6',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6544,7 +6515,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette7: bpy.props.FloatVectorProperty(
         name='Layer Palette 7',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6553,7 +6524,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     layerpalette8: bpy.props.FloatVectorProperty(
         name='Layer Palette 8',
         description='Color from the selected layer\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6620,7 +6591,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette1: bpy.props.FloatVectorProperty(
         name='Recent Color 1',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6629,7 +6600,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette2: bpy.props.FloatVectorProperty(
         name='Recent Color 2',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6638,7 +6609,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette3: bpy.props.FloatVectorProperty(
         name='Recent Color 3',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6647,7 +6618,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette4: bpy.props.FloatVectorProperty(
         name='Recent Color 4',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6656,7 +6627,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette5: bpy.props.FloatVectorProperty(
         name='Recent Color 5',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6665,7 +6636,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette6: bpy.props.FloatVectorProperty(
         name='Recent Color 6',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6674,7 +6645,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette7: bpy.props.FloatVectorProperty(
         name='Recent Color 7',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6683,7 +6654,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillpalette8: bpy.props.FloatVectorProperty(
         name='Recent Color 8',
         description='Recent colors\nDrag and drop to Fill Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6692,7 +6663,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillcolor: bpy.props.FloatVectorProperty(
         name='Fill Color',
         description='This color is applied to\nthe selected objects or components',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6871,7 +6842,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newpalette0: bpy.props.FloatVectorProperty(
         name='New Palette Color 0',
         description='New Palette Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6881,7 +6852,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newpalette1: bpy.props.FloatVectorProperty(
         name='New Palette Color 1',
         description='New Palette Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6891,7 +6862,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newpalette2: bpy.props.FloatVectorProperty(
         name='New Palette Color 2',
         description='New Palette Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6901,7 +6872,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newpalette3: bpy.props.FloatVectorProperty(
         name='New Palette Color 3',
         description='New Palette Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6911,7 +6882,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newpalette4: bpy.props.FloatVectorProperty(
         name='New Palette Color 4',
         description='New Palette Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6931,7 +6902,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newmaterial0: bpy.props.FloatVectorProperty(
         name='Layer 7',
         description='Diffuse Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6941,7 +6912,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newmaterial1: bpy.props.FloatVectorProperty(
         name='Metallic',
         description='Metallic Value',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -6951,7 +6922,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     newmaterial2: bpy.props.FloatVectorProperty(
         name='Smoothness',
         description='Smoothness Value',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7129,7 +7100,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color0: bpy.props.FloatVectorProperty(
         name='Palette Color 0',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7137,7 +7108,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color1: bpy.props.FloatVectorProperty(
         name='Palette Color 1',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7145,7 +7116,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color2: bpy.props.FloatVectorProperty(
         name='Palette Color 2',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7153,7 +7124,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color3: bpy.props.FloatVectorProperty(
         name='Palette Color 3',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7161,7 +7132,7 @@ class SXTOOLS_masterpalette(bpy.types.PropertyGroup):
 
     color4: bpy.props.FloatVectorProperty(
         name='Palette Color 4',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7176,7 +7147,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color0: bpy.props.FloatVectorProperty(
         name='Material Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7184,7 +7155,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color1: bpy.props.FloatVectorProperty(
         name='Material Metallic',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7192,7 +7163,7 @@ class SXTOOLS_material(bpy.types.PropertyGroup):
 
     color2: bpy.props.FloatVectorProperty(
         name='Material Smoothness',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7218,7 +7189,7 @@ class SXTOOLS_layer(bpy.types.PropertyGroup):
 
     defaultColor: bpy.props.FloatVectorProperty(
         name='Default Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -7330,7 +7301,7 @@ class SXTOOLS_rampcolor(bpy.types.PropertyGroup):
 
     color: bpy.props.FloatVectorProperty(
         name='Element Color',
-        subtype='COLOR_GAMMA',
+        subtype='COLOR',
         size=4,
         min=0.0,
         max=1.0,
@@ -8504,7 +8475,8 @@ class SXTOOLS_OT_scenesetup(bpy.types.Operator):
             setup.create_sxmaterial()
             setup.setup_geometry(objs)
 
-            setup.set_colorspace()
+            bpy.context.scene.display_settings.display_device = 'sRGB'
+            bpy.context.scene.view_settings.view_transform = 'Standard'
 
             sxglobals.refreshInProgress = False
             sxglobals.composite = True
@@ -8526,20 +8498,14 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
             prefs = bpy.context.preferences.addons['sxtools'].preferences
-            if prefs.colorspace == 'SRGB':
-                color = convert.srgb_to_linear(context.scene.sxtools.fillcolor)
-            else:
-                color = context.scene.sxtools.fillcolor
+            color = context.scene.sxtools.fillcolor
 
             if objs[0].mode == 'EDIT':
                 context.scene.sxtools.rampalpha = True
 
             tools.apply_tool(objs, layer)
             if context.scene.sxtools.toolmode == 'COL':
-                if prefs.colorspace == 'SRGB':
-                    tools.update_recent_colors(convert.linear_to_srgb(color))
-                else:
-                    tools.update_recent_colors(color)
+                tools.update_recent_colors(color)
 
             sxglobals.composite = True
             refresh_actives(self, context)
