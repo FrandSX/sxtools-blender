@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 0, 2),
+    'version': (6, 0, 5),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -10,8 +10,7 @@ bl_info = {
     'category': 'Development',
 }
 
-from doctest import TestResults
-from locale import normalize
+
 import bpy
 import time
 import random
@@ -25,7 +24,7 @@ import os
 import numpy as np
 from bpy.app.handlers import persistent
 from collections import Counter
-from mathutils import Vector, Color
+from mathutils import Vector
 
 
 # ------------------------------------------------------------------------
@@ -841,13 +840,13 @@ class SXTOOLS_setup(object):
 
             # Check if vertex color layers exist,
             # and delete if legacy data is found
-            for vertexColor in mesh.vertex_colors:
+            for vertexColor in mesh.attributes:
                 if 'VertexColor' not in vertexColor:
-                    mesh.vertex_colors.remove(mesh.vertex_colors[vertexColor])
+                    mesh.attributes.remove(mesh.attributes[vertexColor])
 
             for sxLayer in colorArray:
-                if sxLayer.vertexColorLayer not in mesh.vertex_colors:
-                    mesh.vertex_colors.new(name=sxLayer.vertexColorLayer)
+                if sxLayer.vertexColorLayer not in mesh.attributes:
+                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='BYTE_COLOR', domain='CORNER')
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
 
@@ -1574,7 +1573,7 @@ class SXTOOLS_convert(object):
 
     def srgb_to_linear(self, in_rgba):
         out_rgba = []
-        for i in range(4):
+        for i in range(3):
             if in_rgba[i] < 0.0:
                 out_rgba.append(0.0)
             elif 0.0 <= in_rgba[i] <= 0.0404482362771082:
@@ -1583,13 +1582,13 @@ class SXTOOLS_convert(object):
                 out_rgba.append(((in_rgba[i] + 0.055) / 1.055) ** 2.4)
             elif in_rgba[i] > 1.0:
                 out_rgba.append(1.0)
-
+        out_rgba.append(in_rgba[3])
         return out_rgba
 
 
     def linear_to_srgb(self, in_rgba):
         out_rgba = []
-        for i in range(4):
+        for i in range(3):
             if in_rgba[i] < 0.0:
                 out_rgba.append(0.0)
             elif 0.0 <= in_rgba[i] <= 0.00313066844250063:
@@ -1598,7 +1597,7 @@ class SXTOOLS_convert(object):
                 out_rgba.append(1.055 * in_rgba[i] ** (float(1.0)/2.4) - 0.055)
             elif in_rgba[i] > 1.0:
                 out_rgba.append(1.0)
-
+        out_rgba.append(in_rgba[3])
         return out_rgba
 
 
@@ -2409,7 +2408,6 @@ class SXTOOLS_layers(object):
         sourceColors = obj.data.attributes[source].data
         colors = [None] * len(sourceColors) * 4
         sourceColors.foreach_get('color', colors)
-
         return colors
 
 
@@ -2818,7 +2816,7 @@ class SXTOOLS_layers(object):
             else:
                 masklayer = utils.find_layer_from_index(objs[0], layers[0])
             layercolors = utils.find_colors_by_frequency(objs, layer, 8, masklayer=masklayer)
-            tabcolor = getattr(scene, 'newmaterial' + str(i))
+            tabcolor = convert.srgb_to_linear(getattr(scene, 'newmaterial' + str(i)))
 
             if tabcolor in layercolors:
                 palettecolor = tabcolor
@@ -3305,17 +3303,17 @@ class SXTOOLS_tools(object):
         material = bpy.context.scene.sxmaterials[material]
         scene = bpy.context.scene.sxtools
 
-        for obj in objs:
-            scene.toolopacity = 1.0
-            scene.toolblend = 'ALPHA'
-            self.apply_tool([obj, ], targetlayer, color=convert.srgb_to_linear(material.color0))
+        # for obj in objs:
+        #     scene.toolopacity = 1.0
+        #     scene.toolblend = 'ALPHA'
+        #     self.apply_tool([obj, ], targetlayer, color=convert.srgb_to_linear(material.color0))
 
-            if sxglobals.mode == 'EDIT':
-                self.apply_tool([obj, ], obj.sxlayers['metallic'], color=convert.srgb_to_linear(material.color1))
-                self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=convert.srgb_to_linear(material.color2))
-            else:
-                self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color1))
-                self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color2))
+        #     if sxglobals.mode == 'EDIT':
+        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], color=convert.srgb_to_linear(material.color1))
+        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], color=convert.srgb_to_linear(material.color2))
+        #     else:
+        #         self.apply_tool([obj, ], obj.sxlayers['metallic'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color1))
+        #         self.apply_tool([obj, ], obj.sxlayers['smoothness'], masklayer=targetlayer, color=convert.srgb_to_linear(material.color2))
 
         setattr(scene, 'newmaterial0', material.color0)
         setattr(scene, 'newmaterial1', material.color1)
@@ -4001,7 +3999,7 @@ class SXTOOLS_validate(object):
                 for i in range(5):
                     colorArray = []
                     layer = utils.find_layer_from_index(obj, i+1)
-                    vertexColors = mesh.vertex_colors[layer.vertexColorLayer].data
+                    vertexColors = mesh.attributes[layer.vertexColorLayer].data
 
                     for poly in mesh.polygons:
                         for loop_idx in poly.loop_indices:
@@ -5221,20 +5219,18 @@ class SXTOOLS_export(object):
 
     def convert_to_linear(self, objs):
         for obj in objs:
-            vertexColors = obj.data.attributes
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    vCol = vertexColors['VertexColor0'].data[idx].color
-                    vertexColors['VertexColor0'].data[idx].color = convert.srgb_to_linear(vCol)
+            vcolors = layers.get_colors(obj, 'VertexColor0')
+            for i, vcolor in enumerate(vcolors):
+                vcolors[i] = convert.srgb_to_linear(vcolor)
+            layers.set_colors(obj, 'VerteColor0', vcolors)
 
 
     def convert_to_srgb(self, objs):
         for obj in objs:
-            vertexColors = obj.data.attributes
-            for poly in obj.data.polygons:
-                for idx in poly.loop_indices:
-                    vCol = vertexColors['VertexColor0'].data[idx].color
-                    vertexColors['VertexColor0'].data[idx].color = convert.linear_to_srgb(vCol)
+            vcolors = layers.get_colors(obj, 'VertexColor0')
+            for i, vcolor in enumerate(vcolors):
+                vcolors[i] = convert.linear_to_srgb(vcolor)
+            layers.set_colors(obj, 'VerteColor0', vcolors)
 
 
     def remove_exports(self):
@@ -5858,27 +5854,27 @@ def update_material_layer(self, context, index):
                 minl = float(170.0/255.0)
                 if hsl[2] < minl:
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[1], minl))
-                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+                    pbr_values[index] = (rgb[0], rgb[1], rgb[2], 1.0)
             else:
                 minl = float(50.0/255.0)
                 maxl = float(240.0/255.0)
                 if hsl[2] > maxl:
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[1], maxl))
-                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+                    pbr_values[index] = (rgb[0], rgb[1], rgb[2], 1.0)
                 elif hsl[2] < minl:
                     rgb = convert.hsl_to_rgb((hsl[0], hsl[2], minl))
-                    color = (rgb[0], rgb[1], rgb[2], 1.0)
+                    pbr_values[index] = (rgb[0], rgb[1], rgb[2], 1.0)
 
         if sxglobals.mode == 'EDIT':
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1)[0]
         else:
             modecolor = utils.find_colors_by_frequency(objs, objs[0].sxlayers[layer_ids[index]], 1, masklayer=layer)[0]
 
-        if not utils.color_compare(modecolor, pbr_values[index]):
+        if not utils.color_compare(convert.srgb_to_linear(modecolor), pbr_values[index]):
             if sxglobals.mode == 'EDIT':
-                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], color=pbr_values[index])
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], color=convert.srgb_to_linear(pbr_values[index]))
             else:
-                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], masklayer=objs[0].sxlayers[layer_ids[0]], color=pbr_values[index])
+                tools.apply_tool(objs, objs[0].sxlayers[layer_ids[index]], masklayer=objs[0].sxlayers[layer_ids[0]], color=convert.srgb_to_linear(pbr_values[index]))
 
             setattr(scene, 'newmaterial' + str(index), pbr_values[index])
 
