@@ -1993,7 +1993,7 @@ class SXTOOLS_generate(object):
                 occValue = 1.0
                 scnOccValue = 1.0
                 vertLoc = Vector(vert_dict[vert_id][0])
-                vertNormal = Vector(vert_dict[vert_id][1])  
+                vertNormal = Vector(vert_dict[vert_id][1])
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
 
@@ -3172,7 +3172,7 @@ class SXTOOLS_tools(object):
                 bmesh.update_edit_mesh(mesh)
                 bm.free()
 
-        # OBJECT mode 
+        # OBJECT mode
         else:
             utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
             for obj in objs:
@@ -3286,7 +3286,7 @@ class SXTOOLS_tools(object):
         for obj in objs:
             for idx in range(1, 6):
                 layer = utils.find_layer_from_index(objs[0], idx)
-                palette_color = convert.srgb_to_linear(palette[idx - 1]) # palette[idx - 1]
+                palette_color = convert.srgb_to_linear(palette[idx - 1])  # palette[idx - 1]
                 bpy.data.materials['SXMaterial'].node_tree.nodes['PaletteColor'+str(idx-1)].outputs[0].default_value = palette_color
                 colors = generate.color_list(obj, color=palette_color, masklayer=layer)
                 if colors is not None:
@@ -6004,7 +6004,7 @@ def update_curvature_selection(self, context):
                     vert.select = False
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        context.tool_settings.mesh_select_mode = sel_mode 
+        context.tool_settings.mesh_select_mode = sel_mode
         scene.curvaturenormalize = normalize
         sxglobals.curvatureUpdate = False
 
@@ -9695,7 +9695,7 @@ def register():
     bpy.types.Scene.sxmaterials = bpy.props.CollectionProperty(type=SXTOOLS_material)
 
     bpy.app.handlers.load_post.append(load_post_handler)
-    bpy.app.handlers.save_pre.append(save_pre_handler)    
+    bpy.app.handlers.save_pre.append(save_pre_handler)
     bpy.app.handlers.save_post.append(save_post_handler)
 
     wm = bpy.context.window_manager
