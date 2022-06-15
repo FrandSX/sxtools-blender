@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 1, 0),
+    'version': (6, 1, 1),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -5204,17 +5204,19 @@ class SXTOOLS_export(object):
     def export_to_linear(self, objs):
         for obj in objs:
             vcolors = layers.get_colors(obj, 'VertexColor0')
-            for i, vcolor in enumerate(vcolors):
-                vcolors[i] = convert.srgb_to_linear(vcolor)
-            layers.set_colors(obj, 'VerteColor0', vcolors)
+            count = len(vcolors)//4
+            for i in range(count):
+                vcolors[(0+i*4):(4+i*4)] = convert.srgb_to_linear(vcolors[(0+i*4):(4+i*4)])
+            layers.set_colors(obj, 'VertexColor0', vcolors)
 
 
     def export_to_srgb(self, objs):
         for obj in objs:
             vcolors = layers.get_colors(obj, 'VertexColor0')
-            for i, vcolor in enumerate(vcolors):
-                vcolors[i] = convert.linear_to_srgb(vcolor)
-            layers.set_colors(obj, 'VerteColor0', vcolors)
+            count = len(vcolors)//4
+            for i in range(count):
+                vcolors[(0+i*4):(4+i*4)] = convert.linear_to_srgb(vcolors[(0+i*4):(4+i*4)])
+            layers.set_colors(obj, 'VertexColor0', vcolors)
 
 
     def remove_exports(self):
