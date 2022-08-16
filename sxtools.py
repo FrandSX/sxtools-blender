@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 1, 1),
+    'version': (6, 1, 2),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -846,7 +846,7 @@ class SXTOOLS_setup(object):
 
             for sxLayer in colorArray:
                 if sxLayer.vertexColorLayer not in mesh.attributes:
-                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='BYTE_COLOR', domain='CORNER')
+                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
 
