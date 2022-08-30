@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 1, 1),
+    'version': (6, 2, 0),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -6377,6 +6377,42 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=False,
         update=lambda self, context: update_custom_props(self, context, 'tiling'))
 
+    tile_pos_x: bpy.props.BoolProperty(
+        name='Tile X',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
+    tile_neg_x: bpy.props.BoolProperty(
+        name='Tile -X',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
+    tile_pos_y: bpy.props.BoolProperty(
+        name='Tile Y',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
+    tile_neg_y: bpy.props.BoolProperty(
+        name='Tile -Y',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
+    tile_pos_z: bpy.props.BoolProperty(
+        name='Tile Z',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
+    tile_neg_z: bpy.props.BoolProperty(
+        name='Tile -Z',
+        description='Select required mirror directions',
+        default=False,
+        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+
     tilewidth: bpy.props.FloatProperty(
         name='Tile Grid',
         min=0.0,
@@ -7490,6 +7526,15 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
                             row_tiling.prop(sxtools, 'tilewidth', text='Tile Grid')
                             row_tiling.prop(sxtools, 'quantize', text='Quantize')
+                            row_tiling2 = col_fill.row(align=False)
+                            row_tiling2.prop(sxtools, 'tile_pos_x', text='+X')
+                            row_tiling2.prop(sxtools, 'tile_pos_y', text='+Y')
+                            row_tiling2.prop(sxtools, 'tile_pos_z', text='+Z')
+                            row_tiling3 = col_fill.row(align=False)
+                            row_tiling3.prop(sxtools, 'tile_neg_x', text='-X')
+                            row_tiling3.prop(sxtools, 'tile_neg_y', text='-Y')
+                            row_tiling3.prop(sxtools, 'tile_neg_z', text='-Z')
+
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
