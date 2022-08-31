@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 2),
+    'version': (6, 2, 3),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1436,96 +1436,202 @@ class SXTOOLS_setup(object):
         if 'sx_tiler' not in bpy.data.node_groups:
             nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
             group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_in.name = 'group_input'
             group_in.location = (-200, 0)
-            group_out.location = (1000, 0)
+            group_out = nodetree.nodes.new(type='NodeGroupOutput')
+            group_out.name = 'group_output'
+            group_out.location = (1200, 0)
 
-            for i in range(4):
+            bbx = nodetree.nodes.new(type='GeometryNodeBoundBox')
+            bbx.name = 'bbx'
+            bbx.location = (-100, 100)
+
+            flip = nodetree.nodes.new(type='GeometryNodeFlipFaces')
+            flip.name = 'flip'
+            flip.location = (-100, 0)
+
+            # join all mirror copies prior to output
+            join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+            join.name = 'join'
+            join.location = (1000, 0)
+
+            # link base mesh to bbx and flip faces
+            output = group_in.outputs[0]
+            input = nodetree.nodes['bbx'].inputs['Geometry']
+            nodetree.links.new(input, output)
+            output = group_in.outputs[0]
+            input = nodetree.nodes['flip'].inputs[0]
+            nodetree.links.new(input, output)
+
+            # bbx min and max separators
+            for  i in range(2):
+                separate = nodetree.nodes.new(type='ShaderNodeSeparateXYZ')
+                separate.name = 'separate'+str(i)
+                separate.location = (0, 50+i*100)
+
+            for i in range(6):
+                # offset multipliers for mirror objects
+                multiply = nodetree.nodes.new(type='ShaderNodeMath')
+                multiply.name = 'multiply'+str(i)
+                multiply.location = (200, -100*i)
+                multiply.operation = 'MULTIPLY'
+                multiply.inputs[1].default_value = 4.0
+
+                # combine nodes for mirror offsets
+                combine = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
+                combine.name = 'combine'+str(i)
+                combine.location = (400, -100*i)
+
+                # mirror axis enable switches
+                switch = nodetree.nodes.new(type="GeometryNodeSwitch")
+                switch.name = 'switch'+str(i)
+                switch.location = (600, -100*i)
+
+                # transforms for mirror copies
                 transform = nodetree.nodes.new(type='GeometryNodeTransform')
                 transform.name = 'transform'+str(i)
-                transform.location = (200*i, 0)
+                transform.location = (800, -100*i)
 
-                join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-                join.name = 'join'+str(i)
-                join.location = (200*i+100, 200)
+                # link combine to translation
+                output = combine.outputs[0]
+                input = transform.inputs[1]
+                nodetree.links.new(input, output)
 
-                if i == 0:
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                elif i == 1:
-                    output = nodetree.nodes['join0'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                elif i == 2:
-                    output = nodetree.nodes['join1'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                elif i == 3:
-                    output = nodetree.nodes['join1'].outputs['Geometry']
-                    input = transform.inputs['Geometry']
-                    nodetree.links.new(input, output)
-                    output = nodetree.nodes['join2'].outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
-                    output = transform.outputs['Geometry']
-                    input = join.inputs[0]
-                    nodetree.links.new(input, output)
+                # link flipped mesh to switch input
+                output = flip.outputs[0]
+                input = switch.inputs[3]
 
-            output = group_in.outputs[0]
-            input = nodetree.nodes['transform0'].inputs['Geometry']
-            nodetree.links.new(input, output)
-            output = group_in.outputs['Geometry']
-            input = nodetree.nodes['join0'].inputs[0]
-            nodetree.links.new(input, output)
+                # link switch mesh output to transform
+                output = switch.outputs[0]
+                input = transform.inputs[0]
+                nodetree.links.new(input, output)
 
-            output = group_in.outputs[1]
-            input = nodetree.nodes['transform0'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[2]
-            input = nodetree.nodes['transform0'].inputs['Rotation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[3]
-            input = nodetree.nodes['transform0'].inputs['Scale']
-            nodetree.links.new(input, output)
+                # link mirror mesh output to join node
+                output = transform.outputs[0]
+                input = join.inputs[0]
+                nodetree.links.new(input, output)
 
-            output = group_in.outputs[4]
-            input = nodetree.nodes['transform1'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[5]
-            input = nodetree.nodes['transform1'].inputs['Rotation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[6]
-            input = nodetree.nodes['transform1'].inputs['Scale']
-            nodetree.links.new(input, output)
-
-            output = group_in.outputs[7]
-            input = nodetree.nodes['transform2'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[8]
-            input = nodetree.nodes['transform2'].inputs['Scale']
-            nodetree.links.new(input, output)
-
-            output = group_in.outputs[9]
-            input = nodetree.nodes['transform3'].inputs['Translation']
-            nodetree.links.new(input, output)
-            output = group_in.outputs[10]
-            input = nodetree.nodes['transform3'].inputs['Scale']
-            nodetree.links.new(input, output)
-
-            output = nodetree.nodes['join3'].outputs['Geometry']
+            # link combined geometry to group output
+            output = nodetree.nodes['join'].outputs['Geometry']
             input = group_out.inputs[0]
             nodetree.links.new(input, output)
+
+            # bbx to separate min and max
+            output = nodetree.nodes['bbx'].outputs[1]
+            input = nodetree.nodes['separate0'].inputs[0]
+            nodetree.links.new(input, output)
+            input = nodetree.nodes['separate1'].inputs[0]
+            nodetree.links.new(input, output)
+
+            # min max pairs to multipliers in -x, x, -y, y, -z, z order
+            output = nodetree.nodes['separate0'].outputs[0]
+            input = nodetree.nodes['multiply0'].inputs[0]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['separate1'].outputs[0]
+            input = nodetree.nodes['multiply1'].inputs[0]
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['separate0'].outputs[1]
+            input = nodetree.nodes['multiply2'].inputs[0]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['separate1'].outputs[1]
+            input = nodetree.nodes['multiply3'].inputs[0]
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['separate0'].outputs[2]
+            input = nodetree.nodes['multiply4'].inputs[0]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['separate1'].outputs[2]
+            input = nodetree.nodes['multiply5'].inputs[0]
+            nodetree.links.new(input, output)
+
+            # construct vectors from offsets with combine nodes
+            output = nodetree.nodes['multiply0'].outputs[0]
+            input = nodetree.nodes['combine0'].inputs[0]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['multiply1'].outputs[0]
+            input = nodetree.nodes['combine1'].inputs[0]
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['multiply2'].outputs[0]
+            input = nodetree.nodes['combine2'].inputs[1]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['multiply3'].outputs[0]
+            input = nodetree.nodes['combine3'].inputs[1]
+            nodetree.links.new(input, output)
+
+            output = nodetree.nodes['multiply4'].outputs[0]
+            input = nodetree.nodes['combine4'].inputs[2]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['multiply5'].outputs[0]
+            input = nodetree.nodes['combine5'].inputs[2]
+            nodetree.links.new(input, output)
+
+            # axis enable switches
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch0'].inputs[3]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch1'].inputs[3]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch2'].inputs[3]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch3'].inputs[3]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch4'].inputs[3]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['flip'].outputs[0]
+            # input = nodetree.nodes['switch5'].inputs[3]
+            # nodetree.links.new(input, output)
+
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch0'].inputs[1]
+            nodetree.links.new(output, input)
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch1'].inputs[1]
+            nodetree.links.new(output, input)
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch2'].inputs[1]
+            nodetree.links.new(input, output)
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch3'].inputs[1]
+            nodetree.links.new(input, output)
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch4'].inputs[1]
+            nodetree.links.new(input, output)
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = nodetree.nodes['switch5'].inputs[1]
+            nodetree.links.new(input, output)
+
+            # enabled meshes to transforms
+            output = nodetree.nodes['switch0'].outputs[0]
+            input = nodetree.nodes['transform0'].inputs[0]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['switch1'].outputs[0]
+            input = nodetree.nodes['transform1'].inputs[3]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['switch2'].outputs[0]
+            input = nodetree.nodes['transform0'].inputs[3]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['switch0'].outputs[0]
+            input = nodetree.nodes['transform0'].inputs[3]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['switch0'].outputs[0]
+            input = nodetree.nodes['transform0'].inputs[3]
+            nodetree.links.new(input, output)
+            output = nodetree.nodes['switch0'].outputs[0]
+            input = nodetree.nodes['transform0'].inputs[3]
+            nodetree.links.new(input, output)
+
+            nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
+            nodetree.nodes['transform1'].inputs[3].default_value[0] = -3.0
+            nodetree.nodes['transform2'].inputs[3].default_value[1] = -3.0
+            nodetree.nodes['transform3'].inputs[3].default_value[1] = -3.0
+            nodetree.nodes['transform4'].inputs[3].default_value[2] = -3.0
+            nodetree.nodes['transform5'].inputs[3].default_value[2] = -3.0
 
 
     def __del__(self):
@@ -1948,7 +2054,21 @@ class SXTOOLS_generate(object):
         forward = Vector((0.0, 0.0, 1.0))
 
         if obj.sxtools.tiling:
-            tools.add_tiling(obj)
+            # tools.add_tiling(obj)
+            setup.create_tiler()
+
+            if 'sx_tiler' in bpy.data.node_groups:
+                if 'sxGeometryNodes' not in obj.modifiers:
+                    tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
+                else:
+                    tiler = obj.modifiers['sxGeometryNodes']
+
+                if 'sxMirror' in obj.modifiers:
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
+
+                tiler.node_group = bpy.data.node_groups['sx_tiler']
+
             blend = 0.0
             groundplane = False
             dist = 5.0 * obj.sxtools.tilewidth
@@ -9743,6 +9863,9 @@ if __name__ == '__main__':
 
 
 # TODO
+# BUG: Cannot apply non-metallic material after a metallic one has been applied
+# FEAT: UI should specify when applying a material overwrites, and when respects the active layer mask
+# FEAT: Tiler to calculate mirroring via bounding box
 # FEAT: Create custom color attributes instead of vertex colors
 # FEAT: Migrate all compositing functions to custom attributes
 # FEAT: Migrate exporting to custom attributes
