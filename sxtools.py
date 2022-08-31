@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 0),
+    'version': (6, 2, 2),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2039,11 +2039,7 @@ class SXTOOLS_generate(object):
                         if scnHit:
                             scnOccValue -= contribution
 
-                ao_value = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
-                if obj.sxtools.quantize > 0:
-                    ao_value = round(ao_value*obj.sxtools.quantize)/obj.sxtools.quantize
-
-                vert_occ_dict[vert_id] = ao_value
+                vert_occ_dict[vert_id] = float((occValue * (1.0 - mix)) + (scnOccValue * mix))
 
             if groundplane:
                 bpy.data.objects.remove(ground, do_unlink=True)
@@ -6419,12 +6415,6 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         default=5.0,
         update=lambda self, context: update_custom_props(self, context, 'tilewidth'))
 
-    quantize: bpy.props.IntProperty(
-        name='Quantize',
-        description='Quantize occlusion values to reduce seams',
-        min=0,
-        default=0)
-
     weightednormals: bpy.props.BoolProperty(
         name='Weighted Normals',
         description='Enables Weighted Normals modifier on the object',
@@ -7521,11 +7511,11 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                         if scene.toolmode == 'OCC':
                             col_fill.prop(scene, 'occlusionblend', slider=True, text='Local/Global Mix')
                             col_fill.prop(scene, 'occlusiondistance', slider=True, text='Ray Distance')
-                            col_fill.prop(scene, 'occlusiongroundplane', text='Ground Plane')
+                            row_ground = col_fill.row(align=False)
+                            row_ground.prop(scene, 'occlusiongroundplane', text='Ground Plane')
                             row_tiling = col_fill.row(align=False)
                             row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
                             row_tiling.prop(sxtools, 'tilewidth', text='Tile Grid')
-                            row_tiling.prop(sxtools, 'quantize', text='Quantize')
                             row_tiling2 = col_fill.row(align=False)
                             row_tiling2.prop(sxtools, 'tile_pos_x', text='+X')
                             row_tiling2.prop(sxtools, 'tile_pos_y', text='+Y')
@@ -7534,6 +7524,8 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_tiling3.prop(sxtools, 'tile_neg_x', text='-X')
                             row_tiling3.prop(sxtools, 'tile_neg_y', text='-Y')
                             row_tiling3.prop(sxtools, 'tile_neg_z', text='-Z')
+                            if scene.occlusionblend == 0:
+                                row_ground.enabled = False
 
 
                 # Directional Tool ---------------------------------------------------
