@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 3),
+    'version': (6, 2, 5),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1462,6 +1462,9 @@ class SXTOOLS_setup(object):
             output = group_in.outputs[0]
             input = nodetree.nodes['flip'].inputs[0]
             nodetree.links.new(input, output)
+            output = group_in.outputs[0]
+            input = join.inputs[0]
+            nodetree.links.new(input, output)
 
             # bbx min and max separators
             for  i in range(2):
@@ -1499,10 +1502,11 @@ class SXTOOLS_setup(object):
 
                 # link flipped mesh to switch input
                 output = flip.outputs[0]
-                input = switch.inputs[3]
+                input = switch.inputs[15]
+                nodetree.links.new(input, output)
 
                 # link switch mesh output to transform
-                output = switch.outputs[0]
+                output = switch.outputs[6]
                 input = transform.inputs[0]
                 nodetree.links.new(input, output)
 
@@ -1517,9 +1521,10 @@ class SXTOOLS_setup(object):
             nodetree.links.new(input, output)
 
             # bbx to separate min and max
-            output = nodetree.nodes['bbx'].outputs[1]
+            output = nodetree.nodes['bbx'].outputs[2]
             input = nodetree.nodes['separate0'].inputs[0]
             nodetree.links.new(input, output)
+            output = nodetree.nodes['bbx'].outputs[1]
             input = nodetree.nodes['separate1'].inputs[0]
             nodetree.links.new(input, output)
 
@@ -1607,24 +1612,24 @@ class SXTOOLS_setup(object):
             nodetree.links.new(input, output)
 
             # enabled meshes to transforms
-            output = nodetree.nodes['switch0'].outputs[0]
-            input = nodetree.nodes['transform0'].inputs[0]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['switch1'].outputs[0]
-            input = nodetree.nodes['transform1'].inputs[3]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['switch2'].outputs[0]
-            input = nodetree.nodes['transform0'].inputs[3]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['switch0'].outputs[0]
-            input = nodetree.nodes['transform0'].inputs[3]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['switch0'].outputs[0]
-            input = nodetree.nodes['transform0'].inputs[3]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['switch0'].outputs[0]
-            input = nodetree.nodes['transform0'].inputs[3]
-            nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch0'].outputs[6]
+            # input = nodetree.nodes['transform0'].inputs[0]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch1'].outputs[6]
+            # input = nodetree.nodes['transform1'].inputs[0]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch2'].outputs[6]
+            # input = nodetree.nodes['transform2'].inputs[0]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch3'].outputs[6]
+            # input = nodetree.nodes['transform3'].inputs[0]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch4'].outputs[6]
+            # input = nodetree.nodes['transform4'].inputs[0]
+            # nodetree.links.new(input, output)
+            # output = nodetree.nodes['switch5'].outputs[6]
+            # input = nodetree.nodes['transform5'].inputs[0]
+            # nodetree.links.new(input, output)
 
             nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
             nodetree.nodes['transform1'].inputs[3].default_value[0] = -3.0
@@ -2057,29 +2062,17 @@ class SXTOOLS_generate(object):
             # tools.add_tiling(obj)
             setup.create_tiler()
 
-            if 'sx_tiler' in bpy.data.node_groups:
-                if 'sxGeometryNodes' not in obj.modifiers:
-                    tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
-                else:
-                    tiler = obj.modifiers['sxGeometryNodes']
-
-                if 'sxMirror' in obj.modifiers:
-                    bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
-
-                tiler.node_group = bpy.data.node_groups['sx_tiler']
-
             blend = 0.0
             groundplane = False
-            dist = 5.0 * obj.sxtools.tilewidth
-            xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
+            # dist = 5.0  # * obj.sxtools.tilewidth
+            # xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
 
             # Include only grid-matching bounds
-            bbx = [xmin, xmax, ymin, ymax]
-            bounds = []
-            for coord in bbx:
-                if (2.0 * round(coord, 3)) % obj.sxtools.tilewidth == 0:
-                    bounds.append(round(coord, 3))
+            # bbx = [xmin, xmax, ymin, ymax]
+            # bounds = []
+            # for coord in bbx:
+            #     if (2.0 * round(coord, 3)) % obj.sxtools.tilewidth == 0:
+            #         bounds.append(round(coord, 3))
             # print('SX Tools: Tiling object grid bounds', bounds)
 
         edg = bpy.context.evaluated_depsgraph_get()
@@ -2104,18 +2097,18 @@ class SXTOOLS_generate(object):
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
 
-                if obj.sxtools.tiling:
-                    mod_normal = []
-                    for i, coord in enumerate(vertLoc):
-                        if round(coord, 3) in bounds:
-                            obj.data.vertices[vert_id].select = True
-                            coord = 0.0
-                            mod_normal.append(coord)
-                        else:
-                            mod_normal.append(vertNormal[i])
+                # if obj.sxtools.tiling:
+                #     mod_normal = []
+                #     for i, coord in enumerate(vertLoc):
+                #         if round(coord, 3) in bounds:
+                #             obj.data.vertices[vert_id].select = True
+                #             coord = 0.0
+                #             mod_normal.append(coord)
+                #         else:
+                #             mod_normal.append(vertNormal[i])
 
-                    if ((Vector(mod_normal) - vertNormal).length > 0.0):
-                        vertNormal = Vector(mod_normal).normalized()
+                #     if ((Vector(mod_normal) - vertNormal).length > 0.0):
+                #         vertNormal = Vector(mod_normal).normalized()
 
                 # Pass 0: Raycast for bias
                 hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
@@ -3419,245 +3412,6 @@ class SXTOOLS_tools(object):
 
         sxglobals.refreshInProgress = False
         utils.mode_manager(objs, revert=True, mode_id='apply_material')
-
-
-    def add_tiling(self, obj):
-        setup.create_tiler()
-
-        if 'sx_tiler' in bpy.data.node_groups:
-            if 'sxGeometryNodes' not in obj.modifiers:
-                tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
-            else:
-                tiler = obj.modifiers['sxGeometryNodes']
-
-            if 'sxMirror' in obj.modifiers:
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
-
-            tiler.node_group = bpy.data.node_groups['sx_tiler']
-
-            stretch = 100.0
-            if 'road' in obj.name:
-                if 'straight' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_7'][2] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_8'][0] = obj.sxtools.tilewidth
-                    tiler['Input_8'][1] = obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = 0.0
-                    tiler['Input_10'][1] = 0.0
-                    tiler['Input_10'][2] = 0.0
-
-                elif 'corner' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth * stretch + 0.5 * obj.sxtools.tilewidth
-                    tiler['Input_3'][1] = -2.0 * stretch
-                    tiler['Input_4'][0] = -1.0 * (obj.sxtools.tilewidth * stretch + 0.5 * obj.sxtools.tilewidth)
-                    tiler['Input_6'][0] = -2.0 * stretch
-                    tiler['Input_7'][2] = -2.0 * obj.sxtools.tilewidth
-                    tiler['Input_8'][0] = obj.sxtools.tilewidth
-                    tiler['Input_8'][1] = obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = 0.0
-                    tiler['Input_10'][1] = 0.0
-                    tiler['Input_10'][2] = 0.0
-
-                elif '3way' in obj.name:
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth
-                    tiler['Input_4'][0] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_7'][1] = -obj.sxtools.tilewidth
-                    tiler['Input_8'][1] = -1.0
-                    tiler['Input_9'][2] = -2.0 * obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = obj.sxtools.tilewidth
-                    tiler['Input_10'][1] = obj.sxtools.tilewidth
-
-                elif '4way' in obj.name:
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth
-                    tiler['Input_4'][0] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_7'][1] = -obj.sxtools.tilewidth
-                    tiler['Input_9'][1] = obj.sxtools.tilewidth
-
-                elif 'end' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth
-                    tiler['Input_3'][1] = -1.0
-                    tiler['Input_4'][2] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_6'][0] = obj.sxtools.tilewidth
-                    tiler['Input_6'][1] = obj.sxtools.tilewidth
-                    tiler['Input_8'][0] = 0.0
-                    tiler['Input_8'][1] = 0.0
-                    tiler['Input_8'][2] = 0.0
-                    tiler['Input_10'][0] = 0.0
-                    tiler['Input_10'][1] = 0.0
-                    tiler['Input_10'][2] = 0.0
-
-                elif 'split' in obj.name:
-                    tiler['Input_1'][1] = -obj.sxtools.tilewidth
-                    tiler['Input_3'][1] = -1.0
-                    tiler['Input_4'][0] = 2.0 * obj.sxtools.tilewidth
-                    tiler['Input_7'][0] = -4.0 * obj.sxtools.tilewidth
-                    tiler['Input_9'][1] = 8.0 * obj.sxtools.tilewidth
-                    tiler['Input_9'][2] = -2.0 * obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = obj.sxtools.tilewidth
-                    tiler['Input_10'][1] = obj.sxtools.tilewidth
-
-                elif 'merge' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_7'][0] = -obj.sxtools.tilewidth
-                    tiler['Input_8'][0] = -1.0
-                    tiler['Input_9'][2] = -2.0 * obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = obj.sxtools.tilewidth
-                    tiler['Input_10'][1] = obj.sxtools.tilewidth
-
-                elif 'funnel' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth
-                    tiler['Input_3'][1] = -1.0
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_6'][1] = -1.0
-                    tiler['Input_7'][2] = obj.sxtools.tilewidth * -2.0
-                    tiler['Input_8'][0] = obj.sxtools.tilewidth
-                    tiler['Input_8'][1] = obj.sxtools.tilewidth
-                    tiler['Input_10'][0] = 0.0
-                    tiler['Input_10'][1] = 0.0
-                    tiler['Input_10'][2] = 0.0
-
-            elif 'asphalt' in obj.name:
-                if 'corner_inner' in obj.name:
-                    pass
-
-                elif 'corner_outer' in obj.name:
-                    pass
-
-                elif 'corner_diagonal' in obj.name:
-                    pass
-
-                elif 'edge' in obj.name:
-                    pass
-
-                elif 'double' in obj.name:
-                    tiler['Input_1'][1] = obj.sxtools.tilewidth
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * -2.0
-
-                elif 'exit' in obj.name:
-                    pass
-
-                elif 'plain' in obj.name:
-                    pass
-
-                tiler['Input_7'][2] = obj.sxtools.tilewidth * -2.0
-                tiler['Input_8'][0] = obj.sxtools.tilewidth
-                tiler['Input_8'][1] = obj.sxtools.tilewidth
-                tiler['Input_10'][0] = 0.0
-                tiler['Input_10'][1] = 0.0
-                tiler['Input_10'][2] = 0.0
-
-            elif 'roof' in obj.name:
-                if ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = 2.0 * stretch
-                    tiler['Input_4'][0] = -(stretch * 2.0 + 1.0) * obj.sxtools.tilewidth
-
-                elif ('corner' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('inner' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                tiler['Input_7'][2] = -obj.sxtools.tilewidth * 0.1
-                tiler['Input_8'][2] = -5.0 * stretch
-                tiler['Input_10'][0] = 0.0
-                tiler['Input_10'][1] = 0.0
-                tiler['Input_10'][2] = 0.0
-
-            elif 'middle' in obj.name:
-                if ('corner' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('inner' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = 2.0 * stretch
-                    tiler['Input_4'][0] = -(2.0 * stretch + 1.0) * obj.sxtools.tilewidth
-
-                tiler['Input_7'][2] = stretch * obj.dimensions[2]
-                tiler['Input_8'][2] = stretch - 1.0
-                tiler['Input_9'][2] = -stretch * obj.dimensions[2]
-                tiler['Input_10'][2] = stretch - 1.0
-
-            elif 'bottom' in obj.name:
-                if ('empty' in obj.name) and ('left' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('empty' in obj.name) and ('right' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('corner' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                elif ('straight' in obj.name) or ('empty' in obj.name):
-                    tiler['Input_1'][0] = obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = 2.0 * stretch
-                    tiler['Input_4'][0] = -(2.0 * stretch + 1.0) * obj.sxtools.tilewidth
-
-                elif ('inner' in obj.name):
-                    tiler['Input_1'][0] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_3'][0] = -2.0 * stretch
-                    tiler['Input_4'][1] = -obj.sxtools.tilewidth * (0.5 + stretch)
-                    tiler['Input_6'][1] = -2.0 * stretch
-
-                tiler['Input_7'][2] = stretch * obj.dimensions[2]
-                tiler['Input_8'][2] = -(stretch - 1.0)
-                tiler['Input_9'][2] = -(stretch - 1.0) * obj.dimensions[2]
-                tiler['Input_10'][2] = -(stretch - 1.0)
-
-            else:
-                message_box('Invalid tile naming!', 'SX Tools Error', 'ERROR')
-                print('SX Tools Error: Invalid tile naming')
 
 
     def remove_tiling(self, obj):
@@ -5867,6 +5621,26 @@ def update_custom_props(self, context, prop):
         if prop == 'category':
             load_category(self, context)
 
+        if prop == 'tiling':
+            if 'sx_tiler' in bpy.data.node_groups:
+                if 'sxGeometryNodes' not in obj.modifiers:
+                    tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
+                else:
+                    tiler = obj.modifiers['sxGeometryNodes']
+
+                if 'sxMirror' in obj.modifiers:
+                    bpy.context.view_layer.objects.active = obj
+                    bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
+
+                tiler.node_group = bpy.data.node_groups['sx_tiler']
+
+                tiler['Input_2'] = obj.sxtools.tile_pos_x
+                tiler['Input_3'] = obj.sxtools.tile_neg_x
+                tiler['Input_4'] = obj.sxtools.tile_pos_y
+                tiler['Input_5'] = obj.sxtools.tile_neg_y
+                tiler['Input_6'] = obj.sxtools.tile_pos_z
+                tiler['Input_7'] = obj.sxtools.tile_neg_z
+
 
 def update_gpu_props(self, context):
     mode = context.scene.sxtools.shadingmode
@@ -6528,12 +6302,6 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         description='Select required mirror directions',
         default=False,
         update=lambda self, context: update_custom_props(self, context, 'tiling'))
-
-    tilewidth: bpy.props.FloatProperty(
-        name='Tile Grid',
-        min=0.0,
-        default=5.0,
-        update=lambda self, context: update_custom_props(self, context, 'tilewidth'))
 
     weightednormals: bpy.props.BoolProperty(
         name='Weighted Normals',
@@ -7635,7 +7403,6 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_ground.prop(scene, 'occlusiongroundplane', text='Ground Plane')
                             row_tiling = col_fill.row(align=False)
                             row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
-                            row_tiling.prop(sxtools, 'tilewidth', text='Tile Grid')
                             row_tiling2 = col_fill.row(align=False)
                             row_tiling2.prop(sxtools, 'tile_pos_x', text='+X')
                             row_tiling2.prop(sxtools, 'tile_pos_y', text='+Y')
