@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 5),
+    'version': (6, 2, 12),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1450,6 +1450,14 @@ class SXTOOLS_setup(object):
             flip.name = 'flip'
             flip.location = (-100, 0)
 
+            # offset multipliers for mirror objects
+            offset = nodetree.nodes.new(type='ShaderNodeMath')
+            offset.name = 'offset'
+            offset.location = (-100, -100)
+            offset.operation = 'ADD'
+            offset.inputs[0].default_value = 4.0
+            offset.inputs[1].default_value = 0.0
+
             # join all mirror copies prior to output
             join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
             join.name = 'join'
@@ -1478,7 +1486,6 @@ class SXTOOLS_setup(object):
                 multiply.name = 'multiply'+str(i)
                 multiply.location = (200, -100*i)
                 multiply.operation = 'MULTIPLY'
-                multiply.inputs[1].default_value = 4.0
 
                 # combine nodes for mirror offsets
                 combine = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
@@ -1495,10 +1502,20 @@ class SXTOOLS_setup(object):
                 transform.name = 'transform'+str(i)
                 transform.location = (800, -100*i)
 
+                # link offset to multipliers
+                output = offset.outputs[0]
+                input = multiply.inputs[1]
+                nodetree.links.new(input, output)
+
                 # link combine to translation
                 output = combine.outputs[0]
                 input = transform.inputs[1]
                 nodetree.links.new(input, output)
+
+                # expose axis enable switches
+                output = group_in.outputs.new('NodeSocketBool', 'New')
+                input = switch.inputs[1]
+                nodetree.links.new(output, input)
 
                 # link flipped mesh to switch input
                 output = flip.outputs[0]
@@ -1514,6 +1531,11 @@ class SXTOOLS_setup(object):
                 output = transform.outputs[0]
                 input = join.inputs[0]
                 nodetree.links.new(input, output)
+
+            # expose axis offset
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = offset.inputs[1]
+            nodetree.links.new(output, input)
 
             # link combined geometry to group output
             output = nodetree.nodes['join'].outputs['Geometry']
@@ -1573,62 +1595,23 @@ class SXTOOLS_setup(object):
             nodetree.links.new(input, output)
 
             # axis enable switches
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch0'].inputs[3]
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch0'].inputs[1]
+            # nodetree.links.new(output, input)
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch1'].inputs[1]
+            # nodetree.links.new(output, input)
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch2'].inputs[1]
             # nodetree.links.new(input, output)
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch1'].inputs[3]
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch3'].inputs[1]
             # nodetree.links.new(input, output)
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch2'].inputs[3]
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch4'].inputs[1]
             # nodetree.links.new(input, output)
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch3'].inputs[3]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch4'].inputs[3]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['flip'].outputs[0]
-            # input = nodetree.nodes['switch5'].inputs[3]
-            # nodetree.links.new(input, output)
-
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch0'].inputs[1]
-            nodetree.links.new(output, input)
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch1'].inputs[1]
-            nodetree.links.new(output, input)
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch2'].inputs[1]
-            nodetree.links.new(input, output)
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch3'].inputs[1]
-            nodetree.links.new(input, output)
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch4'].inputs[1]
-            nodetree.links.new(input, output)
-            output = group_in.outputs.new('NodeSocketBool', 'New')
-            input = nodetree.nodes['switch5'].inputs[1]
-            nodetree.links.new(input, output)
-
-            # enabled meshes to transforms
-            # output = nodetree.nodes['switch0'].outputs[6]
-            # input = nodetree.nodes['transform0'].inputs[0]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['switch1'].outputs[6]
-            # input = nodetree.nodes['transform1'].inputs[0]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['switch2'].outputs[6]
-            # input = nodetree.nodes['transform2'].inputs[0]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['switch3'].outputs[6]
-            # input = nodetree.nodes['transform3'].inputs[0]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['switch4'].outputs[6]
-            # input = nodetree.nodes['transform4'].inputs[0]
-            # nodetree.links.new(input, output)
-            # output = nodetree.nodes['switch5'].outputs[6]
-            # input = nodetree.nodes['transform5'].inputs[0]
+            # output = group_in.outputs.new('NodeSocketBool', 'New')
+            # input = nodetree.nodes['switch5'].inputs[1]
             # nodetree.links.new(input, output)
 
             nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
@@ -2059,21 +2042,11 @@ class SXTOOLS_generate(object):
         forward = Vector((0.0, 0.0, 1.0))
 
         if obj.sxtools.tiling:
-            # tools.add_tiling(obj)
-            setup.create_tiler()
-
+            obj.modifiers['sxTiler'].show_viewport = True
             blend = 0.0
             groundplane = False
-            # dist = 5.0  # * obj.sxtools.tilewidth
-            # xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
-
-            # Include only grid-matching bounds
-            # bbx = [xmin, xmax, ymin, ymax]
-            # bounds = []
-            # for coord in bbx:
-            #     if (2.0 * round(coord, 3)) % obj.sxtools.tilewidth == 0:
-            #         bounds.append(round(coord, 3))
-            # print('SX Tools: Tiling object grid bounds', bounds)
+            xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
+            dist = 2.0 * min(xmax-xmin, ymax-ymin, zmax-zmin)
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -2097,6 +2070,8 @@ class SXTOOLS_generate(object):
                 vertWorldLoc = Vector(vert_dict[vert_id][2])
                 vertWorldNormal = Vector(vert_dict[vert_id][3])
 
+                # use modified tile-border normals to reduce seam artifacts
+                # if vertex pos x y z is at bbx limit, and mirror axis is set, modify respective normal vector component to zero
                 # if obj.sxtools.tiling:
                 #     mod_normal = []
                 #     for i, coord in enumerate(vertLoc):
@@ -2159,7 +2134,7 @@ class SXTOOLS_generate(object):
                 bpy.data.meshes.remove(groundmesh, do_unlink=True)
 
             if obj.sxtools.tiling:
-                tools.remove_tiling(obj)
+                obj.modifiers['sxTiler'].show_viewport = False
 
             vert_occ_list = generate.vert_dict_to_loop_list(obj, vert_occ_dict, 1, 4)
             return self.mask_list(obj, vert_occ_list, masklayer)
@@ -3414,18 +3389,11 @@ class SXTOOLS_tools(object):
         utils.mode_manager(objs, revert=True, mode_id='apply_material')
 
 
-    def remove_tiling(self, obj):
-        if 'sxGeometryNodes' in obj.modifiers:
-            bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.modifier_remove(modifier='sxGeometryNodes')
-
-
     def add_modifiers(self, objs):
         for obj in objs:
             obj.data.use_auto_smooth = True
             obj.data.auto_smooth_angle = math.radians(obj.sxtools.smoothangle)
 
-        for obj in objs:
             if 'sxMirror' not in obj.modifiers:
                 obj.modifiers.new(type='MIRROR', name='sxMirror')
                 if obj.sxtools.xmirror or obj.sxtools.ymirror or obj.sxtools.zmirror:
@@ -3442,6 +3410,10 @@ class SXTOOLS_tools(object):
                     obj.modifiers['sxMirror'].mirror_object = None
                 obj.modifiers['sxMirror'].use_clip = True
                 obj.modifiers['sxMirror'].use_mirror_merge = True
+            if 'sxTiler' not in obj.modifiers:
+                setup.create_tiler()
+                tiler = obj.modifiers.new(type='NODES', name='sxTiler')
+                tiler.node_group = bpy.data.node_groups['sx_tiler']
             if 'sxSubdivision' not in obj.modifiers:
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
@@ -3518,6 +3490,8 @@ class SXTOOLS_tools(object):
                     bpy.ops.object.modifier_remove(modifier='sxMirror')
                 else:
                     bpy.ops.object.modifier_apply(modifier='sxMirror')
+            if 'sxTiler' in obj.modifiers:
+                bpy.ops.object.modifier_remove(modifier='sxTiler')
             if 'sxSubdivision' in obj.modifiers:
                 if obj.modifiers['sxSubdivision'].levels == 0:
                     bpy.ops.object.modifier_remove(modifier='sxSubdivision')
@@ -3551,7 +3525,10 @@ class SXTOOLS_tools(object):
 
 
     def remove_modifiers(self, objs, reset=False):
-        modifiers = ['sxMirror', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
+        modifiers = ['sxMirror', 'sxTiler', 'sxGeometryNodes', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
+        if 'sx_tiler' in bpy.data.node_groups:
+            bpy.data.node_groups.remove(bpy.data.node_groups['sx_tiler'], do_unlink=True)
+
         for obj in objs:
             for modifier in modifiers:
                 if modifier in obj.modifiers:
@@ -5488,7 +5465,6 @@ def adjust_hsl(self, context, hslmode):
 
 def update_modifiers(self, context, prop):
     update_custom_props(self, context, prop)
-
     objs = selection_validator(self, context)
     if len(objs) > 0:
         if prop == 'modifiervisibility':
@@ -5542,6 +5518,24 @@ def update_modifiers(self, context, prop):
                         obj.modifiers['sxMirror'].show_viewport = True
                     else:
                         obj.modifiers['sxMirror'].show_viewport = False
+
+        elif prop == 'tiling':
+            if objs[0].sxtools.tiling:
+                if 'sxTiler' not in objs[0].modifiers:
+                    tools.remove_modifiers(objs)
+                    tools.add_modifiers(objs)
+
+            for obj in objs:
+                tiler = obj.modifiers['sxTiler']
+                tiler['Input_1'] = obj.sxtools.tile_pos_x
+                tiler['Input_2'] = obj.sxtools.tile_neg_x
+                tiler['Input_3'] = obj.sxtools.tile_pos_y
+                tiler['Input_4'] = obj.sxtools.tile_neg_y
+                tiler['Input_5'] = obj.sxtools.tile_pos_z
+                tiler['Input_6'] = obj.sxtools.tile_neg_z
+                tiler['Input_7'] = obj.sxtools.tile_offset
+
+                obj.modifiers['sxTiler'].show_viewport = obj.sxtools.tiling
 
         elif prop == 'hardmode':
             for obj in objs:
@@ -5612,6 +5606,7 @@ def update_custom_props(self, context, prop):
     objs = selection_validator(self, context)
     if len(objs) > 0:
         value = getattr(objs[0].sxtools, prop)
+
         for obj in objs:
             if prop == 'staticvertexcolors':
                 obj['staticVertexColors'] = int(objs[0].sxtools.staticvertexcolors)
@@ -5620,26 +5615,6 @@ def update_custom_props(self, context, prop):
 
         if prop == 'category':
             load_category(self, context)
-
-        if prop == 'tiling':
-            if 'sx_tiler' in bpy.data.node_groups:
-                if 'sxGeometryNodes' not in obj.modifiers:
-                    tiler = obj.modifiers.new(type='NODES', name='sxGeometryNodes')
-                else:
-                    tiler = obj.modifiers['sxGeometryNodes']
-
-                if 'sxMirror' in obj.modifiers:
-                    bpy.context.view_layer.objects.active = obj
-                    bpy.ops.object.modifier_move_to_index(modifier='sxGeometryNodes', index=1)
-
-                tiler.node_group = bpy.data.node_groups['sx_tiler']
-
-                tiler['Input_2'] = obj.sxtools.tile_pos_x
-                tiler['Input_3'] = obj.sxtools.tile_neg_x
-                tiler['Input_4'] = obj.sxtools.tile_pos_y
-                tiler['Input_5'] = obj.sxtools.tile_neg_y
-                tiler['Input_6'] = obj.sxtools.tile_pos_z
-                tiler['Input_7'] = obj.sxtools.tile_neg_z
 
 
 def update_gpu_props(self, context):
@@ -6265,43 +6240,49 @@ class SXTOOLS_objectprops(bpy.types.PropertyGroup):
         name='Tiling Object',
         description='Creates duplicates during occlusion rendering to fix edge values',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_pos_x: bpy.props.BoolProperty(
         name='Tile X',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_neg_x: bpy.props.BoolProperty(
         name='Tile -X',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_pos_y: bpy.props.BoolProperty(
         name='Tile Y',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_neg_y: bpy.props.BoolProperty(
         name='Tile -Y',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_pos_z: bpy.props.BoolProperty(
         name='Tile Z',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     tile_neg_z: bpy.props.BoolProperty(
         name='Tile -Z',
         description='Select required mirror directions',
         default=False,
-        update=lambda self, context: update_custom_props(self, context, 'tiling'))
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
+
+    tile_offset: bpy.props.FloatProperty(
+        name='Tile Offset',
+        description='Adjust offset of mirror copies',
+        default=0.0,
+        update=lambda self, context: update_modifiers(self, context, 'tiling'))
 
     weightednormals: bpy.props.BoolProperty(
         name='Weighted Normals',
@@ -7403,6 +7384,7 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_ground.prop(scene, 'occlusiongroundplane', text='Ground Plane')
                             row_tiling = col_fill.row(align=False)
                             row_tiling.prop(sxtools, 'tiling', text='Tiling Object')
+                            row_tiling.prop(sxtools, 'tile_offset', text='Tile Offset')
                             row_tiling2 = col_fill.row(align=False)
                             row_tiling2.prop(sxtools, 'tile_pos_x', text='+X')
                             row_tiling2.prop(sxtools, 'tile_pos_y', text='+Y')
@@ -7413,7 +7395,9 @@ class SXTOOLS_PT_panel(bpy.types.Panel):
                             row_tiling3.prop(sxtools, 'tile_neg_z', text='-Z')
                             if scene.occlusionblend == 0:
                                 row_ground.enabled = False
-
+                            if not sxtools.tiling:
+                                row_tiling2.enabled = False
+                                row_tiling3.enabled = False
 
                 # Directional Tool ---------------------------------------------------
                 elif scene.toolmode == 'DIR':
