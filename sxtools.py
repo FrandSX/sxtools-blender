@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 12),
+    'version': (6, 2, 13),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -2072,18 +2072,15 @@ class SXTOOLS_generate(object):
 
                 # use modified tile-border normals to reduce seam artifacts
                 # if vertex pos x y z is at bbx limit, and mirror axis is set, modify respective normal vector component to zero
-                # if obj.sxtools.tiling:
-                #     mod_normal = []
-                #     for i, coord in enumerate(vertLoc):
-                #         if round(coord, 3) in bounds:
-                #             obj.data.vertices[vert_id].select = True
-                #             coord = 0.0
-                #             mod_normal.append(coord)
-                #         else:
-                #             mod_normal.append(vertNormal[i])
+                if obj.sxtools.tiling:
+                    mod_normal = [0.0, 0.0, 0.0]
+                    bounds = (round(xmin, 3), round(xmax, 3), round(ymin, 3), round(ymax, 3), round(zmin, 3), round(zmax, 3))
+                    for i, coord in enumerate(vertLoc):
+                        if round(coord, 3) not in bounds:
+                            mod_normal[i] = vertNormal[i]
 
-                #     if ((Vector(mod_normal) - vertNormal).length > 0.0):
-                #         vertNormal = Vector(mod_normal).normalized()
+                    if ((Vector(mod_normal) - vertNormal).length > 0.0):
+                        vertNormal = Vector(mod_normal).normalized()
 
                 # Pass 0: Raycast for bias
                 hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
