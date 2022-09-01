@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 13),
+    'version': (6, 2, 16),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -616,7 +616,11 @@ class SXTOOLS_utils(object):
         bbx_y = []
         bbx_z = []
         for obj in objs:
-            corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+            if local:
+                corners = [Vector(corner) for corner in obj.bound_box]
+            else:
+                corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
+
             for corner in corners:
                 bbx_x.append(corner[0])
                 bbx_y.append(corner[1])
@@ -624,15 +628,6 @@ class SXTOOLS_utils(object):
         xmin, xmax = min(bbx_x), max(bbx_x)
         ymin, ymax = min(bbx_y), max(bbx_y)
         zmin, zmax = min(bbx_z), max(bbx_z)
-
-        if local:
-            pos = obj.matrix_world.to_translation()
-            xmin -= pos[0]
-            xmax -= pos[0]
-            ymin -= pos[1]
-            ymax -= pos[1]
-            zmin -= pos[2]
-            zmax -= pos[2]
 
         return xmin, xmax, ymin, ymax, zmin, zmax
 
@@ -2042,11 +2037,13 @@ class SXTOOLS_generate(object):
         forward = Vector((0.0, 0.0, 1.0))
 
         if obj.sxtools.tiling:
-            obj.modifiers['sxTiler'].show_viewport = True
             blend = 0.0
             groundplane = False
+            obj.modifiers['sxTiler'].show_viewport = False
+            bpy.context.view_layer.update()
             xmin, xmax, ymin, ymax, zmin, zmax = utils.get_object_bounding_box([obj, ], local=True)
             dist = 2.0 * min(xmax-xmin, ymax-ymin, zmax-zmin)
+            obj.modifiers['sxTiler'].show_viewport = True
 
         edg = bpy.context.evaluated_depsgraph_get()
         obj_eval = obj.evaluated_get(edg)
@@ -2074,13 +2071,40 @@ class SXTOOLS_generate(object):
                 # if vertex pos x y z is at bbx limit, and mirror axis is set, modify respective normal vector component to zero
                 if obj.sxtools.tiling:
                     mod_normal = [0.0, 0.0, 0.0]
-                    bounds = (round(xmin, 3), round(xmax, 3), round(ymin, 3), round(ymax, 3), round(zmin, 3), round(zmax, 3))
-                    for i, coord in enumerate(vertLoc):
-                        if round(coord, 3) not in bounds:
-                            mod_normal[i] = vertNormal[i]
+                    match = False
 
-                    if ((Vector(mod_normal) - vertNormal).length > 0.0):
-                        vertNormal = Vector(mod_normal).normalized()
+                    for i, coord in enumerate(vertLoc):
+                        if i == 0:
+                            if obj.sxtools.tile_neg_x and (round(coord, 2) == round(xmin, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            elif obj.sxtools.tile_pos_x and (round(coord, 2) == round(xmax, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            else:
+                                mod_normal[i] = vertNormal[i]
+                        elif i == 1:
+                            if obj.sxtools.tile_neg_y and (round(coord, 2) == round(ymin, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            elif obj.sxtools.tile_pos_y and (round(coord, 2) == round(ymax, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            else:
+                                mod_normal[i] = vertNormal[i]
+                        else:
+                            if obj.sxtools.tile_neg_z and (round(coord, 2) == round(zmin, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            elif obj.sxtools.tile_pos_z and (round(coord, 2) == round(zmax, 2)):
+                                match = True
+                                mod_normal[i] = 0.0
+                            else:
+                                mod_normal[i] = vertNormal[i]
+
+                    if match:
+                        # obj.data.vertices[vert_id].select = True
+                        vertNormal = Vector(mod_normal[:]).normalized()
 
                 # Pass 0: Raycast for bias
                 hit, loc, normal, index = obj.ray_cast(vertLoc, vertNormal, distance=dist)
@@ -9613,8 +9637,6 @@ if __name__ == '__main__':
 # TODO
 # BUG: Cannot apply non-metallic material after a metallic one has been applied
 # FEAT: UI should specify when applying a material overwrites, and when respects the active layer mask
-# FEAT: Tiler to calculate mirroring via bounding box
-# FEAT: Create custom color attributes instead of vertex colors
 # FEAT: Migrate all compositing functions to custom attributes
 # FEAT: Migrate exporting to custom attributes
 # BUG: Grouping of objs with armatures
