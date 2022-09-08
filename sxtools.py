@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 16),
+    'version': (6, 2, 25),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -317,12 +317,23 @@ class SXTOOLS_files(object):
                 layers.generate_masks(objArray)
 
                 for obj in objArray:
+                    bpy.context.view_layer.objects.active = obj
                     compLayers = utils.find_comp_layers(obj, obj['staticVertexColors'])
                     layer0 = utils.find_layer_from_index(obj, 0)
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
 
-                    bpy.context.view_layer.objects.active = obj
+                    # Temporary fix for Blender 3.x not supporting exporting of float color attributes
+                    color_layers = utils.find_color_layers(obj)
+                    for layer in color_layers:
+                        colors = layers.get_layer(obj, layer)
+                        obj.data.attributes.remove(obj.data.attributes[layer.vertexColorLayer])
+                        obj.data.attributes.new(name=layer.vertexColorLayer, type='BYTE_COLOR', domain='CORNER')
+                        layers.set_layer(obj, colors, layer)
+
+                    obj.data.attributes.active_color = obj.data.attributes[layer0.vertexColorLayer]
+                    bpy.ops.geometry.color_attribute_render_set(name=layer0.vertexColorLayer)
+
                     # bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
                     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
@@ -367,6 +378,17 @@ class SXTOOLS_files(object):
 
                 groupNames.append(group.name)
                 group.location = org_loc
+
+                # Clean-up of temporary fix for Blender 3.x not supporting exporting of float color attributes
+                for obj in objArray:
+                    color_layers = utils.find_color_layers(obj)
+                    for layer in color_layers:
+                        colors = layers.get_layer(obj, layer)
+                        obj.data.attributes.remove(obj.data.attributes[layer.vertexColorLayer])
+                        obj.data.attributes.new(name=layer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')
+                        layers.set_layer(obj, colors, layer)
+
+                bpy.context.view_layer.objects.active = group
 
         if empty:
             message_box('No objects exported!')
@@ -839,7 +861,7 @@ class SXTOOLS_setup(object):
 
             for sxLayer in colorArray:
                 if sxLayer.vertexColorLayer not in mesh.attributes:
-                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='BYTE_COLOR', domain='CORNER')
+                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')  # type='BYTE_COLOR', domain='CORNER')
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
 
@@ -1432,23 +1454,23 @@ class SXTOOLS_setup(object):
             nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
             group_in = nodetree.nodes.new(type='NodeGroupInput')
             group_in.name = 'group_input'
-            group_in.location = (-200, 0)
+            group_in.location = (-500, 0)
             group_out = nodetree.nodes.new(type='NodeGroupOutput')
             group_out.name = 'group_output'
             group_out.location = (1200, 0)
 
             bbx = nodetree.nodes.new(type='GeometryNodeBoundBox')
             bbx.name = 'bbx'
-            bbx.location = (-100, 100)
+            bbx.location = (-300, 100)
 
             flip = nodetree.nodes.new(type='GeometryNodeFlipFaces')
             flip.name = 'flip'
-            flip.location = (-100, 0)
+            flip.location = (-300, 0)
 
             # offset multipliers for mirror objects
             offset = nodetree.nodes.new(type='ShaderNodeMath')
             offset.name = 'offset'
-            offset.location = (-100, -100)
+            offset.location = (-300, -100)
             offset.operation = 'ADD'
             offset.inputs[0].default_value = 4.0
             offset.inputs[1].default_value = 0.0
@@ -1588,26 +1610,6 @@ class SXTOOLS_setup(object):
             output = nodetree.nodes['multiply5'].outputs[0]
             input = nodetree.nodes['combine5'].inputs[2]
             nodetree.links.new(input, output)
-
-            # axis enable switches
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch0'].inputs[1]
-            # nodetree.links.new(output, input)
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch1'].inputs[1]
-            # nodetree.links.new(output, input)
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch2'].inputs[1]
-            # nodetree.links.new(input, output)
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch3'].inputs[1]
-            # nodetree.links.new(input, output)
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch4'].inputs[1]
-            # nodetree.links.new(input, output)
-            # output = group_in.outputs.new('NodeSocketBool', 'New')
-            # input = nodetree.nodes['switch5'].inputs[1]
-            # nodetree.links.new(input, output)
 
             nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
             nodetree.nodes['transform1'].inputs[3].default_value[0] = -3.0
@@ -3435,6 +3437,8 @@ class SXTOOLS_tools(object):
                 setup.create_tiler()
                 tiler = obj.modifiers.new(type='NODES', name='sxTiler')
                 tiler.node_group = bpy.data.node_groups['sx_tiler']
+                obj.modifiers['sxTiler'].show_viewport = obj.sxtools.modifiervisibility
+                obj.modifiers['sxTiler'].show_expanded = False
             if 'sxSubdivision' not in obj.modifiers:
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
@@ -5492,6 +5496,11 @@ def update_modifiers(self, context, prop):
             for obj in objs:
                 if 'sxMirror' in obj.modifiers:
                     obj.modifiers['sxMirror'].show_viewport = obj.sxtools.modifiervisibility
+                if 'sxTiler' in obj.modifiers:
+                    if not obj.sxtools.tiling:
+                        obj.modifiers['sxTiler'].show_viewport = False
+                    else:
+                        obj.modifiers['sxTiler'].show_viewport = obj.sxtools.modifiervisibility
                 if 'sxSubdivision' in obj.modifiers:
                     if (obj.sxtools.subdivisionlevel == 0):
                         obj.modifiers['sxSubdivision'].show_viewport = False
@@ -5881,7 +5890,10 @@ def load_post_handler(dummy):
     if bpy.data.scenes['Scene'].sxtools.rampmode == '':
         bpy.data.scenes['Scene'].sxtools.rampmode = 'X'
 
+    active = bpy.context.view_layer.objects.active
     for obj in bpy.data.objects:
+        bpy.context.view_layer.objects.active = obj
+
         if (len(obj.sxtools.keys()) > 0):
             if obj.sxtools.hardmode == '':
                 obj.sxtools.hardmode = 'SHARP'
@@ -5895,6 +5907,16 @@ def load_post_handler(dummy):
                 obj['emission_visibility'] = True
             else:
                 bpy.context.preferences.addons['sxtools'].preferences['materialtype'] = 'SMP'
+
+            # From Blender 3.2 onward, float_color color attributes replace vertex_colors
+            # Below code updates legacy mesh data to new format
+            for layer in obj.sxlayers:
+                if layer.layerType == 'COLOR':
+                    if obj.data.attributes[layer.vertexColorLayer].data_type == 'BYTE_COLOR':
+                        obj.data.attributes.active_color = obj.data.attributes[layer.vertexColorLayer]
+                        bpy.ops.geometry.attribute_convert(domain='CORNER', data_type='FLOAT_COLOR')
+
+    bpy.context.view_layer.objects.active = active
 
     for obj in bpy.data.objects:
         if (len(obj.sxtools.keys()) > 0):
