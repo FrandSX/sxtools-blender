@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 2),
+    'version': (6, 3, 5),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -337,6 +337,10 @@ class SXTOOLS_files(object):
                     # bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
                     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
+                    if 'sxTiler' in obj.modifiers:
+                        obj.modifiers.remove(obj.modifiers['sxTiler'])
+
+                # bpy.context.view_layer.update()
                 bpy.context.view_layer.objects.active = group
 
                 # If srgb colorspace exporting is selected
@@ -378,6 +382,9 @@ class SXTOOLS_files(object):
 
                 groupNames.append(group.name)
                 group.location = org_loc
+
+                tools.remove_modifiers(objArray)
+                tools.add_modifiers(objArray)
 
                 # Clean-up of temporary fix for Blender 3.x not supporting exporting of float color attributes
                 for obj in objArray:
