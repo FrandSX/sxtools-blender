@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 2, 26),
+    'version': (6, 3, 2),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -678,6 +678,31 @@ class SXTOOLS_utils(object):
                         bbx[j][1] = fvPos[j]
 
         return bbx[0][0], bbx[0][1], bbx[1][0], bbx[1][1], bbx[2][0], bbx[2][1]
+
+
+    # if vertex pos x y z is at bbx limit, and mirror axis is set, round vertex position
+    def round_tiling_verts(self, objs):
+        for obj in objs:
+            if obj.sxtools.tiling:
+                vert_dict = generate.vertex_data_dict(obj)
+                xmin, xmax, ymin, ymax, zmin, zmax = self.get_object_bounding_box([obj, ], local=True)
+
+                if len(vert_dict.keys()) > 0:
+                    for vert_id in vert_dict:
+                        vertLoc = Vector(vert_dict[vert_id][0])
+
+                        if (obj.sxtools.tile_neg_x and (round(vertLoc[0], 2) == round(xmin, 2))) or (obj.sxtools.tile_pos_x and (round(vertLoc[0], 2) == round(xmax, 2))):
+                            vertLoc[0] = round(vertLoc[0], 2)
+                        if (obj.sxtools.tile_neg_y and (round(vertLoc[1], 2) == round(ymin, 2))) or (obj.sxtools.tile_pos_y and (round(vertLoc[1], 2) == round(ymax, 2))):
+                            vertLoc[1] = round(vertLoc[1], 2)
+                        if (obj.sxtools.tile_neg_z and (round(vertLoc[2], 2) == round(zmin, 2))) or (obj.sxtools.tile_pos_z and (round(vertLoc[2], 2) == round(zmax, 2))):
+                            vertLoc[2] = round(vertLoc[2], 2)
+
+                        if vertLoc != Vector(vert_dict[vert_id][0]):
+                            obj.data.vertices[vert_id].co = vertLoc
+                            obj.data.vertices[vert_id].select = True
+
+                obj.data.update()
 
 
     def calculate_triangles(self, objs):
@@ -1450,189 +1475,188 @@ class SXTOOLS_setup(object):
 
 
     def create_tiler(self):
-        if 'sx_tiler' not in bpy.data.node_groups:
-            nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
-            group_in = nodetree.nodes.new(type='NodeGroupInput')
-            group_in.name = 'group_input'
-            group_in.location = (-800, 0)
-            group_out = nodetree.nodes.new(type='NodeGroupOutput')
-            group_out.name = 'group_output'
-            group_out.location = (1200, 0)
+        nodetree = bpy.data.node_groups.new(type='GeometryNodeTree', name='sx_tiler')
+        group_in = nodetree.nodes.new(type='NodeGroupInput')
+        group_in.name = 'group_input'
+        group_in.location = (-800, 0)
+        group_out = nodetree.nodes.new(type='NodeGroupOutput')
+        group_out.name = 'group_output'
+        group_out.location = (1200, 0)
 
-            bbx = nodetree.nodes.new(type='GeometryNodeBoundBox')
-            bbx.name = 'bbx'
-            bbx.location = (-600, 400)
+        bbx = nodetree.nodes.new(type='GeometryNodeBoundBox')
+        bbx.name = 'bbx'
+        bbx.location = (-600, 400)
 
-            flip = nodetree.nodes.new(type='GeometryNodeFlipFaces')
-            flip.name = 'flip'
-            flip.location = (-400, 0)
+        flip = nodetree.nodes.new(type='GeometryNodeFlipFaces')
+        flip.name = 'flip'
+        flip.location = (-400, 0)
 
-            # offset multiplier for mirror objects
-            offset = nodetree.nodes.new(type='ShaderNodeValue')
-            offset.name = 'offset'
-            offset.location = (-600, 300)
-            offset.outputs[0].default_value = 4.0
+        # offset multiplier for mirror objects
+        offset = nodetree.nodes.new(type='ShaderNodeValue')
+        offset.name = 'offset'
+        offset.location = (-600, 300)
+        offset.outputs[0].default_value = 4.0
 
-            # join all mirror copies prior to output
-            join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
-            join.name = 'join'
-            join.location = (1000, 0)
+        # join all mirror copies prior to output
+        join = nodetree.nodes.new(type='GeometryNodeJoinGeometry')
+        join.name = 'join'
+        join.location = (1000, 0)
 
-            # link base mesh to bbx and flip faces
-            output = group_in.outputs[0]
-            input = nodetree.nodes['bbx'].inputs['Geometry']
+        # link base mesh to bbx and flip faces
+        output = group_in.outputs[0]
+        input = nodetree.nodes['bbx'].inputs['Geometry']
+        nodetree.links.new(input, output)
+        output = group_in.outputs[0]
+        input = nodetree.nodes['flip'].inputs[0]
+        nodetree.links.new(input, output)
+        output = group_in.outputs[0]
+        input = join.inputs[0]
+        nodetree.links.new(input, output)
+
+        for i in range(2): 
+            # bbx offset multipliers for mirror objects
+            multiply = nodetree.nodes.new(type='ShaderNodeVectorMath')
+            multiply.name = 'multiply'+str(i)
+            multiply.location = (-400, 400-100*i)
+            multiply.operation = 'MULTIPLY'
+
+            # bbx min and max separators
+            separate = nodetree.nodes.new(type='ShaderNodeSeparateXYZ')
+            separate.name = 'separate'+str(i)
+            separate.location = (0, 400-100*i)
+
+            # link offset to multipliers
+            output = offset.outputs[0]
+            input = multiply.inputs[1]
             nodetree.links.new(input, output)
-            output = group_in.outputs[0]
-            input = nodetree.nodes['flip'].inputs[0]
+
+            # link bbx bounds to multipliers
+            output = bbx.outputs[i+1]
+            input = multiply.inputs[0]
             nodetree.links.new(input, output)
-            output = group_in.outputs[0]
+
+        bbx_subtract = nodetree.nodes.new(type='ShaderNodeVectorMath')
+        bbx_subtract.name = 'bbx_subtract'
+        bbx_subtract.location = (-200, 400)
+        bbx_subtract.operation = 'SUBTRACT'
+
+        bbx_add = nodetree.nodes.new(type='ShaderNodeVectorMath')
+        bbx_add.name = 'bbx_add'
+        bbx_add.location = (-200, 300)
+        bbx_add.operation = 'ADD'
+
+        # combine node for offset
+        combine_offset = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
+        combine_offset.name = 'combine_offset'
+        combine_offset.location = (-600, 100)
+
+        # expose offset, connect to bbx offsets
+        output = group_in.outputs.new('NodeSocketFloat', 'New')
+        input = combine_offset.inputs[0]
+        nodetree.links.new(output, input)
+        output = group_in.outputs[1]
+        input = combine_offset.inputs[1]
+        nodetree.links.new(output, input)
+        output = group_in.outputs[1]
+        input = combine_offset.inputs[2]
+        nodetree.links.new(output, input)
+
+        output = combine_offset.outputs[0]
+        input = bbx_subtract.inputs[1]
+        nodetree.links.new(output, input)
+        input = bbx_add.inputs[1]
+        nodetree.links.new(output, input)
+
+        # link multipliers to bbx offsets
+        output = nodetree.nodes['multiply0'].outputs[0]
+        input = nodetree.nodes['bbx_subtract'].inputs[0]
+        nodetree.links.new(input, output)
+        output = nodetree.nodes['multiply1'].outputs[0]
+        input = nodetree.nodes['bbx_add'].inputs[0]
+        nodetree.links.new(input, output)
+
+        # bbx to separate min and max
+        output = nodetree.nodes['bbx_subtract'].outputs[0]
+        input = nodetree.nodes['separate0'].inputs[0]
+        nodetree.links.new(input, output)
+        output = nodetree.nodes['bbx_add'].outputs[0]
+        input = nodetree.nodes['separate1'].inputs[0]
+        nodetree.links.new(input, output)
+
+        for i in range(6):
+            # combine nodes for mirror offsets
+            combine = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
+            combine.name = 'combine'+str(i)
+            combine.location = (400, -100*i)
+
+            # mirror axis enable switches
+            switch = nodetree.nodes.new(type="GeometryNodeSwitch")
+            switch.name = 'switch'+str(i)
+            switch.location = (600, -100*i)
+
+            # transforms for mirror copies
+            transform = nodetree.nodes.new(type='GeometryNodeTransform')
+            transform.name = 'transform'+str(i)
+            transform.location = (800, -100*i)
+
+            # link combine to translation
+            output = combine.outputs[0]
+            input = transform.inputs[1]
+            nodetree.links.new(input, output)
+
+            # expose axis enable switches
+            output = group_in.outputs.new('NodeSocketBool', 'New')
+            input = switch.inputs[1]
+            nodetree.links.new(output, input)
+
+            # link flipped mesh to switch input
+            output = flip.outputs[0]
+            input = switch.inputs[15]
+            nodetree.links.new(input, output)
+
+            # link switch mesh output to transform
+            output = switch.outputs[6]
+            input = transform.inputs[0]
+            nodetree.links.new(input, output)
+
+            # link mirror mesh output to join node
+            output = transform.outputs[0]
             input = join.inputs[0]
             nodetree.links.new(input, output)
 
-            for i in range(2): 
-                # bbx offset multipliers for mirror objects
-                multiply = nodetree.nodes.new(type='ShaderNodeVectorMath')
-                multiply.name = 'multiply'+str(i)
-                multiply.location = (-400, 400-100*i)
-                multiply.operation = 'MULTIPLY'
+        # link combined geometry to group output
+        output = nodetree.nodes['join'].outputs['Geometry']
+        input = group_out.inputs[0]
+        nodetree.links.new(input, output)
 
-                # bbx min and max separators
-                separate = nodetree.nodes.new(type='ShaderNodeSeparateXYZ')
-                separate.name = 'separate'+str(i)
-                separate.location = (0, 400-100*i)
+        # min max pairs to combiners in -x, x, -y, y, -z, z order
+        output = nodetree.nodes['separate0'].outputs[0]
+        input = nodetree.nodes['combine0'].inputs[0]
+        nodetree.links.new(input, output)
+        output = nodetree.nodes['separate1'].outputs[0]
+        input = nodetree.nodes['combine1'].inputs[0]
+        nodetree.links.new(input, output)
 
-                # link offset to multipliers
-                output = offset.outputs[0]
-                input = multiply.inputs[1]
-                nodetree.links.new(input, output)
+        output = nodetree.nodes['separate0'].outputs[1]
+        input = nodetree.nodes['combine2'].inputs[1]
+        nodetree.links.new(input, output)
+        output = nodetree.nodes['separate1'].outputs[1]
+        input = nodetree.nodes['combine3'].inputs[1]
+        nodetree.links.new(input, output)
 
-                # link bbx bounds to multipliers
-                output = bbx.outputs[i+1]
-                input = multiply.inputs[0]
-                nodetree.links.new(input, output)
+        output = nodetree.nodes['separate0'].outputs[2]
+        input = nodetree.nodes['combine4'].inputs[2]
+        nodetree.links.new(input, output)
+        output = nodetree.nodes['separate1'].outputs[2]
+        input = nodetree.nodes['combine5'].inputs[2]
+        nodetree.links.new(input, output)
 
-            bbx_subtract = nodetree.nodes.new(type='ShaderNodeVectorMath')
-            bbx_subtract.name = 'bbx_subtract'
-            bbx_subtract.location = (-200, 400)
-            bbx_subtract.operation = 'SUBTRACT'
-
-            bbx_add = nodetree.nodes.new(type='ShaderNodeVectorMath')
-            bbx_add.name = 'bbx_add'
-            bbx_add.location = (-200, 300)
-            bbx_add.operation = 'ADD'
-
-            # combine node for offset
-            combine_offset = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
-            combine_offset.name = 'combine_offset'
-            combine_offset.location = (-600, 100)
-
-            # expose offset, connect to bbx offsets
-            output = group_in.outputs.new('NodeSocketFloat', 'New')
-            input = combine_offset.inputs[0]
-            nodetree.links.new(output, input)
-            output = group_in.outputs[1]
-            input = combine_offset.inputs[1]
-            nodetree.links.new(output, input)
-            output = group_in.outputs[1]
-            input = combine_offset.inputs[2]
-            nodetree.links.new(output, input)
-
-            output = combine_offset.outputs[0]
-            input = bbx_subtract.inputs[1]
-            nodetree.links.new(output, input)
-            input = bbx_add.inputs[1]
-            nodetree.links.new(output, input)
-
-            # link multipliers to bbx offsets
-            output = nodetree.nodes['multiply0'].outputs[0]
-            input = nodetree.nodes['bbx_subtract'].inputs[0]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['multiply1'].outputs[0]
-            input = nodetree.nodes['bbx_add'].inputs[0]
-            nodetree.links.new(input, output)
-
-            # bbx to separate min and max
-            output = nodetree.nodes['bbx_subtract'].outputs[0]
-            input = nodetree.nodes['separate0'].inputs[0]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['bbx_add'].outputs[0]
-            input = nodetree.nodes['separate1'].inputs[0]
-            nodetree.links.new(input, output)
-
-            for i in range(6):
-                # combine nodes for mirror offsets
-                combine = nodetree.nodes.new(type='ShaderNodeCombineXYZ')
-                combine.name = 'combine'+str(i)
-                combine.location = (400, -100*i)
-
-                # mirror axis enable switches
-                switch = nodetree.nodes.new(type="GeometryNodeSwitch")
-                switch.name = 'switch'+str(i)
-                switch.location = (600, -100*i)
-
-                # transforms for mirror copies
-                transform = nodetree.nodes.new(type='GeometryNodeTransform')
-                transform.name = 'transform'+str(i)
-                transform.location = (800, -100*i)
-
-                # link combine to translation
-                output = combine.outputs[0]
-                input = transform.inputs[1]
-                nodetree.links.new(input, output)
-
-                # expose axis enable switches
-                output = group_in.outputs.new('NodeSocketBool', 'New')
-                input = switch.inputs[1]
-                nodetree.links.new(output, input)
-
-                # link flipped mesh to switch input
-                output = flip.outputs[0]
-                input = switch.inputs[15]
-                nodetree.links.new(input, output)
-
-                # link switch mesh output to transform
-                output = switch.outputs[6]
-                input = transform.inputs[0]
-                nodetree.links.new(input, output)
-
-                # link mirror mesh output to join node
-                output = transform.outputs[0]
-                input = join.inputs[0]
-                nodetree.links.new(input, output)
-
-            # link combined geometry to group output
-            output = nodetree.nodes['join'].outputs['Geometry']
-            input = group_out.inputs[0]
-            nodetree.links.new(input, output)
-
-            # min max pairs to combiners in -x, x, -y, y, -z, z order
-            output = nodetree.nodes['separate0'].outputs[0]
-            input = nodetree.nodes['combine0'].inputs[0]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['separate1'].outputs[0]
-            input = nodetree.nodes['combine1'].inputs[0]
-            nodetree.links.new(input, output)
-
-            output = nodetree.nodes['separate0'].outputs[1]
-            input = nodetree.nodes['combine2'].inputs[1]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['separate1'].outputs[1]
-            input = nodetree.nodes['combine3'].inputs[1]
-            nodetree.links.new(input, output)
-
-            output = nodetree.nodes['separate0'].outputs[2]
-            input = nodetree.nodes['combine4'].inputs[2]
-            nodetree.links.new(input, output)
-            output = nodetree.nodes['separate1'].outputs[2]
-            input = nodetree.nodes['combine5'].inputs[2]
-            nodetree.links.new(input, output)
-
-            nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
-            nodetree.nodes['transform1'].inputs[3].default_value[0] = -3.0
-            nodetree.nodes['transform2'].inputs[3].default_value[1] = -3.0
-            nodetree.nodes['transform3'].inputs[3].default_value[1] = -3.0
-            nodetree.nodes['transform4'].inputs[3].default_value[2] = -3.0
-            nodetree.nodes['transform5'].inputs[3].default_value[2] = -3.0
+        nodetree.nodes['transform0'].inputs[3].default_value[0] = -3.0
+        nodetree.nodes['transform1'].inputs[3].default_value[0] = -3.0
+        nodetree.nodes['transform2'].inputs[3].default_value[1] = -3.0
+        nodetree.nodes['transform3'].inputs[3].default_value[1] = -3.0
+        nodetree.nodes['transform4'].inputs[3].default_value[2] = -3.0
+        nodetree.nodes['transform5'].inputs[3].default_value[2] = -3.0
 
 
     def __del__(self):
@@ -2121,7 +2145,6 @@ class SXTOOLS_generate(object):
                                 mod_normal[i] = vertNormal[i]
 
                     if match:
-                        # obj.data.vertices[vert_id].select = True
                         vertNormal = Vector(mod_normal[:]).normalized()
 
                 # Pass 0: Raycast for bias
@@ -3450,7 +3473,8 @@ class SXTOOLS_tools(object):
                 obj.modifiers['sxMirror'].use_clip = True
                 obj.modifiers['sxMirror'].use_mirror_merge = True
             if 'sxTiler' not in obj.modifiers:
-                setup.create_tiler()
+                if 'sx_tiler' not in bpy.data.node_groups:
+                    setup.create_tiler()
                 tiler = obj.modifiers.new(type='NODES', name='sxTiler')
                 tiler.node_group = bpy.data.node_groups['sx_tiler']
                 obj.modifiers['sxTiler'].show_viewport = obj.sxtools.modifiervisibility
@@ -3567,7 +3591,7 @@ class SXTOOLS_tools(object):
 
     def remove_modifiers(self, objs, reset=False):
         modifiers = ['sxMirror', 'sxTiler', 'sxGeometryNodes', 'sxSubdivision', 'sxBevel', 'sxWeld', 'sxDecimate', 'sxDecimate2', 'sxEdgeSplit', 'sxWeightedNormal']
-        if 'sx_tiler' in bpy.data.node_groups:
+        if reset and ('sx_tiler' in bpy.data.node_groups):
             bpy.data.node_groups.remove(bpy.data.node_groups['sx_tiler'], do_unlink=True)
 
         for obj in objs:
@@ -5566,20 +5590,24 @@ def update_modifiers(self, context, prop):
                         obj.modifiers['sxMirror'].show_viewport = False
 
         elif prop == 'tiling':
-            if objs[0].sxtools.tiling:
-                if 'sxTiler' not in objs[0].modifiers:
-                    tools.remove_modifiers(objs)
-                    tools.add_modifiers(objs)
-
             for obj in objs:
-                tiler = obj.modifiers['sxTiler']
-                tiler['Input_1'] = obj.sxtools.tile_offset
-                tiler['Input_3'] = obj.sxtools.tile_pos_x
-                tiler['Input_2'] = obj.sxtools.tile_neg_x
-                tiler['Input_5'] = obj.sxtools.tile_pos_y
-                tiler['Input_4'] = obj.sxtools.tile_neg_y
-                tiler['Input_7'] = obj.sxtools.tile_pos_z
-                tiler['Input_6'] = obj.sxtools.tile_neg_z
+                if 'sxTiler' not in obj.modifiers:
+                    tools.remove_modifiers([obj, ])
+                    tools.add_modifiers([obj, ])
+                elif obj.modifiers['sxTiler'].node_group != bpy.data.node_groups['sx_tiler']:
+                    obj.modifiers['sxTiler'].node_group = bpy.data.node_groups['sx_tiler']
+
+                if obj.sxtools.tiling:
+                    utils.round_tiling_verts([obj, ])
+
+                    tiler = obj.modifiers['sxTiler']
+                    tiler['Input_1'] = obj.sxtools.tile_offset
+                    tiler['Input_2'] = obj.sxtools.tile_neg_x
+                    tiler['Input_3'] = obj.sxtools.tile_pos_x
+                    tiler['Input_4'] = obj.sxtools.tile_neg_y
+                    tiler['Input_5'] = obj.sxtools.tile_pos_y
+                    tiler['Input_6'] = obj.sxtools.tile_neg_z
+                    tiler['Input_7'] = obj.sxtools.tile_pos_z
 
                 obj.modifiers['sxTiler'].show_viewport = obj.sxtools.tiling
 
