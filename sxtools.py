@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 5),
+    'version': (6, 3, 6),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -3484,8 +3484,15 @@ class SXTOOLS_tools(object):
                     setup.create_tiler()
                 tiler = obj.modifiers.new(type='NODES', name='sxTiler')
                 tiler.node_group = bpy.data.node_groups['sx_tiler']
-                obj.modifiers['sxTiler'].show_viewport = obj.sxtools.modifiervisibility
-                obj.modifiers['sxTiler'].show_expanded = False
+                tiler['Input_1'] = obj.sxtools.tile_offset
+                tiler['Input_2'] = obj.sxtools.tile_neg_x
+                tiler['Input_3'] = obj.sxtools.tile_pos_x
+                tiler['Input_4'] = obj.sxtools.tile_neg_y
+                tiler['Input_5'] = obj.sxtools.tile_pos_y
+                tiler['Input_6'] = obj.sxtools.tile_neg_z
+                tiler['Input_7'] = obj.sxtools.tile_pos_z
+                tiler.show_viewport = obj.sxtools.modifiervisibility
+                tiler.show_expanded = False
             if 'sxSubdivision' not in obj.modifiers:
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
