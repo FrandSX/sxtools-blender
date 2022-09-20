@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 6),
+    'version': (6, 3, 7),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1558,7 +1558,8 @@ class SXTOOLS_setup(object):
         combine_offset.location = (-600, 100)
 
         # expose offset, connect to bbx offsets
-        output = group_in.outputs.new('NodeSocketFloat', 'New')
+        nodetree.inputs.new('NodeSocketFloat', 'New')
+        output = group_in.outputs[1]
         input = combine_offset.inputs[0]
         nodetree.links.new(output, input)
         output = group_in.outputs[1]
@@ -1612,7 +1613,8 @@ class SXTOOLS_setup(object):
             nodetree.links.new(input, output)
 
             # expose axis enable switches
-            output = group_in.outputs.new('NodeSocketBool', 'New')
+            nodetree.inputs.new('NodeSocketBool', 'New')
+            output = group_in.outputs[2+i]
             input = switch.inputs[1]
             nodetree.links.new(output, input)
 
