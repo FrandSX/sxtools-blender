@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 7),
+    'version': (6, 3, 8),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -339,6 +339,7 @@ class SXTOOLS_files(object):
 
                     if 'sxTiler' in obj.modifiers:
                         obj.modifiers.remove(obj.modifiers['sxTiler'])
+                        obj.data.use_auto_smooth = True
 
                 # bpy.context.view_layer.update()
                 bpy.context.view_layer.objects.active = group
