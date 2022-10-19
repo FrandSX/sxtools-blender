@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 9),
+    'version': (6, 3, 10),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -309,6 +309,7 @@ class SXTOOLS_files(object):
                     objArray.append(sel)
                     sel['staticVertexColors'] = sel.sxtools.staticvertexcolors
                     sel['sxToolsVersion'] = 'SX Tools for Blender ' + str(sys.modules['sxtools'].bl_info.get('version'))
+                    sel['colorSpace'] = prefs.exportspace
 
             if len(objArray) > 0:
                 empty = False
