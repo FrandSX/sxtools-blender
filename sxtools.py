@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 10),
+    'version': (6, 3, 12),
     'blender': (3, 2, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -345,9 +345,10 @@ class SXTOOLS_files(object):
                 # bpy.context.view_layer.update()
                 bpy.context.view_layer.objects.active = group
 
-                # If srgb colorspace exporting is selected
-                if exportspace == 'SRGB':
-                    export.export_to_srgb(objArray)
+                # If linear colorspace exporting is selected
+                # vertex colors pre-multiplied against Blender's unwanted sRGB export conversion
+                if exportspace == 'LIN':
+                    export.export_to_linear(objArray)
 
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
@@ -6095,7 +6096,7 @@ class SXTOOLS_preferences(bpy.types.AddonPreferences):
         items=[
             ('SRGB', 'sRGB', ''),
             ('LIN', 'Linear', '')],
-        default='SRGB')
+        default='LIN')
 
     removelods: bpy.props.BoolProperty(
         name='Remove LOD Meshes After Export',
@@ -6670,7 +6671,7 @@ class SXTOOLS_sceneprops(bpy.types.PropertyGroup):
     fillcolor: bpy.props.FloatVectorProperty(
         name='Fill Color',
         description='This color is applied to\nthe selected objects or components',
-        subtype='COLOR',
+        subtype='COLOR_GAMMA',
         size=4,
         min=0.0,
         max=1.0,
@@ -8518,12 +8519,12 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
             idx = objs[0].sxtools.selectedlayer
             layer = utils.find_layer_from_index(objs[0], idx)
             prefs = bpy.context.preferences.addons['sxtools'].preferences
-            color = context.scene.sxtools.fillcolor
+            color = convert.srgb_to_linear(context.scene.sxtools.fillcolor)
 
             if objs[0].mode == 'EDIT':
                 context.scene.sxtools.rampalpha = True
 
-            tools.apply_tool(objs, layer)
+            tools.apply_tool(objs, layer, color=color)
             if context.scene.sxtools.toolmode == 'COL':
                 tools.update_recent_colors(color)
 
