@@ -8524,9 +8524,11 @@ class SXTOOLS_OT_applytool(bpy.types.Operator):
             if objs[0].mode == 'EDIT':
                 context.scene.sxtools.rampalpha = True
 
-            tools.apply_tool(objs, layer, color=color)
             if context.scene.sxtools.toolmode == 'COL':
+                tools.apply_tool(objs, layer, color=color)
                 tools.update_recent_colors(color)
+            else:
+                tools.apply_tool(objs, layer)
 
             sxglobals.composite = True
             refresh_actives(self, context)
