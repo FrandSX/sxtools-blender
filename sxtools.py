@@ -1,8 +1,8 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 13),
-    'blender': (3, 2, 0),
+    'version': (6, 3, 15),
+    'blender': (3, 4, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
     'doc_url': 'https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6',
@@ -267,7 +267,7 @@ class SXTOOLS_files(object):
     def export_files(self, groups):
         scene = bpy.context.scene.sxtools
         prefs = bpy.context.preferences.addons['sxtools'].preferences
-        exportspace = prefs.exportspace
+        export_dict = {'LIN': 'LINEAR', 'SRGB': 'SRGB'}
         empty = True
 
         if 'ExportObjects' not in bpy.data.collections:
@@ -324,14 +324,6 @@ class SXTOOLS_files(object):
                     layer1 = utils.find_layer_from_index(obj, 1)
                     layers.blend_layers([obj, ], compLayers, layer1, layer0, uv_as_alpha=True)
 
-                    # Temporary fix for Blender 3.x not supporting exporting of float color attributes
-                    color_layers = utils.find_color_layers(obj)
-                    for layer in color_layers:
-                        colors = layers.get_layer(obj, layer)
-                        obj.data.attributes.remove(obj.data.attributes[layer.vertexColorLayer])
-                        obj.data.attributes.new(name=layer.vertexColorLayer, type='BYTE_COLOR', domain='CORNER')
-                        layers.set_layer(obj, colors, layer)
-
                     obj.data.attributes.active_color = obj.data.attributes[layer0.vertexColorLayer]
                     bpy.ops.geometry.color_attribute_render_set(name=layer0.vertexColorLayer)
 
@@ -344,11 +336,6 @@ class SXTOOLS_files(object):
 
                 # bpy.context.view_layer.update()
                 bpy.context.view_layer.objects.active = group
-
-                # If linear colorspace exporting is selected
-                # vertex colors pre-multiplied against Blender's unwanted sRGB export conversion
-                if exportspace == 'LIN':
-                    export.export_to_linear(objArray)
 
                 if prefs.materialtype == 'SMP':
                     path = scene.exportfolder
@@ -363,7 +350,7 @@ class SXTOOLS_files(object):
                         collider.select_set(True)
 
                 exportPath = path + group.name + '.' + 'fbx'
-                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y', '-Y', '-X']
+                export_settings = ['FBX_SCALE_UNITS', False, False, False, 'Z', '-Y', '-Y', '-X', export_dict[prefs.exportspace]]
 
                 bpy.ops.export_scene.fbx(
                     filepath=exportPath,
@@ -381,22 +368,14 @@ class SXTOOLS_files(object):
                     secondary_bone_axis=export_settings[7],
                     object_types={'ARMATURE', 'EMPTY', 'MESH'},
                     use_custom_props=True,
-                    use_metadata=False)
+                    use_metadata=False,
+                    colors_type=export_settings[8])
 
                 groupNames.append(group.name)
                 group.location = org_loc
 
                 tools.remove_modifiers(objArray)
                 tools.add_modifiers(objArray)
-
-                # Clean-up of temporary fix for Blender 3.x not supporting exporting of float color attributes
-                for obj in objArray:
-                    color_layers = utils.find_color_layers(obj)
-                    for layer in color_layers:
-                        colors = layers.get_layer(obj, layer)
-                        obj.data.attributes.remove(obj.data.attributes[layer.vertexColorLayer])
-                        obj.data.attributes.new(name=layer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')
-                        layers.set_layer(obj, colors, layer)
 
                 bpy.context.view_layer.objects.active = group
 
@@ -1239,11 +1218,13 @@ class SXTOOLS_setup(object):
         comp_node.location = (-600, 200)
 
 
-        sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-        sxmaterial.node_tree.nodes['Mix'].inputs[0].default_value = 1
-        sxmaterial.node_tree.nodes['Mix'].inputs[2].default_value = [1.0, 1.0, 1.0, 1.0]
-        sxmaterial.node_tree.nodes['Mix'].blend_type = 'MULTIPLY'
-        sxmaterial.node_tree.nodes['Mix'].location = (300, 200)
+        mix_00 = sxmaterial.node_tree.nodes.new(type='ShaderNodeMix')
+        mix_00.data_type = 'RGBA'
+        mix_00.inputs[0].default_value = 1
+        mix_00.inputs[6].default_value = [1.0, 1.0, 1.0, 1.0]
+        mix_00.inputs[7].default_value = [1.0, 1.0, 1.0, 1.0]
+        mix_00.blend_type = 'MULTIPLY'
+        mix_00.location = (300, 200)
 
         # Occlusion source
         if occlusion:
@@ -1289,10 +1270,11 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.nodes['EmissionXYZ'].location = (-300, -400)
 
         if emission:
-            sxmaterial.node_tree.nodes.new(type='ShaderNodeMixRGB')
-            sxmaterial.node_tree.nodes['Mix.001'].inputs[0].default_value = 1
-            sxmaterial.node_tree.nodes['Mix.001'].blend_type = 'MULTIPLY'
-            sxmaterial.node_tree.nodes['Mix.001'].location = (300, -400)
+            mix_01 = sxmaterial.node_tree.nodes.new(type='ShaderNodeMix')
+            mix_01.data_type = 'RGBA'
+            mix_01.inputs[0].default_value = 1
+            mix_01.blend_type = 'MULTIPLY'
+            mix_01.location = (300, -400)
 
             sxmaterial.node_tree.nodes.new(type='ShaderNodeMath')
             sxmaterial.node_tree.nodes['Math'].operation = 'MULTIPLY'
@@ -1301,13 +1283,13 @@ class SXTOOLS_setup(object):
 
         # Node connections
         # Vertex alpha to shader alpha
-        output = sxmaterial.node_tree.nodes['Composite Color'].outputs['Alpha']
+        output = comp_node.outputs['Alpha']
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Alpha']
         sxmaterial.node_tree.links.new(input, output)
 
         # Vertex color to mixer
-        output = sxmaterial.node_tree.nodes['Composite Color'].outputs['Color']
-        input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+        output = comp_node.outputs['Color']
+        input = mix_00.inputs[6]
         sxmaterial.node_tree.links.new(input, output)
 
         if occlusion:
@@ -1323,11 +1305,11 @@ class SXTOOLS_setup(object):
 
             # VisMix to mixer
             output = sxmaterial.node_tree.nodes['VisMix 1'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix'].inputs['Color2']
+            input = mix_00.inputs[7]
             sxmaterial.node_tree.links.new(input, output)
 
         # Mixer out to base color
-        output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+        output = mix_00.outputs[0]
         input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
         sxmaterial.node_tree.links.new(input, output)
 
@@ -1400,15 +1382,15 @@ class SXTOOLS_setup(object):
             sxmaterial.node_tree.links.new(input, output)
 
             # Mix occlusion/base mix with emission
-            output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+            output = mix_00.outputs[0]
+            input = mix_01.inputs[6]
             sxmaterial.node_tree.links.new(input, output)
             output = sxmaterial.node_tree.nodes['Math'].outputs['Value']
-            input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color2']
+            input = mix_01.inputs[7]
             sxmaterial.node_tree.links.new(input, output)
 
             # Mix to VisMix
-            output = sxmaterial.node_tree.nodes['Mix.001'].outputs['Color']
+            output = mix_01.outputs[0]
             input = sxmaterial.node_tree.nodes['VisMix 5'].inputs['Color2']
             sxmaterial.node_tree.links.new(input, output)
 
@@ -2261,7 +2243,7 @@ class SXTOOLS_generate(object):
 
 
     def color_list(self, obj, color, masklayer=None, as_tuple=False):
-        count = len(obj.data.attributes[0].data)
+        count = len(obj.data.color_attributes[0].data)
         colors = [color[0], color[1], color[2], color[3]] * count
 
         return self.mask_list(obj, colors, masklayer, as_tuple)
@@ -5351,11 +5333,11 @@ def shading_mode(self, context):
 
                 # Reconnect vertex color to mixer
                 output = sxmaterial.node_tree.nodes['Composite Color'].outputs['Color']
-                input = sxmaterial.node_tree.nodes['Mix'].inputs['Color1']
+                input = sxmaterial.node_tree.nodes['Mix'].inputs[6]
                 sxmaterial.node_tree.links.new(input, output)
 
                 # Reconnect mixer to base color
-                output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
+                output = sxmaterial.node_tree.nodes['Mix'].outputs[2]
                 input = sxmaterial.node_tree.nodes['Principled BSDF'].inputs['Base Color']
                 sxmaterial.node_tree.links.new(input, output)
 
@@ -5389,8 +5371,8 @@ def shading_mode(self, context):
                     sxmaterial.node_tree.links.new(input, output)
 
                     # Reconnect base mix
-                    output = sxmaterial.node_tree.nodes['Mix'].outputs['Color']
-                    input = sxmaterial.node_tree.nodes['Mix.001'].inputs['Color1']
+                    output = sxmaterial.node_tree.nodes['Mix'].outputs[2]
+                    input = sxmaterial.node_tree.nodes['Mix.001'].inputs[6]
                     sxmaterial.node_tree.links.new(input, output)
 
             else:
@@ -5413,7 +5395,7 @@ def shading_mode(self, context):
 
                 # Check if already debug
                 if sxglobals.prevShadingMode == 'FULL':
-                    attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[0].links[0]
+                    attrLink = sxmaterial.node_tree.nodes['Mix'].outputs[2].links[0]
                     sxmaterial.node_tree.links.remove(attrLink)
                     if metallic:
                         attrLink = sxmaterial.node_tree.nodes['VisMix 2'].outputs[0].links[0]
@@ -5887,7 +5869,7 @@ def compositing_mode(self, context):
     sxmaterial = bpy.data.materials['SXMaterial'].node_tree
     sw_output = sxmaterial.nodes['Composite Color'].outputs['Color']
     hw_output = sxmaterial.nodes['Final Step'].outputs['Color']
-    input = sxmaterial.nodes['Mix'].inputs['Color1']
+    input = sxmaterial.nodes['Mix'].inputs[6]
 
     if context.scene.sxtools.gpucomposite:
         sxmaterial.links.new(input, hw_output)
