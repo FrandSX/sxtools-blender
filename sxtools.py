@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 15),
+    'version': (6, 3, 17),
     'blender': (3, 4, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -869,13 +869,13 @@ class SXTOOLS_setup(object):
 
             # Check if vertex color layers exist,
             # and delete if legacy data is found
-            for vertexColor in mesh.attributes:
+            for vertexColor in mesh.color_attributes:
                 if 'VertexColor' not in vertexColor:
-                    mesh.attributes.remove(mesh.attributes[vertexColor])
+                    mesh.color_attributes.remove(mesh.color_attributes[vertexColor])
 
             for sxLayer in colorArray:
-                if sxLayer.vertexColorLayer not in mesh.attributes:
-                    mesh.attributes.new(name=sxLayer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')  # type='BYTE_COLOR', domain='CORNER')
+                if sxLayer.vertexColorLayer not in mesh.color_attributes:
+                    mesh.color_attributes.new(name=sxLayer.vertexColorLayer, type='FLOAT_COLOR', domain='CORNER')  # type='BYTE_COLOR', domain='CORNER')
                     layers.clear_layers([obj, ], sxLayer)
                     changed = True
 
@@ -3231,8 +3231,14 @@ class SXTOOLS_tools(object):
         utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
         for obj in objs:
             mesh = obj.data
-            if not mesh.use_customdata_vertex_crease:
-                mesh.use_customdata_vertex_crease = True
+            if not mesh.has_crease_vertex:
+                bpy.ops.mesh.customdata_crease_vertex_add()
+            if not mesh.has_crease_edge:
+                bpy.ops.mesh.customdata_crease_edge_add()
+            if not mesh.has_bevel_weight_edge:
+                bpy.ops.mesh.customdata_bevel_weight_edge_add()
+            if not mesh.has_bevel_weight_vertex:
+                bpy.ops.mesh.customdata_bevel_weight_vertex_add()
 
         bpy.ops.object.mode_set(mode='EDIT', toggle=False)
         bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
