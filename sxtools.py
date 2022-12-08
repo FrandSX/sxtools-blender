@@ -3221,15 +3221,18 @@ class SXTOOLS_tools(object):
 
 
     def assign_set(self, objs, setvalue, setmode):
-        mode = objs[0].mode
-        modeDict = {
-            'CRS': 'SubSurfCrease',
-            'BEV': 'BevelWeight'}
+        mode = objs[0].mode[:]
+        mode_dict = {'CRS': 'crease', 'BEV': 'bevel_weight'}
         weight = setvalue
-        modename = modeDict[setmode]
+        if (setmode == 'CRS') and (weight == -1.0):
+            weight = 0.0 
 
         utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
+        active = bpy.context.view_layer.objects.active
+
+        # Create necessary data layers
         for obj in objs:
+            bpy.context.view_layer.objects.active = obj
             mesh = obj.data
             if not mesh.has_crease_vertex:
                 bpy.ops.mesh.customdata_crease_vertex_add()
@@ -3240,108 +3243,65 @@ class SXTOOLS_tools(object):
             if not mesh.has_bevel_weight_vertex:
                 bpy.ops.mesh.customdata_bevel_weight_vertex_add()
 
-        bpy.ops.object.mode_set(mode='EDIT', toggle=False)
-        bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-        utils.mode_manager(objs, revert=True, mode_id='assign_set')
-
-        # EDIT mode vertex creasing
-        if (mode == 'EDIT') and (bpy.context.tool_settings.mesh_select_mode[0]):
-            utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
-            for obj in objs:
-                mesh = obj.data
-
-                # vertex creasing
-                if bpy.context.tool_settings.mesh_select_mode[0]:
+            if (mode == 'EDIT'):
+                # EDIT mode vertex creasing
+                # vertex beveling not supported
+                if (bpy.context.tool_settings.mesh_select_mode[0]):
                     weight_values = [None] * len(mesh.vertices)
                     select_values = [None] * len(mesh.vertices)
-                    mesh.vertex_creases[0].data.foreach_get('value', weight_values)
-                    mesh.vertices.foreach_get("select", select_values)
+                    mesh.vertices.foreach_get('select', select_values)
+                    if setmode == 'CRS':
+                        mesh.vertex_creases[0].data.foreach_get('value', weight_values)
+                        for i, sel in enumerate(select_values):
+                            if sel:
+                                weight_values[i] = weight
+
+                    mesh.vertex_creases[0].data.foreach_set('value', weight_values)
+
+                # EDIT mode edge creasing and beveling
+                elif (bpy.context.tool_settings.mesh_select_mode[1] or bpy.context.tool_settings.mesh_select_mode[2]):
+                    weight_values = [None] * len(mesh.edges)
+                    sharp_values = [None] * len(mesh.edges)
+                    select_values = [None] * len(mesh.edges)
+                    mesh.edges.foreach_get(mode_dict[setmode], weight_values)
+                    mesh.edges.foreach_get('use_edge_sharp', sharp_values)
+                    mesh.edges.foreach_get('select', select_values)
 
                     for i, sel in enumerate(select_values):
                         if sel:
-                            if weight == -1.0:
-                                weight = 0.0
                             weight_values[i] = weight
+                            if setmode == 'CRS':
+                                if weight == 1.0:
+                                    sharp_values[i] = True
+                                else:
+                                    sharp_values[i] = False
 
-                    mesh.vertex_creases[0].data.foreach_set('value', weight_values)
-                mesh.update()
-            utils.mode_manager(objs, revert=True, mode_id='assign_set')
+                    mesh.edges.foreach_set(mode_dict[setmode], weight_values)
+                    mesh.edges.foreach_set('use_edge_sharp', sharp_values)
 
-        # EDIT mode edge creasing and beveling
-        elif (mode == 'EDIT') and (bpy.context.tool_settings.mesh_select_mode[1] or bpy.context.tool_settings.mesh_select_mode[2]):
-            for obj in objs:
-                mesh = obj.data
-                bm = bmesh.from_edit_mesh(mesh)
-
-                if setmode == 'CRS':
-                    if modename in bm.edges.layers.crease:
-                        bmlayer = bm.edges.layers.crease[modename]
-                    else:
-                        bmlayer = bm.edges.layers.crease.new(modename)
-                else:
-                    if modename in bm.edges.layers.bevel_weight:
-                        bmlayer = bm.edges.layers.bevel_weight[modename]
-                    else:
-                        bmlayer = bm.edges.layers.bevel_weight.new(modename)
-
-                selectedEdges = [edge for edge in bm.edges if edge.select]
-                for edge in selectedEdges:
-                    edge[bmlayer] = weight
-                    if setmode == 'CRS':
-                        mesh.edges[edge.index].crease = weight
-                        if weight == 1.0:
-                            edge.smooth = False
-                            mesh.edges[edge.index].use_edge_sharp = True
-                        else:
-                            edge.smooth = True
-                            mesh.edges[edge.index].use_edge_sharp = False
-
-                bmesh.update_edit_mesh(mesh)
-                bm.free()
-
-        # OBJECT mode
-        else:
-            utils.mode_manager(objs, set_mode=True, mode_id='assign_set')
-            for obj in objs:
-                mesh = obj.data
+            # OBJECT mode
+            else:
                 # vertex creasing
-                if (bpy.context.tool_settings.mesh_select_mode[0]) and (setmode == 'CRS'):
-                    if weight == -1.0:
-                        weight = 0.0
-                    weight_values = [weight] * len(mesh.vertices)
-                    mesh.vertex_creases[0].data.foreach_set('value', weight_values)
-                    mesh.update()
+                if (bpy.context.tool_settings.mesh_select_mode[0]):
+                    if setmode == 'CRS':
+                        weight_values = [weight] * len(mesh.vertices)
+                        mesh.vertex_creases[0].data.foreach_set('value', weight_values)
+
                 # edge creasing and beveling
                 else:
-                    bm = bmesh.new()
-                    bm.from_mesh(mesh)
-
                     if setmode == 'CRS':
-                        if modename in bm.edges.layers.crease:
-                            bmlayer = bm.edges.layers.crease[modename]
+                        if weight == 1.0:
+                            sharp_values = [True] * len(mesh.edges)
                         else:
-                            bmlayer = bm.edges.layers.crease.new(modename)
-                    else:
-                        if modename in bm.edges.layers.bevel_weight:
-                            bmlayer = bm.edges.layers.bevel_weight[modename]
-                        else:
-                            bmlayer = bm.edges.layers.bevel_weight.new(modename)
+                            sharp_values = [False] * len(mesh.edges)
+                        mesh.edges.foreach_set('use_edge_sharp', sharp_values)
 
-                    for edge in bm.edges:
-                        edge[bmlayer] = weight
-                        if setmode == 'CRS':
-                            mesh.edges[edge.index].crease = weight
-                            if weight == 1.0:
-                                edge.smooth = False
-                                mesh.edges[edge.index].use_edge_sharp = True
-                            else:
-                                edge.smooth = True
-                                mesh.edges[edge.index].use_edge_sharp = False
+                    weight_values = [weight] * len(mesh.edges)
+                    mesh.edges.foreach_set(mode_dict[setmode], weight_values)
 
-                    bm.to_mesh(mesh)
-                    bm.free()
-
-            utils.mode_manager(objs, revert=True, mode_id='assign_set')
+            mesh.update()
+        utils.mode_manager(objs, revert=True, mode_id='assign_set')
+        bpy.context.view_layer.objects.active = active
 
 
     def select_set(self, objs, setvalue, setmode, clearsel=False):
