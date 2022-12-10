@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 18),
+    'version': (6, 3, 19),
     'blender': (3, 4, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -1501,9 +1501,6 @@ class SXTOOLS_setup(object):
         output = group_in.outputs[0]
         input = nodetree.nodes['flip'].inputs[0]
         nodetree.links.new(input, output)
-        output = group_in.outputs[0]
-        input = join.inputs[0]
-        nodetree.links.new(input, output)
 
         for i in range(2): 
             # bbx offset multipliers for mirror objects
@@ -1617,6 +1614,11 @@ class SXTOOLS_setup(object):
             output = transform.outputs[0]
             input = join.inputs[0]
             nodetree.links.new(input, output)
+
+        # link group input to join for working auto-smooth
+        output = group_in.outputs[0]
+        input = join.inputs[0]
+        nodetree.links.new(input, output)
 
         # link combined geometry to group output
         output = nodetree.nodes['join'].outputs['Geometry']
