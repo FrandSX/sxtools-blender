@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'SX Tools',
     'author': 'Jani Kahrama / Secret Exit Ltd.',
-    'version': (6, 3, 19),
+    'version': (6, 3, 20),
     'blender': (3, 4, 0),
     'location': 'View3D',
     'description': 'Multi-layer vertex coloring tool',
@@ -82,7 +82,7 @@ class SXTOOLS_sxglobals(object):
             ['overlay', False, 10, 'UV4', (0.5, 0.5, 0.5, 1.0), 0.0, True, 1.0, 'OVR', '', 'UVSet5', 'U', 'UVSet5', 'V', 'UVSet6', 'U', 'UVSet6', 'V', False],
             ['texture', False, 16, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet0', 'U', 'UVSet0', 'V', '', 'U', '', 'U', False],
             ['masks', False, 17, 'UV', (0.0, 0.0, 0.0, 0.0), 0.0, True, 1.0, 'ALPHA', '', 'UVSet1', 'U', '', 'U', '', 'U', '', 'U', False]]
- 
+
         self.layer_init_dict = {
             0:  {'index': 0,  'name': 'composite',    'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor0',  'default_color': (0.0, 0.0, 0.0, 0.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
             1:  {'index': 1,  'name': 'layer1',       'enabled': False, 'layer_type': 'COLOR', 'export_data': 'VertexColor1',  'default_color': (0.5, 0.5, 0.5, 1.0), 'default_value': 0.0, 'visibility': True, 'layer_alpha': 1.0, 'blend_mode': 'ALPHA', 'locked': False},
@@ -3449,7 +3449,6 @@ class SXTOOLS_tools(object):
                 tiler['Input_7'] = obj.sxtools.tile_pos_z
                 tiler.show_viewport = obj.sxtools.modifiervisibility
                 tiler.show_expanded = False
-                obj.data.use_auto_smooth = not obj.sxtools.modifiervisibility
             if 'sxSubdivision' not in obj.modifiers:
                 obj.modifiers.new(type='SUBSURF', name='sxSubdivision')
                 obj.modifiers['sxSubdivision'].show_viewport = obj.sxtools.modifiervisibility
@@ -5515,7 +5514,6 @@ def update_modifiers(self, context, prop):
                         obj.data.use_auto_smooth = True
                     else:
                         obj.modifiers['sxTiler'].show_viewport = obj.sxtools.modifiervisibility
-                        obj.data.use_auto_smooth = not obj.sxtools.modifiervisibility
                 if 'sxSubdivision' in obj.modifiers:
                     if (obj.sxtools.subdivisionlevel == 0):
                         obj.modifiers['sxSubdivision'].show_viewport = False
@@ -5585,7 +5583,6 @@ def update_modifiers(self, context, prop):
                     tiler['Input_7'] = obj.sxtools.tile_pos_z
 
                 obj.modifiers['sxTiler'].show_viewport = obj.sxtools.tiling
-                obj.data.use_auto_smooth = not obj.sxtools.modifiervisibility
 
         elif prop == 'hardmode':
             for obj in objs:
