@@ -1,4 +1,7 @@
 # sxtools-blender
+
+This project has been superceded by [SX Tools 2](https://github.com/FrandSX/sxtools2-blender)
+
 NOTE: Please visit the new [Documentation Site](https://www.notion.so/SX-Tools-for-Blender-Documentation-9ad98e239f224624bf98246822a671a6) This readme is partially out of date.
 
 ## For Game Developers
